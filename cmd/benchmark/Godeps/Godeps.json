@@ -1,0 +1,21 @@
+{
+	"ImportPath": "github.com/weibocom/wqs/cmd/benchmark",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v62",
+	"Deps": [
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.8.3-3-g07d998d",
+			"Rev": "07d998d174c4e2dc90e2f1989a20724220bca1ff"
+		},
+		{
+			"ImportPath": "github.com/docopt/docopt-go",
+			"Comment": "0.6.2",
+			"Rev": "784ddc588536785e7299f7272f39101f7faccc3f"
+		},
+		{
+			"ImportPath": "github.com/juju/errors",
+			"Rev": "b2c7a7da5b2995941048f60146e67702a292e468"
+		}
+	]
+}

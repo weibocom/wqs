@@ -1,0 +1,48 @@
+1.队列操作：
+增加队列：
+curl -d "action=create&queue=menglong_queue1" "http://127.0.0.1:8080/queue"
+{"action":"create","result":true}
+删除队列：
+curl -d "action=remove&queue=menglong_queue1" "http://127.0.0.1:8080/queue"
+{"action":"create","result":true}
+查看队列：
+curl "http://127.0.0.1:8080/queue?action=lookup"
+[{"queue":"test_queue1","groups":[{"group":"test_group","write":true,"read":true,"url":"test_group.test_queue","ips":["192.168.0.1","192.168.0.2"]}]},{"queue":"test_queue2","groups":[{"group":"test_group","write":true,"read":true,"url":"test_group.test_queue","ips":["192.168.0.1","192.168.0.2"]}]},{"queue":"menglong_queue1","groups":[{"group":"menglong_group1","write":false,"read":true,"url":"menglong_group1.menglong_queue1.intra.weibo.com","ips":["172.0.0.1"]},{"group":"menglong_group2","write":true,"read":true,"url":"menglong_group2.menglong_queue1.intra.weibo.com"}]}]
+curl "http://127.0.0.1:8080/queue?action=lookup&queue=menglong_queue1"
+[{"queue":"menglong_queue1","groups":[{"group":"menglong_group1","write":false,"read":true,"url":"menglong_group1.menglong_queue1.intra.weibo.com","ips":["172.0.0.1"]},{"group":"menglong_group2","write":true,"read":true,"url":"menglong_group2.menglong_queue1.intra.weibo.com"}]}]
+curl "http://127.0.0.1:8080/queue?action=lookup&queue=menglong_queue1&group=menglong_group2"
+[{"queue":"menglong_queue1","groups":[{"group":"menglong_group2","write":true,"read":true,"url":"menglong_group2.menglong_queue1.intra.weibo.com"}]}]
+
+2.分组操作:
+增加分组：
+curl -d "action=add&group=menglong_group1&queue=menglong_queue1&write=true&read=true" "http://127.0.0.1:8080/group"
+{"action":"add","result":true}
+删除分组：
+curl -d "action=remove&group=menglong_group2&queue=menglong_queue1" "http://127.0.0.1:8080/group"
+{"action":"remove","result":true}
+更改分组：
+curl -d "action=update&group=menglong_group2&queue=menglong_queue1&write=false" "http://127.0.0.1:8080/group"
+{"action":"update","result":true}
+查看分组：
+curl "http://127.0.0.1:8080/group?action=lookup" 
+[{"group":"menglong_group1","queues":[{"queue":"menglong_queue1","write":false,"read":true,"url":"menglong_group1.menglong_queue1.intra.weibo.com","ips":["172.0.0.1"]}]},{"group":"test_group","queues":[{"queue":"test_queue1","write":true,"read":true,"url":"test_group.test_queue","ips":["192.168.0.1","192.168.0.2"]},{"queue":"test_queue2","write":true,"read":true,"url":"test_group.test_queue","ips":["192.168.0.1","192.168.0.2"]}]}]
+curl "http://127.0.0.1:8080/group?action=lookup&group=menglong_group1"
+[{"group":"menglong_group1","queues":[{"queue":"menglong_queue1","write":false,"read":true,"url":"menglong_group1.menglong_queue1.intra.weibo.com","ips":["172.0.0.1"]}]}]
+
+3.消息操作：
+发送消息：
+curl -d "action=send&queue=menglong_queue1&group=menglong_group1&msg=helloworld2" "http://127.0.0.1:8080/msg"
+{"action":"send","result":true}
+接收消息：
+curl "http://127.0.0.1:8080/msg?action=receive&queue=menglong_queue1&group=menglong_group1"
+{"action":"receive","msg":"helloworld2"}
+
+4.监控操作：
+发送量：
+curl "http://127.0.0.1:8080/monitor?type=send&queue=menglong_queue1&group=menglong_group1"
+{"data":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,4,3,0],"time":[1460976430,1460976440,1460976450,1460976460,1460976470,1460976480,1460976490,1460976500,1460976510,1460976520,1460976530,1460976540,1460976550,1460976560,1460976570,1460976580,1460976590,1460976600,1460976610,1460976620,1460976630,1460976640,1460976650,1460976660,1460976670,1460976680,1460976690,1460976700,1460976710,1460976720,1460976730]}
+接收量：
+curl "http://127.0.0.1:8080/monitor?type=receive&queue=menglong_queue1&group=menglong_group1"
+{"data":[0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,6,0],"time":[1460976520,1460976530,1460976540,1460976550,1460976560,1460976570,1460976580,1460976590,1460976600,1460976610,1460976620,1460976630,1460976640,1460976650,1460976660,1460976670,1460976680,1460976690,1460976700,1460976710,1460976720,1460976730,1460976740,1460976750,1460976760,1460976770,1460976780,1460976790,1460976800,1460976810,1460976820]}
+
+

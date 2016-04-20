@@ -1,0 +1,1 @@
+just becuase of the wqs dependances is not stable, and all dependant packages are update to date version, so we just empty the vendor path, and every time we build wqs, "go get ./..." will be sure everything goes well.

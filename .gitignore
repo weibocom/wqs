@@ -1,24 +1,41 @@
-# Compiled Object files, Static and Dynamic libs (Shared Objects)
-*.o
-*.a
-*.so
+# maven ignore
+target/
+*.war
+*.zip
+*.tar
+*.tar.gz
 
-# Folders
-_obj
-_test
+# eclipse ignore
+.settings/
+.project
+.classpath
 
-# Architecture specific extensions/prefixes
-*.[568vq]
-[568vq].out
+# idea ignore
+.idea/
+*.ipr
+*.iml
+*.iws
 
-*.cgo1.go
-*.cgo2.c
-_cgo_defun.c
-_cgo_gotypes.go
-_cgo_export.*
+# temp ignore
+*.log
+*.cache
+*.diff
+*.patch
+*.tmp
+.svn/
 
-_testmain.go
+# system ignore
+.DS_Store
+Thumbs.db
+target/
+logs/
 
-*.exe
-*.test
-*.prof
+# the binary qservice
+wqs
+qservice 
+bin
+add_licence.sh
+COMMENT_LICENSE
+*.jar
+kafka
+ui
