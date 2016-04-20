@@ -34,7 +34,6 @@ logs/
 wqs
 qservice 
 bin
-add_licence.sh
 COMMENT_LICENSE
 *.jar
 ui
