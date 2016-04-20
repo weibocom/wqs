@@ -36,7 +36,7 @@ type KafkaConsumer struct {
 	group        string
 }
 
-func NewKafkaConsumer(topic string, group string, config config.Config) *KafkaConsumer {
+func NewKafkaConsumer(topic string, group string, config *config.Config) *KafkaConsumer {
 	kafkaConsumer := KafkaConsumer{}
 
 	kafkaConsumer.msgChan = make(chan *go_kafka_client.Message)

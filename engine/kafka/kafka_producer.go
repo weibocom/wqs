@@ -22,20 +22,19 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/elodina/siesta"
 	siesta_producer "github.com/elodina/siesta-producer"
-	"github.com/weibocom/wqs/config"
 )
 
 type KafkaProducer struct {
 	producer *siesta_producer.KafkaProducer
 }
 
-func NewKafkaProducer(config config.Config) *KafkaProducer {
+func NewKafkaProducer(brokerAddr string) *KafkaProducer {
 	kafkaProducer := KafkaProducer{}
 
 	producerConfig := siesta_producer.NewProducerConfig()
 	connConfig := siesta.NewConnectorConfig()
 
-	brokerList := strings.Split(config.BrokerAddr, ",")
+	brokerList := strings.Split(brokerAddr, ",")
 
 	producerConfig.BrokerList = brokerList
 	connConfig.BrokerList = brokerList

@@ -17,19 +17,31 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"os"
 	"os/signal"
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/protocol/http"
 	"github.com/weibocom/wqs/protocol/mc"
 	"github.com/weibocom/wqs/service"
 )
 
+var (
+	configFile = flag.String("config", "config.properties", "qservice's configure file")
+)
+
 func main() {
-	conf := config.LoadConfig()
+
+	flag.Parse()
+	conf, err := config.NewConfigFromFile(*configFile)
+	if err != nil {
+		log.Fatal(errors.ErrorStack(err))
+	}
+
 	queueService := service.NewQueueService(conf)
 	httpServer := http.NewHttpServer(queueService, conf)
 	go httpServer.Start()

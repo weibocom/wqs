@@ -37,7 +37,7 @@ type McServer struct {
 	sendBuffSize int
 }
 
-func NewMcServer(queueService *service.QueueService, config config.Config) *McServer {
+func NewMcServer(queueService *service.QueueService, config *config.Config) *McServer {
 	return &McServer{
 		port:         config.McPort,
 		queueService: queueService,

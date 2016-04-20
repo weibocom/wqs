@@ -38,11 +38,11 @@ const (
 
 type KafkaManager struct {
 	zookeeperCoordinator *go_kafka_client.ZookeeperCoordinator
-	config               config.Config
+	config               *config.Config
 	zkClient             *zookeeper.ZkClient
 }
 
-func NewKafkaManager(config config.Config) *KafkaManager {
+func NewKafkaManager(config *config.Config) *KafkaManager {
 	kafkaManager := KafkaManager{}
 	zkConfig := go_kafka_client.NewZookeeperConfig()
 	zkConfig.ZookeeperConnect = strings.Split(config.ZookeeperAddr, ",")

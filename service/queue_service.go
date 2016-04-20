@@ -26,21 +26,21 @@ import (
 )
 
 type QueueService struct {
+	config        *config.Config
 	monitor       *metrics.Monitor
-	config        config.Config
 	manager       *kafka.KafkaManager
 	producer      *kafka.KafkaProducer
 	consumerMap   map[string]kafka.KafkaConsumer
 	extendManager *kafka.ExtendManager
 }
 
-func NewQueueService(config config.Config) *QueueService {
+func NewQueueService(config *config.Config) *QueueService {
 	queueService := QueueService{}
 	queueService.config = config
+	queueService.monitor = metrics.NewMonitor(config.RedisAddr)
 	queueService.manager = kafka.NewKafkaManager(config)
-	queueService.producer = kafka.NewKafkaProducer(config)
+	queueService.producer = kafka.NewKafkaProducer(config.BrokerAddr)
 	queueService.consumerMap = make(map[string]kafka.KafkaConsumer)
-	queueService.monitor = metrics.NewMonitor(config)
 	queueService.extendManager = kafka.NewExtendManager(config)
 	queueService.monitor.Start()
 	return &queueService

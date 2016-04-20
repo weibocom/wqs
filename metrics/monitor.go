@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/weibocom/wqs/config"
 	redis "gopkg.in/redis.v3"
 )
 
@@ -33,10 +32,10 @@ type Monitor struct {
 	statisticMap map[string]*int64 //key=$queue.$group.$action eg:remind.if.s remind.if.r
 }
 
-func NewMonitor(config config.Config) *Monitor {
+func NewMonitor(redisAddr string) *Monitor {
 	monitor := Monitor{}
 	monitor.redisClient = redis.NewClient(&redis.Options{
-		Addr:     config.RedisAddr,
+		Addr:     redisAddr,
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})

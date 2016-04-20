@@ -14,15 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//主要提供配置加载功能，目前是从配置文件中进行配置加载
 package config
 
-/*
-主要提供配置加载功能，目前是从配置文件中进行配置加载
-*/
-
 import (
-	"flag"
-	//"fmt"
+	"github.com/juju/errors"
 	"github.com/magiconair/properties"
 )
 
@@ -40,45 +36,88 @@ type Config struct {
 	RedisAddr          string
 }
 
-func NewConfig() Config {
-	config := Config{}
-	config.ZookeeperAddr = "10.77.109.121:2181,10.77.109.122:2181,10.77.109.131:2181"
-	config.BrokerAddr = "10.77.109.129:9092,10.77.109.130:9092"
-	config.HttpPort = "8080"
-	config.McPort = "11211"
-	config.MotanPort = "8881"
-	config.UiDir = "./ui"
-	config.PartitionsNum = 16
-	config.ReplicationsNum = 2
-	config.RedisAddr = "10.77.109.132:6379"
-	config.McSocketRecvBuffer = 4096
-	config.McSocketSendBuffer = 4096
-	return config
+func NewConfig() *Config {
+	return &Config{
+		ZookeeperAddr:      "localhost:2181",
+		BrokerAddr:         "localhost:9092",
+		HttpPort:           "8080",
+		McPort:             "11211",
+		MotanPort:          "8881",
+		UiDir:              "./ui",
+		PartitionsNum:      16,
+		ReplicationsNum:    2,
+		RedisAddr:          "localhost:6379",
+		McSocketRecvBuffer: 4096,
+		McSocketSendBuffer: 4096,
+	}
 }
 
-/*
-从配置文件中加载配置，将proxy和kafka的配置加载到不同的结构体
-*/
-func (config *Config) loadProperties() {
-	filename := flag.String("config", "config.properties", "Load Properties of Proxy and Kafka")
-	flag.Parse()
-	p := properties.MustLoadFile(*filename, properties.UTF8)
+func NewConfigFromFile(file string) (*Config, error) {
 
-	config.HttpPort = p.MustGetString("http.port")
-	config.UiDir = p.MustGetString("ui.dir")
-	config.ZookeeperAddr = p.MustGetString("zookeeper.connect")
-	config.BrokerAddr = p.MustGetString("broker.connect")
-	config.PartitionsNum = p.MustGetInt("partitions.num")
-	config.ReplicationsNum = p.MustGetInt("replications.num")
-	config.RedisAddr = p.MustGetString("redis.connect")
-	config.McPort = p.MustGetString("mc.port")
-	config.MotanPort = p.MustGetString("motan.port")
-	config.McSocketRecvBuffer = p.MustGetInt("mc.socket.recv.buffer")
-	config.McSocketSendBuffer = p.MustGetInt("mc.socket.send.buffer")
-}
+	p, err := properties.LoadFile(file, properties.UTF8)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 
-func LoadConfig() Config {
-	var config Config
-	config.loadProperties()
-	return config
+	httpPort, exist := p.Get("http.port")
+	if !exist {
+		return nil, errors.NotFoundf("http.port")
+	}
+
+	uiDir, exist := p.Get("ui.dir")
+	if !exist {
+		return nil, errors.NotFoundf("ui.dir")
+	}
+
+	zookeeperAddr, exist := p.Get("zookeeper.connect")
+	if !exist {
+		return nil, errors.NotFoundf("zookeeper.connect")
+	}
+
+	brokerAddr, exist := p.Get("broker.connect")
+	if !exist {
+		return nil, errors.NotFoundf("broker.connect")
+	}
+
+	partitionsNum := int(p.GetInt64("partitions.num", 0))
+	if partitionsNum == 0 {
+		return nil, errors.NotValidf("partitions.num")
+	}
+
+	replicationsNum := int(p.GetInt64("replications.num", -1))
+	if replicationsNum == -1 {
+		return nil, errors.NotValidf("replications.num")
+	}
+
+	redisAddr, exist := p.Get("redis.connect")
+	if !exist {
+		return nil, errors.NotFoundf("redis.connect")
+	}
+
+	mcPort, exist := p.Get("mc.port")
+	if !exist {
+		return nil, errors.NotFoundf("mc.port")
+	}
+
+	motanPort, exist := p.Get("motan.port")
+	if !exist {
+		return nil, errors.NotFoundf("motan.port")
+	}
+
+	mcSocketRecvBuffer := int(p.GetInt64("mc.socket.recv.buffer", 4096))
+	mcSocketSendBuffer := int(p.GetInt64("mc.socket.send.buffer", 4096))
+
+	return &Config{
+		HttpPort:           httpPort,
+		UiDir:              uiDir,
+		ZookeeperAddr:      zookeeperAddr,
+		BrokerAddr:         brokerAddr,
+		PartitionsNum:      partitionsNum,
+		ReplicationsNum:    replicationsNum,
+		RedisAddr:          redisAddr,
+		McPort:             mcPort,
+		MotanPort:          motanPort,
+		McSocketRecvBuffer: mcSocketRecvBuffer,
+		McSocketSendBuffer: mcSocketSendBuffer,
+	}, nil
 }

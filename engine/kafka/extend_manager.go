@@ -36,11 +36,11 @@ const (
 )
 
 type ExtendManager struct {
-	config   config.Config
+	config   *config.Config
 	zkClient *zookeeper.ZkClient
 }
 
-func NewExtendManager(config config.Config) *ExtendManager {
+func NewExtendManager(config *config.Config) *ExtendManager {
 	extendManager := ExtendManager{}
 	extendManager.config = config
 	extendManager.zkClient = zookeeper.NewZkClient(strings.Split(config.ZookeeperAddr, ","))

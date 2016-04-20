@@ -35,7 +35,7 @@ type HttpServer struct {
 	queueService *service.QueueService
 }
 
-func NewHttpServer(queueService *service.QueueService, config config.Config) *HttpServer {
+func NewHttpServer(queueService *service.QueueService, config *config.Config) *HttpServer {
 	httpServer := HttpServer{}
 	httpServer.port = config.HttpPort
 	httpServer.uidir = config.UiDir
