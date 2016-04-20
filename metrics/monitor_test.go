@@ -17,7 +17,6 @@ limitations under the License.
 package metrics
 
 import (
-	//"encoding/json"
 	"fmt"
 	"testing"
 	"time"

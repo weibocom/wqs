@@ -19,7 +19,7 @@ package kafka
 import (
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 	"github.com/elodina/siesta"
 	siesta_producer "github.com/elodina/siesta-producer"
 )

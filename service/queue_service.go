@@ -17,7 +17,7 @@ limitations under the License.
 package service
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/kafka"

@@ -22,7 +22,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/protocol/http"
@@ -31,15 +31,22 @@ import (
 )
 
 var (
-	configFile = flag.String("config", "config.properties", "qservice's configure file")
+	configFile   = flag.String("config", "config.properties", "qservice's configure file")
+	configSeelog = flag.String("seelog", "seelog.xml", "qservice's seelog configure")
 )
 
 func main() {
 
 	flag.Parse()
+	err := initLogger(*configSeelog)
+	if err != nil {
+		log.Critical(errors.ErrorStack(err))
+		return
+	}
 	conf, err := config.NewConfigFromFile(*configFile)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.Critical(errors.ErrorStack(err))
+		return
 	}
 
 	queueService := service.NewQueueService(conf)
@@ -50,7 +57,9 @@ func main() {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
-	log.Info("Process start")
+	log.Infof("Process start")
 	<-c
 	log.Info("Process stop")
+	log.Flush()
+	log.Current.Close()
 }

@@ -1,0 +1,9 @@
+<seelog type="sync">
+    <outputs formatid="log">
+        <file path="seelogsync.log"/>
+	<console />
+    </outputs>
+    <formats>
+        <format id="log" format="%Date %Time [%Level] %Msg%n" />
+    </formats>
+</seelog>

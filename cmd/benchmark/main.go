@@ -19,7 +19,7 @@ package main
 import (
 	"runtime"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 	docopt "github.com/docopt/docopt-go"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/utils"
@@ -54,9 +54,9 @@ func fatal(msg interface{}) {
 
 	switch msg.(type) {
 	case string:
-		log.Fatal(msg)
+		log.Info(msg)
 	case error:
-		log.Fatal(errors.ErrorStack(msg.(error)))
+		log.Info(errors.ErrorStack(msg.(error)))
 	}
 }
 

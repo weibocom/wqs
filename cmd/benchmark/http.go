@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 	docopt "github.com/docopt/docopt-go"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/utils"
@@ -55,7 +55,7 @@ func benchmarkHttpSet() error {
 	url := fmt.Sprintf("http://%s/msg", globalHost)
 	sendString := fmt.Sprintf("action=receive&qname=%s&biz=%s&msg=%s",
 		globalQueue, globalBiz, utils.GenTestMessage(globalMsgLength))
-	log.Printf("Test URL: %s, Data: %s", url, sendString)
+	log.Infof("Test URL: %s, Data: %s", url, sendString)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
 
@@ -76,7 +76,7 @@ func benchmarkHttpGet() error {
 
 	url := fmt.Sprintf("http://%s/msg?action=receive&qname=%s&biz=%s",
 		globalHost, globalQueue, globalBiz)
-	log.Printf("Test URL: %s", url)
+	log.Infof("Test URL: %s", url)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
 

@@ -17,7 +17,7 @@ limitations under the License.
 package kafka
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 
 	"encoding/json"
 	"strings"

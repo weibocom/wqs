@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/cihub/seelog"
 	"github.com/elodina/go_kafka_client"
 	"github.com/weibocom/wqs/config"
 )

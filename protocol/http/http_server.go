@@ -19,14 +19,16 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/service"
+
+	log "github.com/cihub/seelog"
 )
 
 type HttpServer struct {
@@ -59,7 +61,8 @@ func (this *HttpServer) Start() {
 
 	err := http.ListenAndServe(":"+this.port, nil)
 	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+		log.Criticalf("ListenAndServe: ", err)
+		os.Exit(-1)
 	}
 }
 
