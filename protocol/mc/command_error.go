@@ -33,6 +33,6 @@ var (
 	ENGINE_ERROR_PREFIX        = []byte("SERVER_ERROR engine error ")
 )
 
-func commandUnkown(qservice *service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error {
+func commandUnkown(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error {
 	return errors.NotSupportedf("command %s ", string(cmdLine))
 }

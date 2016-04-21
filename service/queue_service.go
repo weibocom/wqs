@@ -17,15 +17,33 @@ limitations under the License.
 package service
 
 import (
-	log "github.com/cihub/seelog"
-
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/model"
+
+	log "github.com/cihub/seelog"
+	"github.com/juju/errors"
 )
 
-type QueueService struct {
+type QueueService interface {
+	CreateQueue(queue string) error
+	UpdateQueue(queue string) error
+	DeleteQueue(queue string) error
+	LookupQueue(queue string, group string) ([]*model.QueueInfo, error)
+	AddGroup(group string, queue string, write bool, read bool, url string, ips []string) error
+	UpdateGroup(group string, queue string, write bool, read bool, url string, ips []string) error
+	DeleteGroup(group string, queue string) error
+	LookupGroup(group string) ([]*model.GroupInfo, error)
+	GetSingleGroup(group string, queue string) (*model.GroupConfig, error)
+	SendMsg(queue string, group string, data []byte) error
+	ReceiveMsg(queue string, group string) (data []byte, err error)
+	AckMsg(queue string, group string) error
+	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64
+	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64
+}
+
+type queueService struct {
 	config        *config.Config
 	monitor       *metrics.Monitor
 	manager       *kafka.KafkaManager
@@ -34,92 +52,135 @@ type QueueService struct {
 	extendManager *kafka.ExtendManager
 }
 
-func NewQueueService(config *config.Config) *QueueService {
-	queueService := QueueService{}
-	queueService.config = config
-	queueService.monitor = metrics.NewMonitor(config.RedisAddr)
-	queueService.manager = kafka.NewKafkaManager(config)
-	queueService.producer = kafka.NewKafkaProducer(config.BrokerAddr)
-	queueService.consumerMap = make(map[string]kafka.KafkaConsumer)
-	queueService.extendManager = kafka.NewExtendManager(config)
-	queueService.monitor.Start()
-	return &queueService
+func NewQueueService(config *config.Config) QueueService {
+	qs := &queueService{
+		config:        config,
+		monitor:       metrics.NewMonitor(config.RedisAddr),
+		manager:       kafka.NewKafkaManager(config),
+		producer:      kafka.NewKafkaProducer(config.BrokerAddr),
+		consumerMap:   make(map[string]kafka.KafkaConsumer),
+		extendManager: kafka.NewExtendManager(config),
+	}
+	qs.monitor.Start()
+	return qs
 }
 
 //========队列操作相关函数========//
 
-func (this *QueueService) CreateQueue(queue string) bool {
-	this.extendManager.AddQueue(queue)
-	return this.manager.CreateTopic(queue, this.config.ReplicationsNum, this.config.PartitionsNum)
+func (q *queueService) CreateQueue(queue string) error {
+	q.extendManager.AddQueue(queue)
+	if !q.manager.CreateTopic(queue, q.config.ReplicationsNum,
+		q.config.PartitionsNum) {
+		return errors.Errorf("create topic %s failed.", queue)
+	}
+	return nil
 }
 
 //暂时没有什么可以update的
-func (this *QueueService) UpdateQueue(queue string) bool {
-	return false
+func (q *queueService) UpdateQueue(queue string) error {
+	return nil
 }
 
-func (this *QueueService) DeleteQueue(queue string) bool {
+func (q *queueService) DeleteQueue(queue string) error {
 	// if !this.manager.ExistTopic(queue) {
 	// 	return false
 	// }
-	queuemap := this.extendManager.GetQueueMap()
+	queuemap := q.extendManager.GetQueueMap()
 	groups, ok := queuemap[queue]
 	if ok {
 		for _, group := range groups {
-			this.extendManager.DeleteGroupConfig(group, queue)
-			this.manager.DeleteGroupTopic(group, queue)
+			q.extendManager.DeleteGroupConfig(group, queue)
+			q.manager.DeleteGroupTopic(group, queue)
 		}
 	}
-	this.extendManager.DelQueue(queue)
-	return this.manager.DeleteTopic(queue)
+	q.extendManager.DelQueue(queue)
+	if !q.manager.DeleteTopic(queue) {
+		return errors.Errorf("delete topic %s failed.", queue)
+	}
+	return nil
 }
 
-func (this *QueueService) LookupQueue(queue string, group string) []*model.QueueInfo {
-	var queueInfos []*model.QueueInfo = make([]*model.QueueInfo, 0)
+func (q *queueService) LookupQueue(queue string,
+	group string) ([]*model.QueueInfo, error) {
+
+	queueInfos := make([]*model.QueueInfo, 0)
+	groupConfigs := make([]*model.GroupConfig, 0)
 	if queue == "" {
-		queueMap := this.extendManager.GetQueueMap()
-		for q, gs := range queueMap {
-			var groupConfigs []*model.GroupConfig = make([]*model.GroupConfig, 0)
+		queueMap := q.extendManager.GetQueueMap()
+		for qName, gs := range queueMap {
+
 			for _, g := range gs {
-				config := this.extendManager.GetGroupConfig(g, q)
+				config := q.extendManager.GetGroupConfig(g, qName)
 				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{Group: config.Group, Write: config.Write, Read: config.Read, Url: config.Url, Ips: config.Ips})
+					groupConfigs = append(groupConfigs, &model.GroupConfig{
+						Group: config.Group,
+						Write: config.Write,
+						Read:  config.Read,
+						Url:   config.Url,
+						Ips:   config.Ips,
+					})
 				} else {
-					log.Errorf("config is nil group:%s, queue:%s", g, q)
+					log.Errorf("config is nil group:%s, queue:%s", g, qName)
 				}
 			}
-			ctime := this.manager.GetTopicCreateTime(q)
-			queueInfos = append(queueInfos, &model.QueueInfo{Queue: q, Ctime: ctime, Length: 0, Groups: groupConfigs})
+			ctime := q.manager.GetTopicCreateTime(qName)
+			queueInfos = append(queueInfos, &model.QueueInfo{
+				Queue:  qName,
+				Ctime:  ctime,
+				Length: 0,
+				Groups: groupConfigs,
+			})
 		}
 	} else if queue != "" && group == "" {
-		queueMap := this.extendManager.GetQueueMap()
+		queueMap := q.extendManager.GetQueueMap()
 		groups := queueMap[queue]
-		var groupConfigs []*model.GroupConfig = make([]*model.GroupConfig, 0)
 		for _, g := range groups {
-			config := this.extendManager.GetGroupConfig(g, queue)
+			config := q.extendManager.GetGroupConfig(g, queue)
 			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{Group: config.Group, Write: config.Write, Read: config.Read, Url: config.Url, Ips: config.Ips})
+				groupConfigs = append(groupConfigs, &model.GroupConfig{
+					Group: config.Group,
+					Write: config.Write,
+					Read:  config.Read,
+					Url:   config.Url,
+					Ips:   config.Ips,
+				})
 			} else {
 				log.Errorf("config is nil group:%s, queue:%s", g, queue)
 			}
 		}
-		ctime := this.manager.GetTopicCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{Queue: queue, Ctime: ctime, Length: 0, Groups: groupConfigs})
+		ctime := q.manager.GetTopicCreateTime(queue)
+		queueInfos = append(queueInfos, &model.QueueInfo{
+			Queue:  queue,
+			Ctime:  ctime,
+			Length: 0,
+			Groups: groupConfigs,
+		})
 	} else {
-		var groupConfigs []*model.GroupConfig = make([]*model.GroupConfig, 0)
-		config := this.extendManager.GetGroupConfig(group, queue)
+		config := q.extendManager.GetGroupConfig(group, queue)
 		if config != nil {
-			groupConfigs = append(groupConfigs, &model.GroupConfig{Group: config.Group, Write: config.Write, Read: config.Read, Url: config.Url, Ips: config.Ips})
+			groupConfigs = append(groupConfigs, &model.GroupConfig{
+				Group: config.Group,
+				Write: config.Write,
+				Read:  config.Read,
+				Url:   config.Url,
+				Ips:   config.Ips,
+			})
 		}
-		ctime := this.manager.GetTopicCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{Queue: queue, Ctime: ctime, Length: 0, Groups: groupConfigs})
+		ctime := q.manager.GetTopicCreateTime(queue)
+		queueInfos = append(queueInfos, &model.QueueInfo{
+			Queue:  queue,
+			Ctime:  ctime,
+			Length: 0,
+			Groups: groupConfigs,
+		})
 	}
-	return queueInfos
+	return queueInfos, nil
 }
 
 //========业务操作相关函数========//
 
-func (this *QueueService) AddGroup(group string, queue string, write bool, read bool, url string, ips []string) bool {
+func (q *queueService) AddGroup(group string, queue string,
+	write bool, read bool, url string, ips []string) error {
 	// if !this.manager.ExistTopic(queue) {
 	// 	return false
 	// }
@@ -128,86 +189,115 @@ func (this *QueueService) AddGroup(group string, queue string, write bool, read 
 	// tempConsumer.Connect()
 	// tempConsumer.Get()
 	// tempConsumer.Disconnect()
-	return this.extendManager.AddGroupConfig(group, queue, write, read, url, ips)
+	if !q.extendManager.AddGroupConfig(group, queue,
+		write, read, url, ips) {
+		return errors.Errorf("AddGroupConfig error")
+	}
+	return nil
 }
 
-func (this *QueueService) UpdateGroup(group string, queue string, write bool, read bool, url string, ips []string) bool {
+func (q *queueService) UpdateGroup(group string, queue string,
+	write bool, read bool, url string, ips []string) error {
 	// if !this.manager.ExistTopic(queue) {
 	// 	return false
 	// }
-	return this.extendManager.UpdateGroupConfig(group, queue, write, read, url, ips)
+	if !q.extendManager.UpdateGroupConfig(group, queue,
+		write, read, url, ips) {
+		return errors.Errorf("UpdateGroupConfig error")
+	}
+	return nil
 }
 
-func (this *QueueService) DeleteGroup(group string, queue string) bool {
+func (q *queueService) DeleteGroup(group string, queue string) error {
 	// if !this.manager.ExistTopic(queue) {
 	// 	return false
 	// }
-	this.manager.DeleteGroupTopic(group, queue)
+	q.manager.DeleteGroupTopic(group, queue)
 	// if len(this.manager.GetGroupTopics(biz)) == 0 {
 	// 	this.manager.DeleteGroup(biz)
 	// }
-	return this.extendManager.DeleteGroupConfig(group, queue)
+	if !q.extendManager.DeleteGroupConfig(group, queue) {
+		return errors.Errorf("DeleteGroupConfig failed.")
+	}
+	return nil
 }
 
-func (this *QueueService) LookupGroup(group string) []*model.GroupInfo {
-	var groupInfos []*model.GroupInfo = make([]*model.GroupInfo, 0)
+func (q *queueService) LookupGroup(group string) ([]*model.GroupInfo, error) {
+	groupInfos := make([]*model.GroupInfo, 0)
+	groupConfigs := make([]*model.GroupConfig, 0)
 	if group == "" {
-		groupMap := this.extendManager.GetGroupMap()
-		for g, qs := range groupMap {
-			var groupConfigs []*model.GroupConfig = make([]*model.GroupConfig, 0)
-			for _, q := range qs {
-				config := this.extendManager.GetGroupConfig(g, q)
+		groupMap := q.extendManager.GetGroupMap()
+		for gName, qs := range groupMap {
+			for _, qName := range qs {
+				config := q.extendManager.GetGroupConfig(gName, qName)
 				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{Queue: config.Queue, Write: config.Write, Read: config.Read, Url: config.Url, Ips: config.Ips})
+					groupConfigs = append(groupConfigs, &model.GroupConfig{
+						Queue: config.Queue,
+						Write: config.Write,
+						Read:  config.Read,
+						Url:   config.Url,
+						Ips:   config.Ips,
+					})
 				} else {
-					log.Errorf("config is nil group:%s, queue:%s", g, q)
+					log.Errorf("config is nil group:%s, queue:%s", gName, qName)
 				}
 			}
-			groupInfos = append(groupInfos, &model.GroupInfo{Group: g, Queues: groupConfigs})
+			groupInfos = append(groupInfos, &model.GroupInfo{
+				Group:  gName,
+				Queues: groupConfigs,
+			})
 		}
 	} else {
-		groupMap := this.extendManager.GetGroupMap()
+		groupMap := q.extendManager.GetGroupMap()
 		queues := groupMap[group]
-		var groupConfigs []*model.GroupConfig = make([]*model.GroupConfig, 0)
 		for _, queue := range queues {
-			config := this.extendManager.GetGroupConfig(group, queue)
+			config := q.extendManager.GetGroupConfig(group, queue)
 			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{Queue: config.Queue, Write: config.Write, Read: config.Read, Url: config.Url, Ips: config.Ips})
+				groupConfigs = append(groupConfigs, &model.GroupConfig{
+					Queue: config.Queue,
+					Write: config.Write,
+					Read:  config.Read,
+					Url:   config.Url,
+					Ips:   config.Ips,
+				})
 			} else {
 				log.Errorf("config is nil group:%s, queue:%s", group, queue)
 			}
 		}
-		groupInfos = append(groupInfos, &model.GroupInfo{Group: group, Queues: groupConfigs})
+		groupInfos = append(groupInfos, &model.GroupInfo{
+			Group:  group,
+			Queues: groupConfigs,
+		})
 	}
-	return groupInfos
+	return groupInfos, nil
 }
 
-func (this *QueueService) GetSingleGroup(group string, queue string) *model.GroupConfig {
-	return this.extendManager.GetGroupConfig(group, queue)
+func (q *queueService) GetSingleGroup(group string, queue string) (*model.GroupConfig, error) {
+	return q.extendManager.GetGroupConfig(group, queue), nil
 }
 
 //========消息操作相关函数========//
 
-func (this *QueueService) SendMsg(queue string, group string, data []byte) error {
+func (q *queueService) SendMsg(queue string, group string, data []byte) error {
 	var err error
 	// if !this.manager.ExistTopic(queue) {
 	// 	err = errors.New("topic not exist!")
 	// } else {
-	err = this.producer.Set(queue, data)
+	err = q.producer.Set(queue, data)
 	if err == nil {
-		go this.monitor.StatisticSend(queue, group, 1)
+		go q.monitor.StatisticSend(queue, group, 1)
 	}
 	// }
 	return err
 }
 
-func (this *QueueService) ReceiveMsg(queue string, group string) (data []byte, err error) {
+func (q *queueService) ReceiveMsg(queue string, group string) (data []byte, err error) {
 	// if !this.manager.ExistTopic(queue) {
 	// 	err = errors.New("topic not exist!")
 	// 	data = nil
 	// } else {
 	id := queue + group
-	consumer, ok := this.consumerMap[id]
+	consumer, ok := q.consumerMap[id]
 	if ok {
 		if !consumer.IsConnected {
 			consumer.Connect()
@@ -217,34 +307,36 @@ func (this *QueueService) ReceiveMsg(queue string, group string) (data []byte, e
 
 	} else {
 		log.Debugf("msg receive, queue:%s, group:%s, create new consumer", queue, group)
-		newConsumer := kafka.NewKafkaConsumer(queue, group, this.config)
+		newConsumer := kafka.NewKafkaConsumer(queue, group, q.config)
 		newConsumer.Connect()
-		this.consumerMap[id] = *newConsumer
+		q.consumerMap[id] = *newConsumer
 		data, err = newConsumer.Get()
 	}
 	if err == nil {
-		go this.monitor.StatisticReceive(queue, group, 1)
+		go q.monitor.StatisticReceive(queue, group, 1)
 	}
 	// }
 	return
 }
 
-func (this *QueueService) AckMsg(queue string, group string) error {
+func (q *queueService) AckMsg(queue string, group string) error {
 	return nil
 }
 
 //========监控操作相关函数========//
 
-func (this *QueueService) GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64 {
-	if !this.manager.ExistTopic(queue) {
+func (q *queueService) GetSendMetrics(queue string, group string,
+	start int64, end int64, intervalnum int) map[string][]int64 {
+	if !q.manager.ExistTopic(queue) {
 		return nil
 	}
-	return this.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
+	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
 }
 
-func (this *QueueService) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64 {
-	if !this.manager.ExistTopic(queue) {
+func (q *queueService) GetReceiveMetrics(queue string, group string,
+	start int64, end int64, intervalnum int) map[string][]int64 {
+	if !q.manager.ExistTopic(queue) {
 		return nil
 	}
-	return this.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
+	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
 }

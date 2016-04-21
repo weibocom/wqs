@@ -32,13 +32,13 @@ import (
 
 type McServer struct {
 	port         string
-	queueService *service.QueueService
+	queueService service.QueueService
 	listener     *utils.Listener
 	recvBuffSize int
 	sendBuffSize int
 }
 
-func NewMcServer(queueService *service.QueueService, config *config.Config) *McServer {
+func NewMcServer(queueService service.QueueService, config *config.Config) *McServer {
 	return &McServer{
 		port:         config.McPort,
 		queueService: queueService,

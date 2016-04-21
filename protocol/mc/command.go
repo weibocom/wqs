@@ -23,7 +23,7 @@ import (
 	"github.com/weibocom/wqs/service"
 )
 
-type MemcacheCommand func(qservice *service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error
+type MemcacheCommand func(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt

@@ -38,7 +38,7 @@ var (
 	NIL_VALUE = []byte{}
 )
 
-func command_get(qservice *service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
+func command_get(qservice service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 	keys := Fields(cmdLine)
 	if len(keys) <= 1 {
 		_, err = w.Write(ERROR)
