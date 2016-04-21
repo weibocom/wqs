@@ -23,7 +23,7 @@ import (
 	"github.com/weibocom/wqs/service"
 )
 
-type MemcacheCommand func(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error
+type MemcacheCommand func(qservice *service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt
@@ -34,6 +34,10 @@ var (
 
 func init() {
 	commands = make(map[string]MemcacheCommand)
+	registerCommand(GET_NAME, command_get)
+	registerCommand(GETS_NAME, command_get)
+	registerCommand(SET_NAME, commandSet)
+	registerCommand(CMD_UNKNOWN, commandUnkown)
 }
 
 func registerCommand(name string, command MemcacheCommand) error {

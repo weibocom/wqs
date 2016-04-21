@@ -18,7 +18,6 @@ package mc
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -31,14 +30,10 @@ const (
 	SET_NAME = "set"
 )
 
-func init() {
-	registerCommand(SET_NAME, commandSet)
-}
+func commandSet(qservice *service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 
-func commandSet(qservice service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 	fields := Fields(cmdLine[4:]) // the first for bytes are "set "
 	l := len(fields)
-	fmt.Println("field length", l)
 	if l < 4 || l > 5 {
 		_, err = w.Write(ERROR)
 		return
@@ -66,8 +61,15 @@ func commandSet(qservice service.QueueService, cmdLine []byte, lr LineReader, w 
 		return
 	}
 	log.Debugf("mc command set, key:%s flags:%s exptime:%s len:%d, reply: %s, data: %s\n", key, flags, exptime, dataLength, noreply, data)
-	queue := strings.Split(string(key), ".")[0]
-	biz := strings.Split(string(key), ".")[1]
+	keys := strings.Split(string(key), ".")
+	queue := keys[0]
+	var biz string
+	if len(keys) > 1 {
+		biz = keys[1]
+	} else {
+		biz = "default"
+	}
+
 	err = qservice.SendMsg(queue, biz, data)
 	if err != nil {
 		estr := err.Error()

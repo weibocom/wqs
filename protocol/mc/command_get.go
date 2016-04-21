@@ -17,7 +17,6 @@ limitations under the License.
 package mc
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -39,19 +38,13 @@ var (
 	NIL_VALUE = []byte{}
 )
 
-func init() {
-	registerCommand(GET_NAME, command_get)
-	registerCommand(GETS_NAME, command_get)
-}
-
-func command_get(qservice service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
+func command_get(qservice *service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 	keys := Fields(cmdLine)
 	if len(keys) <= 1 {
 		_, err = w.Write(ERROR)
 		return
 	}
 	for _, key := range keys[1:] {
-		fmt.Println("key", string(key))
 		queue := strings.Split(string(key), ".")[0]
 		biz := strings.Split(string(key), ".")[1]
 

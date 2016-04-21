@@ -19,8 +19,9 @@ package mc
 import (
 	"io"
 
-	log "github.com/cihub/seelog"
 	"github.com/weibocom/wqs/service"
+
+	"github.com/juju/errors"
 )
 
 var (
@@ -32,11 +33,6 @@ var (
 	ENGINE_ERROR_PREFIX        = []byte("SERVER_ERROR engine error ")
 )
 
-func init() {
-	registerCommand(CMD_UNKNOWN, commandUnkown)
-}
-
-func commandUnkown(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error {
-	log.Warnf("command unkown. line:%s", string(cmdLine))
-	return nil
+func commandUnkown(qservice *service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error {
+	return errors.NotSupportedf("command %s ", string(cmdLine))
 }

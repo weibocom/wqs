@@ -75,19 +75,17 @@ func (ms *McServer) connLoop(conn net.Conn) {
 		conn.Close()
 	}()
 
-	var finalErr error
 	br := NewBufferedLineReader(conn, ms.recvBuffSize)
 	bw := bufio.NewWriterSize(conn, ms.sendBuffSize)
 
-MainLoop:
 	for {
 		line, err := br.ReadLine()
 		if err != nil {
 			if err == io.EOF {
-				break MainLoop
+				return
 			}
-			finalErr = errors.Trace(err)
-			break MainLoop
+			log.Debugf("mc readline err:%s", err)
+			return
 		}
 		cmdIdx := bytes.IndexByte(line, ' ')
 		cName := ""
@@ -100,16 +98,12 @@ MainLoop:
 		if !exists {
 			command = commandUnkown
 		}
-		err = command(*ms.queueService, line, br, bw)
+		err = command(ms.queueService, line, br, bw)
 		br.Reset()
 		bw.Flush()
 		if err != nil {
-			finalErr = errors.Trace(err)
+			log.Debugf("mc command err:%s", errors.ErrorStack(err))
 		}
-	}
-
-	if finalErr != nil {
-		log.Warnf("connection loop error:%s", errors.ErrorStack(finalErr))
 	}
 }
 
