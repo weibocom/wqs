@@ -59,6 +59,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
 	log.Infof("Process start")
 	<-c
+	mcServer.Close()
 	log.Info("Process stop")
 	log.Flush()
 	log.Current.Close()
