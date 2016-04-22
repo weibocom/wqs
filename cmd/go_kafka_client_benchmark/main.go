@@ -134,6 +134,8 @@ func runCommand(cmd string) (err error) {
 		return errors.Trace(cmdBenchmarkSet())
 	case "set1":
 		return errors.Trace(cmdBenchmarkSetNoAck())
+	case "set2":
+		return errors.Trace(cmdBenchmarkSet2())
 	}
 	return errors.NotSupportedf("See 'go_kafka_client_benchmark -h', command %s", cmd)
 }
