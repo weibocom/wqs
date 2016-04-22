@@ -24,6 +24,7 @@ import (
 
 type Config struct {
 	ZookeeperAddr      string
+	ZookeeperRootPath  string
 	BrokerAddr         string
 	HttpPort           string
 	McPort             string
@@ -39,6 +40,7 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		ZookeeperAddr:      "localhost:2181",
+		ZookeeperRootPath:  "",
 		BrokerAddr:         "localhost:9092",
 		HttpPort:           "8080",
 		McPort:             "11211",
@@ -72,6 +74,11 @@ func NewConfigFromFile(file string) (*Config, error) {
 	zookeeperAddr, exist := p.Get("zookeeper.connect")
 	if !exist {
 		return nil, errors.NotFoundf("zookeeper.connect")
+	}
+
+	zookeeperRootPath, exist := p.Get("zookeeper.rootpath")
+	if !exist {
+		return nil, errors.NotFoundf("zookeeper.rootpath")
 	}
 
 	brokerAddr, exist := p.Get("broker.connect")
@@ -111,6 +118,7 @@ func NewConfigFromFile(file string) (*Config, error) {
 		HttpPort:           httpPort,
 		UiDir:              uiDir,
 		ZookeeperAddr:      zookeeperAddr,
+		ZookeeperRootPath:  zookeeperRootPath,
 		BrokerAddr:         brokerAddr,
 		PartitionsNum:      partitionsNum,
 		ReplicationsNum:    replicationsNum,
