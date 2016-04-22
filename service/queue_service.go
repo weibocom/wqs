@@ -39,8 +39,8 @@ type QueueService interface {
 	SendMsg(queue string, group string, data []byte) error
 	ReceiveMsg(queue string, group string) (data []byte, err error)
 	AckMsg(queue string, group string) error
-	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64
-	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) map[string][]int64
+	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int) (metrics.MetricsObj, error)
+	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) (metrics.MetricsObj, error)
 }
 
 type queueService struct {
@@ -61,7 +61,6 @@ func NewQueueService(config *config.Config) QueueService {
 		consumerMap:   make(map[string]kafka.KafkaConsumer),
 		extendManager: kafka.NewExtendManager(config),
 	}
-	qs.monitor.Start()
 	return qs
 }
 
@@ -326,17 +325,17 @@ func (q *queueService) AckMsg(queue string, group string) error {
 //========监控操作相关函数========//
 
 func (q *queueService) GetSendMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) map[string][]int64 {
+	start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
 	if !q.manager.ExistTopic(queue) {
-		return nil
+		return nil, errors.NotFoundf("%s.%s ", queue, group)
 	}
 	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
 }
 
 func (q *queueService) GetReceiveMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) map[string][]int64 {
+	start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
 	if !q.manager.ExistTopic(queue) {
-		return nil
+		return nil, errors.NotFoundf("%s.%s ", queue, group)
 	}
 	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
 }

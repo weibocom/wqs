@@ -26,7 +26,6 @@ import (
 
 func TestMonitor(t *testing.T) {
 	monitor := NewMonitor(config.NewConfig())
-	monitor.Start()
 
 	for {
 		monitor.StatisticSend("test_queue", "test_group1", 1)

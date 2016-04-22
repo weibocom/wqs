@@ -306,10 +306,12 @@ func (s *HttpServer) monitorHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch monitorType {
 	case "send":
-		sm, _ := json.Marshal(s.queueService.GetSendMetrics(queue, group, start, end, interval))
+		m, _ := s.queueService.GetSendMetrics(queue, group, start, end, interval)
+		sm, _ := json.Marshal(m)
 		result = string(sm)
 	case "receive":
-		rm, _ := json.Marshal(s.queueService.GetReceiveMetrics(queue, group, start, end, interval))
+		m, _ := s.queueService.GetReceiveMetrics(queue, group, start, end, interval)
+		rm, _ := json.Marshal(m)
 		result = string(rm)
 	default:
 		result = "error, param type=" + monitorType + " not support!"
