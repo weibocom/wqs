@@ -30,6 +30,7 @@ import (
 	"github.com/weibocom/wqs/service"
 
 	log "github.com/cihub/seelog"
+	"github.com/juju/errors"
 )
 
 type HttpServer struct {
@@ -173,6 +174,7 @@ func (s *HttpServer) groupAdd(group string, queue string, write string, read str
 
 	err := s.queueService.AddGroup(group, queue, w, r, url, ips_array)
 	if err != nil {
+		log.Warnf("groupAdd failed: %s", errors.ErrorStack(err))
 		return `{"action":"add","result":false}`
 	}
 	return `{"action":"add","result":true}`
@@ -181,6 +183,7 @@ func (s *HttpServer) groupAdd(group string, queue string, write string, read str
 func (s *HttpServer) groupRemove(group string, queue string) string {
 	err := s.queueService.DeleteGroup(group, queue)
 	if err != nil {
+		log.Warnf("groupRemove failed: %s", errors.ErrorStack(err))
 		return `{"action":"remove","result":false}`
 	}
 	return `{"action":"remove","result":true}`
@@ -212,6 +215,7 @@ func (s *HttpServer) groupUpdate(group string, queue string,
 
 	err := s.queueService.UpdateGroup(group, queue, config.Write, config.Read, config.Url, config.Ips)
 	if err != nil {
+		log.Warnf("groupUpdate failed: %s", errors.ErrorStack(err))
 		return `{"action":"update","result":false}`
 	}
 	return `{"action":"update","result":true}`
@@ -250,6 +254,7 @@ func (s *HttpServer) msgSend(queue string, group string, msg string) string {
 	var result string
 	err := s.queueService.SendMsg(queue, group, []byte(msg))
 	if err != nil {
+		log.Warnf("msgSend failed: %s", errors.ErrorStack(err))
 		result = err.Error()
 	} else {
 		result = `{"action":"send","result":true}`
@@ -261,6 +266,7 @@ func (s *HttpServer) msgReceive(queue string, group string) string {
 	var result string
 	data, err := s.queueService.ReceiveMsg(queue, group)
 	if err != nil {
+		log.Warnf("msgReceive failed: %s", errors.ErrorStack(err))
 		result = err.Error()
 	} else {
 		result = `{"action":"receive","msg":"` + string(data) + `"}`

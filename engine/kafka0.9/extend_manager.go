@@ -40,11 +40,12 @@ type ExtendManager struct {
 	queuePath       string
 }
 
-func NewExtendManager(zkAddrs []string, zkRoot string) *ExtendManager {
+func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
+	//error预留给优化zkClient时使用
 	zkClient := zookeeper.NewZkClient(zkAddrs)
 	groupConfigPath := zkRoot + groupConfigPathSuffix
 	queuePath := zkRoot + queuePathSuffix
-	return &ExtendManager{zkClient, groupConfigPath, queuePath}
+	return &ExtendManager{zkClient, groupConfigPath, queuePath}, nil
 }
 
 //========extend配置相关函数========//

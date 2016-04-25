@@ -17,9 +17,10 @@ package kafka
 
 import (
 	"errors"
+	"time"
+
 	sarama "github.com/bsm/sarama-cluster"
 	log "github.com/cihub/seelog"
-	"time"
 )
 
 type Consumer struct {
@@ -32,18 +33,19 @@ const (
 	timeout = 20 * time.Millisecond // 20ms超时
 )
 
-func NewConsumer(addrs []string, topic, group string) *Consumer {
+func NewConsumer(addrs []string, topic, group string) (*Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 	consumer, err := sarama.NewConsumer(addrs, group, []string{topic}, config)
 	if err != nil {
 		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", addrs, err)
+		return nil, err
 	}
 	go func() {
 		e := <-consumer.Errors()
 		log.Warnf("kafka consumer err:%v", e)
 	}()
-	return &Consumer{topic, group, consumer}
+	return &Consumer{topic, group, consumer}, nil
 }
 
 func (c *Consumer) Recv() ([]byte, error) {

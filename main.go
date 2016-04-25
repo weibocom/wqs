@@ -49,7 +49,12 @@ func main() {
 		return
 	}
 
-	queueService := service.NewQueueService(conf)
+	queueService, err := service.NewQueueService(conf)
+	if err != nil {
+		log.Critical(errors.ErrorStack(err))
+		return
+	}
+
 	httpServer := http.NewHttpServer(queueService, conf)
 	go httpServer.Start()
 	mcServer := mc.NewMcServer(queueService, conf)

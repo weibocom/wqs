@@ -32,6 +32,7 @@ type Config struct {
 	McSocketSendBuffer int
 	MotanPort          string
 	UiDir              string
+	KafkaBin           string
 	PartitionsNum      int
 	ReplicationsNum    int
 	RedisAddr          string
@@ -46,6 +47,7 @@ func NewConfig() *Config {
 		McPort:             "11211",
 		MotanPort:          "8881",
 		UiDir:              "./ui",
+		KafkaBin:           "./bin",
 		PartitionsNum:      16,
 		ReplicationsNum:    2,
 		RedisAddr:          "localhost:6379",
@@ -69,6 +71,11 @@ func NewConfigFromFile(file string) (*Config, error) {
 	uiDir, exist := p.Get("ui.dir")
 	if !exist {
 		return nil, errors.NotFoundf("ui.dir")
+	}
+
+	kafkaBin, exist := p.Get("kafka.bin")
+	if !exist {
+		return nil, errors.NotFoundf("kafka.bin")
 	}
 
 	zookeeperAddr, exist := p.Get("zookeeper.connect")
@@ -117,6 +124,7 @@ func NewConfigFromFile(file string) (*Config, error) {
 	return &Config{
 		HttpPort:           httpPort,
 		UiDir:              uiDir,
+		KafkaBin:           kafkaBin,
 		ZookeeperAddr:      zookeeperAddr,
 		ZookeeperRootPath:  zookeeperRootPath,
 		BrokerAddr:         brokerAddr,

@@ -24,6 +24,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	log "github.com/cihub/seelog"
+	"github.com/juju/errors"
 )
 
 type Manager struct {
@@ -32,15 +33,10 @@ type Manager struct {
 	libPath string
 }
 
-func NewManager(addrs []string, libPath string) *Manager {
-	config := sarama.NewConfig()
-	client, err := sarama.NewClient(addrs, config)
-	if err != nil {
-		log.Errorf("kafka manager init failed, addrs:%s, err:%v", addrs, err)
-	}
-	broker := sarama.NewBroker(addrs[0])
-	broker.Open(config)
-	return &Manager{client, broker, libPath}
+func NewManager(client sarama.Client, libPath string) *Manager {
+	//	broker := sarama.NewBroker(addrs[0])
+	//	broker.Open(config)
+	return &Manager{client, nil, libPath}
 }
 
 func (m *Manager) CreateTopic(topic string, replications int, partitions int, zkAddr string) error {
@@ -109,19 +105,22 @@ func (m *Manager) GetTopics() ([]string, error) {
 	return topics, err
 }
 
-func (m *Manager) ExistTopic(topic string) bool {
-	result := false
+//It will refresh metadata and double check when refrsh is true.
+func (m *Manager) ExistTopic(topic string, refresh bool) (bool, error) {
 	topics, err := m.GetTopics()
 	if err != nil {
-		return result
+		return false, errors.Trace(err)
 	}
 	for _, t := range topics {
 		if strings.EqualFold(t, topic) {
-			result = true
-			break
+			return true, nil
 		}
 	}
-	return result
+	if refresh {
+		m.client.RefreshMetadata()
+		return m.ExistTopic(topic, false)
+	}
+	return false, nil
 }
 
 func (m *Manager) TopicSize(topic string) (int64, error) {

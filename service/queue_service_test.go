@@ -25,7 +25,7 @@ import (
 )
 
 func TestQueueService(t *testing.T) {
-	queueService := NewQueueService(config.NewConfig())
+	queueService, _ := NewQueueService(config.NewConfig())
 
 	queueService.DeleteQueue("test_queue")
 

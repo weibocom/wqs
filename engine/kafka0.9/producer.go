@@ -19,18 +19,19 @@ package kafka
 import (
 	"github.com/Shopify/sarama"
 	log "github.com/cihub/seelog"
+	"github.com/juju/errors"
 )
 
 type Producer struct {
 	producer sarama.SyncProducer
 }
 
-func NewProducer(addrs []string) *Producer {
-	producer, err := sarama.NewSyncProducer(addrs, nil)
+func NewProducer(client sarama.Client) (*Producer, error) {
+	producer, err := sarama.NewSyncProducerFromClient(client)
 	if err != nil {
-		log.Errorf("kafka producer init failed, addrs:%s, err:%v", addrs, err)
+		return nil, errors.Trace(err)
 	}
-	return &Producer{producer}
+	return &Producer{producer}, nil
 }
 
 func (k *Producer) Send(topic string, data []byte) error {
