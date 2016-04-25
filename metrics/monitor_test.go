@@ -23,7 +23,7 @@ import (
 )
 
 func TestMonitor(t *testing.T) {
-	monitor := NewMonitor("10.77.109.132:6379")
+	monitor := NewMonitor("localhost:6379")
 
 	for {
 		monitor.StatisticSend("test_queue", "test_group1", 10)
