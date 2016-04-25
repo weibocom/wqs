@@ -30,6 +30,10 @@ import (
 	"github.com/weibocom/wqs/utils"
 )
 
+const (
+	defaultGroup = "default"
+)
+
 type McServer struct {
 	port         string
 	queueService service.QueueService

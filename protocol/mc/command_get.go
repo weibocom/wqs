@@ -45,10 +45,14 @@ func command_get(qservice service.QueueService, cmdLine []byte, lr LineReader, w
 		return
 	}
 	for _, key := range keys[1:] {
-		queue := strings.Split(string(key), ".")[0]
-		biz := strings.Split(string(key), ".")[1]
+		k := strings.Split(string(key), ".")
+		queue := k[0]
+		group := defaultGroup
+		if len(k) > 1 {
+			group = k[1]
+		}
 
-		data, e := qservice.ReceiveMsg(queue, biz)
+		data, e := qservice.ReceiveMsg(queue, group)
 		flag := NIL_FLAG
 		if e != nil {
 			_, err = w.Write(ENGINE_ERROR_PREFIX)

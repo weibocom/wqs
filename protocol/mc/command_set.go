@@ -63,14 +63,12 @@ func commandSet(qservice service.QueueService, cmdLine []byte, lr LineReader, w 
 	log.Debugf("mc command set, key:%s flags:%s exptime:%s len:%d, reply: %s, data: %s\n", key, flags, exptime, dataLength, noreply, data)
 	keys := strings.Split(string(key), ".")
 	queue := keys[0]
-	var biz string
+	group := defaultGroup
 	if len(keys) > 1 {
-		biz = keys[1]
-	} else {
-		biz = "default"
+		group = keys[1]
 	}
 
-	err = qservice.SendMsg(queue, biz, data)
+	err = qservice.SendMsg(queue, group, data)
 	if err != nil {
 		estr := err.Error()
 		_, err = w.Write(ENGINE_ERROR_PREFIX)
