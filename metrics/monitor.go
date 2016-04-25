@@ -68,7 +68,7 @@ func (m *Monitor) start() *Monitor {
 
 func (m *Monitor) storeStatistic() {
 	t := time.Now().Unix() / 10 * 10
-	field := strconv.FormatInt(int64(t), 10)
+	time := strconv.FormatInt(int64(t), 10)
 	snapshot := make(map[string]int64)
 	//reduce hoding mutex druation
 	m.mu.Lock()
@@ -79,7 +79,8 @@ func (m *Monitor) storeStatistic() {
 	m.mu.Unlock()
 
 	for k, v := range snapshot {
-		_, err := m.redisClient.HIncrBy(k, field, v).Result()
+		key := k + time
+		_, err := m.redisClient.IncrBy(key, v).Result()
 		if err != nil {
 			log.Warnf("storeStatistic HIncrBy err: %s", err)
 		}
@@ -122,16 +123,17 @@ func (m *Monitor) doGetMetrics(key string, start int64,
 	metricsMap := make(MetricsObj)
 	time := make([]int64, 0)
 	data := make([]int64, 0)
-	field := make([]string, 0)
+	keys := make([]string, 0)
 
 	start = start / 10 * 10
 	end = end / 10 * 10
 	for i := start; i <= end; i += Interval * intervalnum {
 		time = append(time, i)
-		field = append(field, strconv.FormatInt(i, 10))
+		keys = append(keys, key+strconv.FormatInt(i, 10))
 	}
 
-	result, err := m.redisClient.HMGet(key, field...).Result()
+	result, err := m.redisClient.MGet(keys...).Result()
+
 	if err != nil {
 		return nil, err
 	}
