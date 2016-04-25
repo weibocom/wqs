@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
 	redis "gopkg.in/redis.v3"
 )
 
@@ -68,11 +69,20 @@ func (m *Monitor) start() *Monitor {
 func (m *Monitor) storeStatistic() {
 	t := time.Now().Unix() / 10 * 10
 	field := strconv.FormatInt(int64(t), 10)
+	snapshot := make(map[string]int64)
+	//reduce hoding mutex druation
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	for k, v := range m.statisticMap {
-		go m.redisClient.HIncrBy(k, field, v)
+		snapshot[k] = v
 		m.statisticMap[k] = 0
+	}
+	m.mu.Unlock()
+
+	for k, v := range snapshot {
+		_, err := m.redisClient.HIncrBy(k, field, v).Result()
+		if err != nil {
+			log.Warnf("storeStatistic HIncrBy err: %s", err)
+		}
 	}
 }
 
