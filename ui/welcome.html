@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>wqs-weibo</title>
+    <link rel="stylesheet" href="src/dep/css/bootstrap.min.css">
+    <link rel="stylesheet" href="src/dep/css/bootstrap-table.css">
+    <link rel="stylesheet" href="src/dep/css/toastr.min.css">
+    <link rel="stylesheet" href="src/dep/css/bootstrap-select.css">
+    <link rel="stylesheet" href="src/css/welcome.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 设置父div的高度依据子div的高度变化-->
+        <div id="body">
+            <div id="toolbar">
+                <div class="btn-group">
+                    <button id="new" type="button" class="btn btn-primary pull-left" data-toggle="modal" data-target="#createQueueInfo">新建队列</button>
+                </div>
+                <div class="btn-group">
+                    <button id="queueAction" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" disabled>
+                        队列操作 <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu">
+                        <li id="deleteQueue"><a href="javascript:deleteQueue()">删除队列</a></li>
+                        <li id="modifyQueue"><a data-toggle="modal" data-target="#modifyQueueInfo">更新配置</a></li>
+                        <li class="divider"></li>
+                        <li id="createBiz"><a data-toggle="modal" data-target="#addBizs">添加业务方</a></li>
+                        <li id="deleteBiz"><a href="javascript:deleteBiz()">删除业务方</a></li>
+                        <li id="modifyBiz"><a data-toggle="modal" data-target="#modifyBizs">更改业务方</a></li>
+                        <li class="divider"></li>
+                        <li id="alarm"><a data-toggle="modal" data-target="#alarmSetting">监控项设置</a></li>
+                    </ul>
+                </div>
+            </div>
+            <table id="table" class="table">
+            </table>
+        </div>
+        <div id="footer">
+            <div id="expander"></div>
+            <ul class="nav nav-tabs">
+                <li class="active">
+                    <a href="#detailInfo" data-toggle="tab" >详细信息</a>
+                </li>
+                <li><a href="#monitorInfo" data-toggle="tab">监控</a></li>
+            </ul>
+            <div id="displayInfo" class="tab-content">
+                <div class="tab-pane fade in active container" id="detailInfo">
+                    <label></label>
+                    <table id="bizInfo"></table>
+                </div>
+                <div class="tab-pane fade" id="monitorInfo">
+                    <div class="Wqs">
+                        <div class="Wqs-title">WQS指标</div>
+                        <div class="Wqs-range">
+                            <label for="time">时间范围：</label>
+                            <select id="time" class="selectpicker" data-size="7"data-width="auto">
+                                <option value="1">最近2小时</option>
+                                <option value="2">最近6小时</option>
+                                <option value="3">最近12小时</option>
+                                <option value="4">最近24小时</option>
+                                <option value="5">最近2天</option>
+                                <option value="6">最近1周</option>
+                                <option value="7" disabled>最近1个月</option>
+                            </select>
+                        </div>
+                        <div class="popover-options">
+                            <a data-toggle="popover" data-placement="bottom"  data-content="testtestkskakkakaksk" data-trigger="hover">参数说明</a>
+                        </div>
+
+                        <div class="Wqs-icon">
+                            <span class="glyphicon glyphicon-refresh" aria-hidden="true" id="refresh" onclick="refreshMonitor()"></span>
+                        </div>
+                    </div>
+
+                    <div class="container">
+                        <div class="row">
+                            <div id="monitorDetailInfo1" class="col-lg-1"></div>
+                            <div id="monitorDetailInfo2" class="col-lg-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!-- container end!-->
+
+    <!--  业务方的部分  -->
+    <div class="modal fade" id="addBizs" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">输入业务方信息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="bizName" class="col-sm-3 control-label">业务标识:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="bizName">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="writeOperation" class=" col-sm-3 control-label">写权限:</label>
+                                    <div class="col-sm-6">
+                                        <select class="form-control" id="writeOperation">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="readOperation" class=" col-sm-3 control-label">读权限:</label>
+                                    <div class="col-sm-6">
+                                        <select class="form-control" id="readOperation">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="filterMessage" class=" col-sm-3 control-label">消息过滤:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="filterMessage">
+                                    </div>
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="commitAddBizs" type="button" class="btn btn-primary" onClick="addBiz()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="modifyBizs" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">输入业务方信息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="writeOperation_modify" class=" col-sm-3 control-label">写权限:</label>
+                                    <div class="col-sm-6">
+                                        <select class="form-control" id="writeOperation_modify">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="readOperation_modify" class=" col-sm-3 control-label">读权限:</label>
+                                    <div class="col-sm-6">
+                                        <select class="form-control" id="readOperation_modify">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="commitModifyBizs" type="button" class="btn btn-primary" onClick="modifyBiz()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 信息删除确认 -->
+    <div class="modal fade" id="delQueueModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content message_align">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span>
+                    </button>
+                    <h4 class="modal-title">提示信息</h4>
+                </div>
+                <div class="modal-body">
+                    <p>您确认要删除吗？</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+                    <a  id="realDeleteQueue" class="btn btn-success" data-dismiss="modal">确定</a>
+                </div>
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+    <!-- 业务方信息删除确认 -->
+    <div class="modal fade" id="delBizModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content message_align">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span>
+                    </button>
+                    <h4 class="modal-title">提示信息</h4>
+                </div>
+                <div class="modal-body">
+                    <p>您确认要删除吗？</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+                    <a  id="realDeleteBiz" class="btn btn-success" data-dismiss="modal">确定</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--消息处理弹框-->
+    <div class="modal fade" id="getMessageModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                            aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">查询队列消息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div id="getMessageResult" class="form-group">
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="modal fade" id="createQueueInfo" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                        aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">输入队列信息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="queueName" class="col-sm-3 control-label">queue name:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="queueName">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="replications" class="col-sm-3 control-label">副本数:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="replications" value="2">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="partitions" class=" col-sm-3 control-label">分区数:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="partitions" value="16">
+                                    </div>
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="confirmCreate" type="button" class="btn btn-primary" onClick="createQueue()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modifyQueueInfo" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+         <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                        aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">输入队列信息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="modify_replications" class="col-sm-3 control-label">副本数:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="modify_replications" value="2" disabled>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="modify_partitions" class=" col-sm-3 control-label">分区数:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="modify_partitions">
+                                    </div>
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="confirmModify" type="button" class="btn btn-primary" onClick="modifyQueue()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="alarmSetting" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">报警项设定</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="alarm_target" class="col-sm-3 control-label">报警邮件接收人:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="alarm_target">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="message_accumulation" class=" col-sm-3 control-label">消息堆积阈值:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="message_accumulation">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="message_delay" class=" col-sm-3 control-label">消息延迟阈值:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="message_delay">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="message_producer_num" class=" col-sm-3 control-label">消息写入量阈值:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="message_producer_num">
+                                    </div>
+                                </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="confirmSetting" type="button" class="btn btn-primary" onClick="alarmSetting()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="producerMessage" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="exampleModalLabel">发送队列消息</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="content-fluid">
+                        <div class="row">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="messageText" class="col-sm-3 control-label">消息内容:</label>
+                                    <div class="col-sm-6">
+                                        <input type="text" class="form-control" id="messageText">
+                                    </div>
+                            </form>
+                            <br/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="producer" type="button" class="btn btn-primary">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="src/dep/js/jquery.min.js"></script>
+    <script src="src/dep/js/bootstrap.min.js"></script>
+    <script src="src/dep/js/bootstrap-table.js"></script>
+    <script src="src/dep/js/bootstrap-select.js"></script>
+    <script src="src/dep/js/toastr.min.js"></script>
+    <script src="src/dep/js/echarts.common.min.js"></script>
+    <script src="src/js/main.js"></script>
+    <script src="src/js/welcome.js"></script>
+</body>
+</html>
