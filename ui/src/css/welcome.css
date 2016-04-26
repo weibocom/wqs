@@ -1,0 +1,74 @@
+#body {
+    overflow:auto;
+}
+/* footer中内容 */
+#footer {
+    position:fixed;
+    bottom:0;
+    left:0;
+    width:100%;
+    height:40%;
+    background-color:white;
+    overflow:auto;
+    display: none;
+}
+#footer .nav-tabs {
+    margin: 10px 10px 0;
+    border-bottom: 1px solid #999;
+    border-left: 1px solid #999;
+}
+
+#expander{
+    width:100%;
+    height:6px;
+    background-color:#eee;
+    position: absolute;
+}
+#expander:hover{
+    cursor:move;
+}
+#displayInfo {
+    margin: 0 10px;
+}
+#bizInfo {
+    min-width:970px;
+}
+/*WQS指标*/
+#monitorInfo .Wqs {
+    display: block;
+    margin: 10px;
+}
+.Wqs {
+    border-bottom: 1px solid #ccc;
+    border-top: 1px solid #ccc;
+    text-align: left;
+    line-height: 40px;
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: bold;
+    background: -webkit-linear-gradient(top, #eee 0%, #e0e0e0);
+}
+#monitorInfo .Wqs .Wqs-title {
+    display:inline
+}
+#monitorInfo .Wqs .Wqs-range {
+    font-weight: bold;
+    position: absolute;
+    right: 150px;
+    display: inline;
+}
+#monitorInfo .Wqs .popover-options {
+    font-weight: bold;
+    position: absolute;
+    right: 80px;
+    display: inline;
+}
+#monitorInfo .Wqs .Wqs-icon {
+    position: absolute;
+    right: 50px;
+    display: inline;
+}
+#monitorInfo .container .row .col-lg-1 {
+    width: 550px;
+    height: 380px;
+}
