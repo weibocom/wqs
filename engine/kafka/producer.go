@@ -17,6 +17,9 @@ limitations under the License.
 package kafka
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+
 	"github.com/Shopify/sarama"
 	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
@@ -40,6 +43,11 @@ func (k *Producer) Send(topic string, data []byte) error {
 		Value: sarama.ByteEncoder(data),
 	}
 	partition, offset, err := k.producer.SendMessage(msg)
-	log.Debugf("send message, topic:%s, partition:%d, offset:%d, err:%v", topic, partition, offset, err)
-	return err
+	if err != nil {
+		log.Debug("write message err: %s", err)
+		return err
+	}
+	dig := md5.Sum(data)
+	log.Infof("W %s@%d@%d %s", topic, partition, offset, hex.EncodeToString(dig[:]))
+	return nil
 }

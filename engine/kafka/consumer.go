@@ -16,6 +16,8 @@ limitations under the License.
 package kafka
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -55,10 +57,11 @@ func (c *Consumer) Recv() ([]byte, error) {
 	case msg := <-c.consumer.Messages():
 		data = msg.Value
 		c.consumer.MarkOffset(msg, "") // metedata的用处？
+		dig := md5.Sum(msg.Value)
+		log.Infof("R %s@%d@%d %s", msg.Topic, msg.Partition, msg.Offset, hex.EncodeToString(dig[:]))
 	case <-time.After(timeout):
 		err = errors.New("time out")
 	}
-	log.Debugf("recv message, topic:%s, group:%s, err:%v", c.topic, c.group, err)
 
 	return data, err
 }
