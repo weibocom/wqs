@@ -35,12 +35,11 @@ const (
 	timeout = 20 * time.Millisecond // 20ms超时
 )
 
-func NewConsumer(addrs []string, topic, group string) (*Consumer, error) {
-	config := sarama.NewConfig()
-	config.Consumer.Return.Errors = true
-	consumer, err := sarama.NewConsumer(addrs, group, []string{topic}, config)
+func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
+	//FIXME: consumer的config是否需要支持配置
+	consumer, err := sarama.NewConsumer(brokerAddrs, group, []string{topic}, nil)
 	if err != nil {
-		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", addrs, err)
+		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", brokerAddrs, err)
 		return nil, err
 	}
 	go func() {

@@ -29,8 +29,8 @@ type Producer struct {
 	producer sarama.SyncProducer
 }
 
-func NewProducer(client sarama.Client) (*Producer, error) {
-	producer, err := sarama.NewSyncProducerFromClient(client)
+func NewProducer(brokerAddrs []string, conf *sarama.Config) (*Producer, error) {
+	producer, err := sarama.NewSyncProducer(brokerAddrs, conf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
