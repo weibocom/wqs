@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package service
+package queue
 
 import (
 	"github.com/weibocom/wqs/config"
@@ -22,11 +22,11 @@ import (
 	"github.com/weibocom/wqs/model"
 )
 
-type QueueService interface {
-	CreateQueue(queue string) error
-	UpdateQueue(queue string) error
-	DeleteQueue(queue string) error
-	LookupQueue(queue string, group string) ([]*model.QueueInfo, error)
+type Queue interface {
+	Create(queue string) error
+	Update(queue string) error
+	Delete(queue string) error
+	Lookup(queue string, group string) ([]*model.QueueInfo, error)
 	AddGroup(group string, queue string, write bool, read bool, url string, ips []string) error
 	UpdateGroup(group string, queue string, write bool, read bool, url string, ips []string) error
 	DeleteGroup(group string, queue string) error
@@ -39,6 +39,6 @@ type QueueService interface {
 	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 }
 
-func NewQueueService(config *config.Config) (QueueService, error) {
-	return newQueueService09(config)
+func NewQueue(config *config.Config) (Queue, error) {
+	return newQueue(config)
 }

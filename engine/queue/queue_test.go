@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package service
+package queue
 
 import (
 	"encoding/json"
@@ -25,9 +25,9 @@ import (
 )
 
 func TestQueueService(t *testing.T) {
-	queueService, _ := NewQueueService(config.NewConfig())
+	queueService, _ := NewQueue(config.NewConfig())
 
-	queueService.DeleteQueue("test_queue")
+	queueService.Delete("test_queue")
 
 	groupinfo1 := queueService.LookupGroup("test_group2")
 	result3, _ := json.Marshal(groupinfo1)

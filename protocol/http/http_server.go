@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/weibocom/wqs/config"
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 
 	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
@@ -36,10 +36,10 @@ import (
 type HttpServer struct {
 	port         string
 	uidir        string
-	queueService service.QueueService
+	queueService queue.Queue
 }
 
-func NewHttpServer(queueService service.QueueService, config *config.Config) *HttpServer {
+func NewHttpServer(queueService queue.Queue, config *config.Config) *HttpServer {
 	return &HttpServer{
 		port:         config.HttpPort,
 		uidir:        config.UiDir,
@@ -93,7 +93,7 @@ func (s *HttpServer) queueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HttpServer) queueCreate(queue string) string {
-	err := s.queueService.CreateQueue(queue)
+	err := s.queueService.Create(queue)
 	if err != nil {
 		log.Debugf("CreateQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"create","result":false}`
@@ -102,7 +102,7 @@ func (s *HttpServer) queueCreate(queue string) string {
 }
 
 func (s *HttpServer) queueRemove(queue string) string {
-	err := s.queueService.DeleteQueue(queue)
+	err := s.queueService.Delete(queue)
 	if err != nil {
 		log.Debugf("DeleteQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"remove","result":false}`
@@ -111,7 +111,7 @@ func (s *HttpServer) queueRemove(queue string) string {
 }
 
 func (s *HttpServer) queueUpdate(queue string) string {
-	err := s.queueService.UpdateQueue(queue)
+	err := s.queueService.Update(queue)
 	if err != nil {
 		log.Debugf("UpdateQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"update","result":false}`
@@ -120,7 +120,7 @@ func (s *HttpServer) queueUpdate(queue string) string {
 }
 
 func (s *HttpServer) queueLookup(queue string, biz string) string {
-	r, err := s.queueService.LookupQueue(queue, biz)
+	r, err := s.queueService.Lookup(queue, biz)
 	if err != nil {
 		log.Debugf("LookupQueue err:%s", errors.ErrorStack(err))
 		return "[]"

@@ -23,14 +23,14 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 )
 
 const (
 	SET_NAME = "set"
 )
 
-func commandSet(qservice service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
+func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 
 	fields := Fields(cmdLine[4:]) // the first for bytes are "set "
 	l := len(fields)
@@ -68,7 +68,7 @@ func commandSet(qservice service.QueueService, cmdLine []byte, lr LineReader, w 
 		group = keys[1]
 	}
 
-	err = qservice.SendMsg(queue, group, data)
+	err = q.SendMsg(queue, group, data)
 	if err != nil {
 		estr := err.Error()
 		_, err = w.Write(ENGINE_ERROR_PREFIX)

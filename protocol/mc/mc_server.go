@@ -26,7 +26,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/utils"
 )
 
@@ -36,16 +36,16 @@ const (
 
 type McServer struct {
 	port         string
-	queueService service.QueueService
+	queue        queue.Queue
 	listener     *utils.Listener
 	recvBuffSize int
 	sendBuffSize int
 }
 
-func NewMcServer(queueService service.QueueService, config *config.Config) *McServer {
+func NewMcServer(q queue.Queue, config *config.Config) *McServer {
 	return &McServer{
 		port:         config.McPort,
-		queueService: queueService,
+		queue:        q,
 		recvBuffSize: config.McSocketRecvBuffer,
 		sendBuffSize: config.McSocketSendBuffer,
 	}
@@ -102,7 +102,7 @@ func (ms *McServer) connLoop(conn net.Conn) {
 		if !exists {
 			command = commandUnkown
 		}
-		err = command(ms.queueService, line, br, bw)
+		err = command(ms.queue, line, br, bw)
 		br.Reset()
 		bw.Flush()
 		if err != nil {

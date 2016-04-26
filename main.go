@@ -25,9 +25,9 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
+	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/protocol/http"
 	"github.com/weibocom/wqs/protocol/mc"
-	"github.com/weibocom/wqs/service"
 )
 
 var (
@@ -49,15 +49,15 @@ func main() {
 		return
 	}
 
-	queueService, err := service.NewQueueService(conf)
+	queue, err := queue.NewQueue(conf)
 	if err != nil {
 		log.Critical(errors.ErrorStack(err))
 		return
 	}
 
-	httpServer := http.NewHttpServer(queueService, conf)
+	httpServer := http.NewHttpServer(queue, conf)
 	go httpServer.Start()
-	mcServer := mc.NewMcServer(queueService, conf)
+	mcServer := mc.NewMcServer(queue, conf)
 	go mcServer.Start()
 
 	c := make(chan os.Signal, 1)

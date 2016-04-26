@@ -19,7 +19,7 @@ package mc
 import (
 	"io"
 
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 
 	"github.com/juju/errors"
 )
@@ -33,6 +33,6 @@ var (
 	ENGINE_ERROR_PREFIX        = []byte("SERVER_ERROR engine error ")
 )
 
-func commandUnkown(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error {
+func commandUnkown(q queue.Queue, cmdLine []byte, lr LineReader, writer io.Writer) error {
 	return errors.NotSupportedf("command %s ", string(cmdLine))
 }

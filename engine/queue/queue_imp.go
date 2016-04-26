@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package service
+package queue
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ import (
 	"github.com/juju/errors"
 )
 
-type queueService09 struct {
+type queueImp struct {
 	conf          *config.Config
 	saramaConf    *sarama.Config
 	client        sarama.Client
@@ -45,7 +45,7 @@ type queueService09 struct {
 	mu            sync.Mutex
 }
 
-func newQueueService09(config *config.Config) (*queueService09, error) {
+func newQueue(config *config.Config) (*queueImp, error) {
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -77,7 +77,7 @@ func newQueueService09(config *config.Config) (*queueService09, error) {
 		return nil, errors.Trace(err)
 	}
 
-	qs := &queueService09{
+	qs := &queueImp{
 		conf:          config,
 		saramaConf:    sConf,
 		client:        client,
@@ -91,7 +91,7 @@ func newQueueService09(config *config.Config) (*queueService09, error) {
 }
 
 //Create a queue by name.
-func (q *queueService09) CreateQueue(queue string) error {
+func (q *queueImp) Create(queue string) error {
 
 	if len(queue) == 0 {
 		errors.NotValidf("CreateQueue queue:%s", queue)
@@ -112,7 +112,7 @@ func (q *queueService09) CreateQueue(queue string) error {
 }
 
 //Updata queue information by name. Nothing to be update so far.
-func (q *queueService09) UpdateQueue(queue string) error {
+func (q *queueImp) Update(queue string) error {
 
 	if len(queue) == 0 {
 		errors.NotValidf("UpdateQueue queue:%s", queue)
@@ -129,7 +129,7 @@ func (q *queueService09) UpdateQueue(queue string) error {
 }
 
 //Delete queue by name
-func (q *queueService09) DeleteQueue(queue string) error {
+func (q *queueImp) Delete(queue string) error {
 
 	if len(queue) == 0 {
 		errors.NotValidf("DeleteQueue queue:%s", queue)
@@ -150,7 +150,7 @@ func (q *queueService09) DeleteQueue(queue string) error {
 
 //Get queue information by queue name and group name
 //When queue name is "" to get all queue' information.
-func (q *queueService09) LookupQueue(queue string, group string) ([]*model.QueueInfo, error) {
+func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error) {
 
 	queueInfos := make([]*model.QueueInfo, 0)
 	groupConfigs := make([]*model.GroupConfig, 0)
@@ -238,7 +238,7 @@ func (q *queueService09) LookupQueue(queue string, group string) ([]*model.Queue
 	return queueInfos, nil
 }
 
-func (q *queueService09) AddGroup(group string, queue string,
+func (q *queueImp) AddGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
 	if len(group) == 0 || len(queue) == 0 {
@@ -259,7 +259,7 @@ func (q *queueService09) AddGroup(group string, queue string,
 	return nil
 }
 
-func (q *queueService09) UpdateGroup(group string, queue string,
+func (q *queueImp) UpdateGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
 	if len(group) == 0 || len(queue) == 0 {
@@ -280,7 +280,7 @@ func (q *queueService09) UpdateGroup(group string, queue string,
 	return nil
 }
 
-func (q *queueService09) DeleteGroup(group string, queue string) error {
+func (q *queueImp) DeleteGroup(group string, queue string) error {
 
 	if len(group) == 0 || len(queue) == 0 {
 		errors.NotValidf("add group:%s @ queue:%s", group, queue)
@@ -302,7 +302,7 @@ func (q *queueService09) DeleteGroup(group string, queue string) error {
 }
 
 //Get group's information
-func (q *queueService09) LookupGroup(group string) ([]*model.GroupInfo, error) {
+func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 
 	groupInfos := make([]*model.GroupInfo, 0)
 	groupConfigs := make([]*model.GroupConfig, 0)
@@ -360,7 +360,7 @@ func (q *queueService09) LookupGroup(group string) ([]*model.GroupInfo, error) {
 	return groupInfos, nil
 }
 
-func (q *queueService09) GetSingleGroup(group string, queue string) (*model.GroupConfig, error) {
+func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfig, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -373,7 +373,7 @@ func (q *queueService09) GetSingleGroup(group string, queue string) (*model.Grou
 	return q.extendManager.GetGroupConfig(group, queue), nil
 }
 
-func (q *queueService09) SendMsg(queue string, group string, data []byte) error {
+func (q *queueImp) SendMsg(queue string, group string, data []byte) error {
 
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
@@ -390,7 +390,7 @@ func (q *queueService09) SendMsg(queue string, group string, data []byte) error 
 	return nil
 }
 
-func (q *queueService09) ReceiveMsg(queue string, group string) ([]byte, error) {
+func (q *queueImp) ReceiveMsg(queue string, group string) ([]byte, error) {
 
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
@@ -421,11 +421,11 @@ func (q *queueService09) ReceiveMsg(queue string, group string) ([]byte, error) 
 	return data, nil
 }
 
-func (q *queueService09) AckMsg(queue string, group string) error {
+func (q *queueImp) AckMsg(queue string, group string) error {
 	return errors.NotImplementedf("ack")
 }
 
-func (q *queueService09) GetSendMetrics(queue string, group string,
+func (q *queueImp) GetSendMetrics(queue string, group string,
 	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
@@ -439,7 +439,7 @@ func (q *queueService09) GetSendMetrics(queue string, group string,
 	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
 }
 
-func (q *queueService09) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
+func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {

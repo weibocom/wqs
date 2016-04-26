@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 )
 
 const (
@@ -38,7 +38,7 @@ var (
 	NIL_VALUE = []byte{}
 )
 
-func command_get(qservice service.QueueService, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
+func command_get(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
 	keys := Fields(cmdLine)
 	if len(keys) <= 1 {
 		_, err = w.Write(ERROR)
@@ -52,7 +52,7 @@ func command_get(qservice service.QueueService, cmdLine []byte, lr LineReader, w
 			group = k[1]
 		}
 
-		data, e := qservice.ReceiveMsg(queue, group)
+		data, e := q.ReceiveMsg(queue, group)
 		flag := NIL_FLAG
 		if e != nil {
 			_, err = w.Write(ENGINE_ERROR_PREFIX)

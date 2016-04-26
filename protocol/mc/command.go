@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/weibocom/wqs/service"
+	"github.com/weibocom/wqs/engine/queue"
 )
 
-type MemcacheCommand func(qservice service.QueueService, cmdLine []byte, lr LineReader, writer io.Writer) error
+type MemcacheCommand func(q queue.Queue, cmdLine []byte, lr LineReader, writer io.Writer) error
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt
