@@ -63,9 +63,10 @@ func (ms *McServer) Start() error {
 	for {
 		conn, err := ms.listener.Accept()
 		if err != nil {
-			log.Errorf("Accept error: %s", err.Error())
+			log.Errorf("Accept error: %s", err)
+			continue
 		}
-		log.Debugf("Accepted client: %s", conn.RemoteAddr())
+		log.Infof("Accepted client: %s", conn.RemoteAddr())
 		go ms.connLoop(conn)
 	}
 }
@@ -75,7 +76,7 @@ func (ms *McServer) connLoop(conn net.Conn) {
 		if err := recover(); err != nil {
 			log.Errorf("panic error: %s", err)
 		}
-		log.Debugf("connection colsed. remote:%s", conn.RemoteAddr())
+		log.Infof("connection colsed. remote:%s", conn.RemoteAddr())
 		conn.Close()
 	}()
 
