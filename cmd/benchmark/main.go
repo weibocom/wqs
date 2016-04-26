@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"log"
 	"runtime"
 
-	log "github.com/cihub/seelog"
 	docopt "github.com/docopt/docopt-go"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/utils"
@@ -54,9 +54,9 @@ func fatal(msg interface{}) {
 
 	switch msg.(type) {
 	case string:
-		log.Info(msg)
+		log.Print(msg)
 	case error:
-		log.Info(errors.ErrorStack(msg.(error)))
+		log.Print(errors.ErrorStack(msg.(error)))
 	}
 }
 
@@ -117,7 +117,7 @@ func runCommand(cmd string, args []string) (err error) {
 	argv = append(argv, args...)
 	switch cmd {
 	case "mc":
-		//return errors.Trace(cmdAction(argv))
+		return errors.Trace(cmdBenchmarkMC(argv))
 	case "http":
 		return errors.Trace(cmdBenchmarkHttp(argv))
 	}

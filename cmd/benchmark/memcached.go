@@ -19,20 +19,19 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
-	"strings"
 
+	"github.com/bradfitz/gomemcache/memcache"
 	docopt "github.com/docopt/docopt-go"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/utils"
 )
 
-func cmdBenchmarkHttp(argv []string) error {
-	usage := `usage: benchmark http (set| get)
+func cmdBenchmarkMC(argv []string) error {
+	usage := `usage: benchmark mc (set| get)
 
 options:
-	set		test http set API Qps;
-	get		test http get API Qps;
+	set		test memcached set API Qps;
+	get		test memcached get API Qps;
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
@@ -40,52 +39,48 @@ options:
 	}
 
 	if args["get"].(bool) {
-		return errors.Trace(benchmarkHttpGet())
+		return errors.Trace(benchmarkMCGet())
 	}
 
 	if args["set"].(bool) {
-		return errors.Trace(benchmarkHttpSet())
+		return errors.Trace(benchmarkMCSet())
 	}
 
 	return nil
 }
 
-func benchmarkHttpSet() error {
+func benchmarkMCSet() error {
 
-	url := fmt.Sprintf("http://%s/msg", globalHost)
-	sendString := fmt.Sprintf("action=receive&qname=%s&biz=%s&msg=%s",
-		globalQueue, globalBiz, utils.GenTestMessage(globalMsgLength))
-	log.Printf("Test URL: %s, Data: %s", url, sendString)
+	key := fmt.Sprintf("%s.%s", globalQueue, globalBiz)
+	sendString := utils.GenTestMessage(globalMsgLength)
+	log.Printf("Test Key: %s, Data: %s", key, sendString)
+
+	mc := memcache.New(globalHost)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
 
-		body := strings.NewReader(sendString)
-		resp, err := http.Post(url, "application/x-www-form-urlencoded", body)
+		err := mc.Set(&memcache.Item{Key: key, Value: []byte(sendString)})
 		if err != nil {
 			return err
 		}
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("http code %d", resp.StatusCode)
-		}
+
 		return nil
 	})
 	return errors.Trace(bt.Run())
 }
 
-func benchmarkHttpGet() error {
+func benchmarkMCGet() error {
 
-	url := fmt.Sprintf("http://%s/msg?action=receive&qname=%s&biz=%s",
-		globalHost, globalQueue, globalBiz)
-	log.Printf("Test URL: %s", url)
+	key := fmt.Sprintf("%s.%s", globalQueue, globalBiz)
+	log.Printf("Test Key: %s", key)
+
+	mc := memcache.New(globalHost)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
 
-		resp, err := http.Get(url)
+		_, err := mc.Get(key)
 		if err != nil {
 			return err
-		}
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("http code %d", resp.StatusCode)
 		}
 
 		return nil

@@ -1,5 +1,5 @@
 {
-	"ImportPath": "git.intra.weibo.com/platform/qservice",
+	"ImportPath": "github.com/weibocom/wqs",
 	"GoVersion": "go1.6",
 	"GodepVersion": "v62",
 	"Deps": [
@@ -9,9 +9,9 @@
 			"Rev": "fdea37926ffa7d09c6e6ec511f22c48954fef5de"
 		},
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.3-3-g07d998d",
-			"Rev": "07d998d174c4e2dc90e2f1989a20724220bca1ff"
+			"ImportPath": "github.com/bsm/sarama-cluster",
+			"Comment": "v1.0.2-18-g5e519df",
+			"Rev": "5e519dfe6fffb310bc795b69227d94e7a196cf5b"
 		},
 		{
 			"ImportPath": "github.com/cihub/seelog",
@@ -33,34 +33,6 @@
 			"Rev": "ded5959c0d4e360646dc9e9908cff48666781367"
 		},
 		{
-			"ImportPath": "github.com/elodina/go-avro",
-			"Comment": "v0.1.0.0-69-gd83ce87",
-			"Rev": "d83ce87eebd07ebeb80f5e28dcc202c7921f592c"
-		},
-		{
-			"ImportPath": "github.com/elodina/go-kafka-avro",
-			"Rev": "830794d1fb5b8670ffcd8cce431055e666312c4b"
-		},
-		{
-			"ImportPath": "github.com/elodina/go_kafka_client",
-			"Comment": "v0.4.1.0-104-g54b96fe",
-			"Rev": "54b96fee60fdd8f24dd32a4f7bd1f66d368d78fd"
-		},
-		{
-			"ImportPath": "github.com/elodina/go_kafka_client/avro",
-			"Comment": "v0.4.1.0-104-g54b96fe",
-			"Rev": "54b96fee60fdd8f24dd32a4f7bd1f66d368d78fd"
-		},
-		{
-			"ImportPath": "github.com/elodina/siesta",
-			"Comment": "v0.1.0.0-125-g5b3304e",
-			"Rev": "5b3304e3ca2a3fc2f2911f734f3bd1c97846440b"
-		},
-		{
-			"ImportPath": "github.com/elodina/siesta-producer",
-			"Rev": "6acf02606191d1d0e9b9c8f976e250e2ca5fab00"
-		},
-		{
 			"ImportPath": "github.com/golang/snappy",
 			"Rev": "5f1c01d9f64b941dd9582c638279d046eda6ca31"
 		},
@@ -79,25 +51,17 @@
 			"Rev": "c265cfa48dda6474e208715ca93e987829f572f8"
 		},
 		{
-			"ImportPath": "github.com/rcrowley/go-metrics",
-			"Rev": "eeba7bd0dd01ace6e690fa833b3f22aaec29af43"
-		},
-		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
 		},
 		{
-			"ImportPath": "github.com/yanzay/cfg",
-			"Rev": "3b647091f880406fdb14edcb309ce750a38d3e85"
+			"ImportPath": "gopkg.in/Shopify/sarama.v1",
+			"Comment": "v1.8.0",
+			"Rev": "4ba9bba6adb6697bcec3841e1ecdfecf5227c3b9"
 		},
 		{
 			"ImportPath": "gopkg.in/bsm/ratelimit.v1",
 			"Rev": "db14e161995a5177acef654cb0dd785e8ee8bc22"
-		},
-		{
-			"ImportPath": "gopkg.in/cihub/seelog.v2",
-			"Comment": "v2.6",
-			"Rev": "d2c6e5aa9fbfdd1c624e140287063c7730654115"
 		},
 		{
 			"ImportPath": "gopkg.in/redis.v3",
