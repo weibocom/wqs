@@ -29,14 +29,15 @@ import (
 
 type Manager struct {
 	client  sarama.Client
-	broker  *sarama.Broker
 	libPath string
 }
 
-func NewManager(client sarama.Client, libPath string) *Manager {
-	//	broker := sarama.NewBroker(addrs[0])
-	//	broker.Open(config)
-	return &Manager{client, nil, libPath}
+func NewManager(brokerAddrs []string, libPath string, conf *sarama.Config) (*Manager, error) {
+	client, err := sarama.NewClient(brokerAddrs, conf)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return &Manager{client, libPath}, nil
 }
 
 func (m *Manager) CreateTopic(topic string, replications int, partitions int, zkAddr string) error {

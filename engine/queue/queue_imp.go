@@ -36,7 +36,6 @@ import (
 type queueImp struct {
 	conf          *config.Config
 	saramaConf    *sarama.Config
-	client        sarama.Client
 	manager       *kafka.Manager
 	extendManager *kafka.ExtendManager
 	producer      *kafka.Producer
@@ -64,15 +63,15 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	sConf.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
 	sConf.ChannelBufferSize = 1024
 
-	client, err := sarama.NewClient(strings.Split(config.BrokerAddr, ","), sConf)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
 	extendManager, err := kafka.NewExtendManager(strings.Split(config.ZookeeperAddr, ","), config.ZookeeperRootPath)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	producer, err := kafka.NewProducer(client)
+	producer, err := kafka.NewProducer(strings.Split(config.BrokerAddr, ","), sConf)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	manager, err := kafka.NewManager(strings.Split(config.BrokerAddr, ","), config.KafkaBin, sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -80,8 +79,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	qs := &queueImp{
 		conf:          config,
 		saramaConf:    sConf,
-		client:        client,
-		manager:       kafka.NewManager(client, config.KafkaBin),
+		manager:       manager,
 		extendManager: extendManager,
 		producer:      producer,
 		monitor:       metrics.NewMonitor(config.RedisAddr),
@@ -179,9 +177,11 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 					log.Warnf("config is nil queue:%s, group:%s", queueName, groupName)
 				}
 			}
-			//FIXME
-			//ctime := q.manager.GetTopicCreateTime(queueName)
-			ctime := int64(0)
+
+			ctime, err := q.extendManager.QueueCreateTime(queueName)
+			if err != nil {
+				return queueInfos, errors.Trace(err)
+			}
 			queueInfos = append(queueInfos, &model.QueueInfo{
 				Queue:  queueName,
 				Ctime:  ctime,
@@ -216,9 +216,11 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 				log.Warnf("config is nil queue:%s, group:%s", queue, gName)
 			}
 		}
-		//FIXME
-		//ctime := q.manager.GetTopicCreateTime(queue)
-		ctime := int64(0)
+
+		ctime, err := q.extendManager.QueueCreateTime(queue)
+		if err != nil {
+			return queueInfos, errors.Trace(err)
+		}
 		queueInfos = append(queueInfos, &model.QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,
@@ -240,9 +242,11 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 				Ips:   config.Ips,
 			})
 		}
-		//FIXME
-		//ctime := q.manager.GetTopicCreateTime(queue)
-		ctime := int64(0)
+
+		ctime, err := q.extendManager.QueueCreateTime(queue)
+		if err != nil {
+			return queueInfos, errors.Trace(err)
+		}
 		queueInfos = append(queueInfos, &model.QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,

@@ -22,9 +22,9 @@ import (
 )
 
 func TestProducer(t *testing.T) {
-	producer := NewProducer([]string{"10.77.109.120:9092"})
+	producer := NewProducer([]string{"localhost:9092"})
 	for i := 1; i < 10; i++ {
-		err := producer.Send("test-topic", []byte("hello"+strconv.Itoa(i)))
+		err := producer.Send("test-queue", []byte("hello"+strconv.Itoa(i)))
 		if err != nil {
 			t.Fatal(err)
 		}

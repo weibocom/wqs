@@ -24,14 +24,14 @@ import (
 
 func TestManager(t *testing.T) {
 	var err error
-	manager := NewManager([]string{"10.77.109.120:9092"}, "../../kafkalib-0.9")
+	manager := NewManager([]string{"localhost:9092"}, "../../kafkalib")
 	topics, err := manager.GetTopics()
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Printf("topics:%v \n", topics)
 
-	size, err := manager.TopicSize("test-topic")
+	size, err := manager.TopicSize("test-queue")
 	if err != nil {
 		t.Fatal(err)
 	}

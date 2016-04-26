@@ -229,6 +229,14 @@ func (em *ExtendManager) GetQueues() []string {
 	return queues
 }
 
+func (em *ExtendManager) QueueCreateTime(queue string) (int64, error) {
+	_, stat, err := em.zkClient.Get(em.buildQueuePath(queue))
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	return stat.Ctime / 1000, nil
+}
+
 func (em *ExtendManager) buildConfigPath(group string, queue string) string {
 	return em.groupConfigPath + "/" + group + "." + queue
 }

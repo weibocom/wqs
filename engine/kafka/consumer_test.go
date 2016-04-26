@@ -22,7 +22,7 @@ import (
 )
 
 func TestConsumer(t *testing.T) {
-	consumer := NewConsumer([]string{"192.168.1.150:9092"}, "test-topic", "go-consumer")
+	consumer := NewConsumer([]string{"localhost:9092"}, "test-queue", "go-consumer")
 	for i := 1; i < 1000; i++ {
 		data, _ := consumer.Recv()
 		fmt.Println(string(data))
