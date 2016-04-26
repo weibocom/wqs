@@ -16,16 +16,74 @@ limitations under the License.
 
 package zookeeper
 
-import (
-	"fmt"
-	"strings"
-	"testing"
+import "testing"
 
-	"github.com/weibocom/wqs/config"
+var testZkList = []string{"localhost:2181"}
+
+const (
+	testZkPath  = "/fortest"
+	testZkPath1 = "/fortest/1/2/3"
 )
 
 func TestZkClient(t *testing.T) {
+	zk, err := NewZkClient(testZkList)
+	if err != nil {
+		t.Fatalf("NewZkClient err: %s", err)
+	}
 
-	zk_client := NewZkClient(strings.Split(config.NewConfig().ZookeeperAddr, ","))
-	fmt.Println(zk_client.DeleteRec("/wqs/groupconfig/test_group1.test_queue1"))
+	err = zk.Create(testZkPath, "test")
+	if err != nil {
+		t.Fatalf("Create err: %s", err)
+	}
+
+	data, _, err := zk.Get(testZkPath)
+	if err != nil {
+		t.Fatalf("Get err: %s", err)
+	}
+	if string(data) != "test" {
+		t.Errorf("Get wrong data:%s, expect:test", string(data))
+	}
+
+	_, _, err = zk.Children("/")
+	if err != nil {
+		t.Fatalf("Children err: %s", err)
+	}
+
+	err = zk.Delete(testZkPath)
+	if err != nil {
+		t.Fatalf("Delete err: %s", err)
+	}
+}
+
+func TestZkRecursiveOperations(t *testing.T) {
+	zk, err := NewZkClient(testZkList)
+	if err != nil {
+		t.Fatalf("NewZkClient err: %s", err)
+	}
+
+	err = zk.CreateRec(testZkPath1, "test")
+	if err != nil {
+		t.Fatalf("Create err: %s", err)
+	}
+
+	data, _, err := zk.Get(testZkPath1)
+	if err != nil {
+		t.Fatalf("Get err: %s", err)
+	}
+	if string(data) != "test" {
+		t.Errorf("Get wrong data:%s, expect:test", string(data))
+	}
+
+	err = zk.DeleteRec(testZkPath)
+	if err != nil {
+		t.Fatalf("Delete err: %s", err)
+	}
+
+	exist, _, err := zk.Exists(testZkPath)
+	if err != nil {
+		t.Fatalf("Exists err: %s", err)
+	}
+	if exist {
+		t.Fatalf("Exists wrong.")
+	}
 }

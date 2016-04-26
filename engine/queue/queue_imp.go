@@ -104,8 +104,8 @@ func (q *queueImp) Create(queue string) error {
 		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
 	}
 
-	if !q.extendManager.AddQueue(queue) {
-		return errors.Errorf("extern manager add queue %s failed.", queue)
+	if err = q.extendManager.AddQueue(queue); err != nil {
+		return errors.Trace(err)
 	}
 	return q.manager.CreateTopic(queue, q.conf.ReplicationsNum,
 		q.conf.PartitionsNum, q.conf.ZookeeperAddr)
@@ -142,8 +142,8 @@ func (q *queueImp) Delete(queue string) error {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
 
-	if !q.extendManager.DelQueue(queue) {
-		return errors.Errorf("extern manager del queue %s failed.", queue)
+	if err = q.extendManager.DelQueue(queue); err != nil {
+		return errors.Trace(err)
 	}
 	return q.manager.DeleteTopic(queue, q.conf.ZookeeperAddr)
 }
@@ -157,10 +157,16 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 	switch {
 	case queue == "":
 		//Get all queue's information
-		queueMap := q.extendManager.GetQueueMap()
+		queueMap, err := q.extendManager.GetQueueMap()
+		if err != nil {
+			return queueInfos, errors.Trace(err)
+		}
 		for queueName, groupNames := range queueMap {
 			for _, groupName := range groupNames {
-				config := q.extendManager.GetGroupConfig(groupName, queueName)
+				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
+				if err != nil {
+					return queueInfos, errors.Trace(err)
+				}
 				if config != nil {
 					groupConfigs = append(groupConfigs, &model.GroupConfig{
 						Group: config.Group,
@@ -185,13 +191,19 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		}
 	case queue != "" && group == "":
 		//Get a queue's all groups information
-		queueMap := q.extendManager.GetQueueMap()
+		queueMap, err := q.extendManager.GetQueueMap()
+		if err != nil {
+			return queueInfos, errors.Trace(err)
+		}
 		groupNames, exists := queueMap[queue]
 		if !exists {
 			break
 		}
 		for _, gName := range groupNames {
-			config := q.extendManager.GetGroupConfig(gName, queue)
+			config, err := q.extendManager.GetGroupConfig(gName, queue)
+			if err != nil {
+				return queueInfos, errors.Trace(err)
+			}
 			if config != nil {
 				groupConfigs = append(groupConfigs, &model.GroupConfig{
 					Group: config.Group,
@@ -215,7 +227,10 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		})
 	default:
 		//Get group's information by queue and group's name
-		config := q.extendManager.GetGroupConfig(group, queue)
+		config, err := q.extendManager.GetGroupConfig(group, queue)
+		if err != nil {
+			return queueInfos, errors.Trace(err)
+		}
 		if config != nil {
 			groupConfigs = append(groupConfigs, &model.GroupConfig{
 				Group: config.Group,
@@ -253,8 +268,8 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotFoundf("AddGroup queue:%s ", queue)
 	}
 
-	if !q.extendManager.AddGroupConfig(group, queue, write, read, url, ips) {
-		return errors.Errorf("AddGroupConfig group:%s @ queue:%s faild.", group, queue)
+	if err = q.extendManager.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -274,8 +289,8 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 		return errors.NotFoundf("UpdateGroup queue:%s ", queue)
 	}
 
-	if !q.extendManager.UpdateGroupConfig(group, queue, write, read, url, ips) {
-		return errors.Errorf("UpdateGroupConfig group:%s @ queue:%s faild.", group, queue)
+	if err = q.extendManager.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -294,8 +309,8 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotFoundf("DeleteGroup queue:%s ", queue)
 	}
 
-	if !q.extendManager.DeleteGroupConfig(group, queue) {
-		return errors.Errorf("DeleteGroupConfig group:%s @ queue:%s faild.", group, queue)
+	if err = q.extendManager.DeleteGroupConfig(group, queue); err != nil {
+		return errors.Trace(err)
 	}
 
 	return nil
@@ -309,10 +324,16 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 
 	if group == "" {
 		//GET all groups' information
-		groupMap := q.extendManager.GetGroupMap()
+		groupMap, err := q.extendManager.GetGroupMap()
+		if err != nil {
+			return groupInfos, errors.Trace(err)
+		}
 		for groupName, queueNames := range groupMap {
 			for _, queueName := range queueNames {
-				config := q.extendManager.GetGroupConfig(groupName, queueName)
+				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
+				if err != nil {
+					return groupInfos, errors.Trace(err)
+				}
 				if config != nil {
 					groupConfigs = append(groupConfigs, &model.GroupConfig{
 						Queue: config.Queue,
@@ -332,14 +353,20 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 		}
 	} else {
 		//GET one group's information
-		groupMap := q.extendManager.GetGroupMap()
+		groupMap, err := q.extendManager.GetGroupMap()
+		if err != nil {
+			return groupInfos, errors.Trace(err)
+		}
 		queueNames, exist := groupMap[group]
 		if !exist {
 			return groupInfos, nil
 		}
 
 		for _, queue := range queueNames {
-			config := q.extendManager.GetGroupConfig(group, queue)
+			config, err := q.extendManager.GetGroupConfig(group, queue)
+			if err != nil {
+				return groupInfos, errors.Trace(err)
+			}
 			if config != nil {
 				groupConfigs = append(groupConfigs, &model.GroupConfig{
 					Queue: config.Queue,
@@ -370,7 +397,7 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfi
 		return nil, errors.NotFoundf("GetSingleGroup queue:%s ", queue)
 	}
 
-	return q.extendManager.GetGroupConfig(group, queue), nil
+	return q.extendManager.GetGroupConfig(group, queue)
 }
 
 func (q *queueImp) SendMsg(queue string, group string, data []byte) error {

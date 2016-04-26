@@ -17,14 +17,15 @@ limitations under the License.
 package kafka
 
 import (
-	log "github.com/cihub/seelog"
-
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/weibocom/wqs/engine/zookeeper"
 	"github.com/weibocom/wqs/model"
+
+	log "github.com/cihub/seelog"
+	"github.com/juju/errors"
 )
 
 const (
@@ -41,16 +42,23 @@ type ExtendManager struct {
 }
 
 func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
-	//error预留给优化zkClient时使用
-	zkClient := zookeeper.NewZkClient(zkAddrs)
-	groupConfigPath := zkRoot + groupConfigPathSuffix
-	queuePath := zkRoot + queuePathSuffix
-	return &ExtendManager{zkClient, groupConfigPath, queuePath}, nil
+	zk, err := zookeeper.NewZkClient(zkAddrs)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return &ExtendManager{
+		zkClient:        zk,
+		groupConfigPath: fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix),
+		queuePath:       fmt.Sprintf("%s%s", zkRoot, queuePathSuffix),
+	}, nil
 }
 
 //========extend配置相关函数========//
 
-func (em *ExtendManager) AddGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
+func (em *ExtendManager) AddGroupConfig(group string, queue string,
+	write bool, read bool, url string, ips []string) error {
+
 	path := em.buildConfigPath(group, queue)
 	groupConfig := model.GroupConfig{
 		Group: group,
@@ -62,16 +70,26 @@ func (em *ExtendManager) AddGroupConfig(group string, queue string, write bool, 
 	}
 	data := groupConfig.ToJson()
 	log.Infof("add group config, zk path:%s, data:%s", path, data)
-	return em.zkClient.CreateRec(path, data)
+	err := em.zkClient.CreateRec(path, data)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
-func (em *ExtendManager) DeleteGroupConfig(group string, queue string) bool {
+func (em *ExtendManager) DeleteGroupConfig(group string, queue string) error {
 	path := em.buildConfigPath(group, queue)
 	log.Infof("delete group config, zk path:%s", path)
-	return em.zkClient.DeleteRec(path)
+	err := em.zkClient.DeleteRec(path)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
-func (em *ExtendManager) UpdateGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
+func (em *ExtendManager) UpdateGroupConfig(group string, queue string,
+	write bool, read bool, url string, ips []string) error {
+
 	path := em.buildConfigPath(group, queue)
 	groupConfig := model.GroupConfig{
 		Group: group,
@@ -83,38 +101,61 @@ func (em *ExtendManager) UpdateGroupConfig(group string, queue string, write boo
 	}
 	data := groupConfig.ToJson()
 	log.Infof("update group config, zk path:%s, data:%s", path, data)
-	return em.zkClient.Set(path, data)
+	if err := em.zkClient.Set(path, data); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
-func (em *ExtendManager) GetGroupConfig(group string, queue string) *model.GroupConfig {
+func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.GroupConfig, error) {
 	path := em.buildConfigPath(group, queue)
-	data, _ := em.zkClient.Get(path)
+	data, _, err := em.zkClient.Get(path)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 	if len(data) == 0 {
-		log.Infof("get group config, zk path:%s, data:null", path)
-		return nil
-	} else {
-		groupConfig := model.GroupConfig{}
-		json.Unmarshal([]byte(data), &groupConfig)
-		log.Infof("get group config, zk path:%s, data:%s", path, groupConfig.ToJson())
-		return &groupConfig
+		log.Infof("get group config, zk path:%s, data:null, err:%s", path, err)
+		return nil, nil
 	}
+
+	groupConfig := model.GroupConfig{}
+	err = json.Unmarshal(data, &groupConfig)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	log.Infof("get group config, zk path:%s, data:%s", path, groupConfig.ToJson())
+	return &groupConfig, nil
 }
 
-func (em *ExtendManager) GetAllGroupConfig() map[string]*model.GroupConfig {
-	keys, _ := em.zkClient.Children(em.groupConfigPath)
+func (em *ExtendManager) GetAllGroupConfig() (map[string]*model.GroupConfig, error) {
+
 	allGroupConfig := make(map[string]*model.GroupConfig)
-	for _, key := range keys {
-		data, _ := em.zkClient.Get(em.groupConfigPath + "/" + key)
-		groupConfig := model.GroupConfig{}
-		json.Unmarshal([]byte(data), &groupConfig)
-		allGroupConfig[key] = &groupConfig
+	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	if err != nil {
+		return allGroupConfig, errors.Trace(err)
 	}
-	return allGroupConfig
+
+	for _, key := range keys {
+		data, _, err := em.zkClient.Get(fmt.Sprintf("%s/%s", em.groupConfigPath, key))
+		if err != nil {
+			return allGroupConfig, errors.Trace(err)
+		}
+		groupConfig := &model.GroupConfig{}
+		err = json.Unmarshal(data, groupConfig)
+		if err != nil {
+			return allGroupConfig, errors.Trace(err)
+		}
+		allGroupConfig[key] = groupConfig
+	}
+	return allGroupConfig, nil
 }
 
-func (em *ExtendManager) GetGroupMap() map[string][]string {
+func (em *ExtendManager) GetGroupMap() (map[string][]string, error) {
 	groupmap := make(map[string][]string)
-	keys, _ := em.zkClient.Children(em.groupConfigPath)
+	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	if err != nil {
+		return groupmap, errors.Trace(err)
+	}
 	for _, k := range keys {
 		group := strings.Split(k, ".")[0]
 		queues, ok := groupmap[group]
@@ -127,15 +168,19 @@ func (em *ExtendManager) GetGroupMap() map[string][]string {
 			groupmap[group] = tempqueues
 		}
 	}
-	return groupmap
+	return groupmap, nil
 }
 
-func (em *ExtendManager) GetQueueMap() map[string][]string {
+func (em *ExtendManager) GetQueueMap() (map[string][]string, error) {
 	queuemap := make(map[string][]string)
-	keys, _ := em.zkClient.Children(em.groupConfigPath)
-	fmt.Println("keys:", keys)
-	queues, _ := em.zkClient.Children(em.queuePath)
-	fmt.Println("queues:", queues)
+	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	if err != nil {
+		return queuemap, errors.Trace(err)
+	}
+	queues, _, err := em.zkClient.Children(em.queuePath)
+	if err != nil {
+		return queuemap, errors.Trace(err)
+	}
 	for _, k := range keys {
 		queue := strings.Split(k, ".")[1]
 		groups, ok := queuemap[queue]
@@ -156,24 +201,31 @@ func (em *ExtendManager) GetQueueMap() map[string][]string {
 			queuemap[queue] = make([]string, 0)
 		}
 	}
-	return queuemap
+	return queuemap, nil
 }
 
-func (em *ExtendManager) AddQueue(queue string) bool {
+func (em *ExtendManager) AddQueue(queue string) error {
 	path := em.buildQueuePath(queue)
 	data := ""
 	log.Infof("add queue, zk path:%s, data:%s", path, data)
-	return em.zkClient.CreateRec(path, data)
+	err := em.zkClient.CreateRec(path, data)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
-func (em *ExtendManager) DelQueue(queue string) bool {
+func (em *ExtendManager) DelQueue(queue string) error {
 	path := em.buildQueuePath(queue)
 	log.Infof("del queue, zk path:%s", path)
-	return em.zkClient.DeleteRec(path)
+	if err := em.zkClient.DeleteRec(path); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
 func (em *ExtendManager) GetQueues() []string {
-	queues, _ := em.zkClient.Children(em.queuePath)
+	queues, _, _ := em.zkClient.Children(em.queuePath)
 	return queues
 }
 
