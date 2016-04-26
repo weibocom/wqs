@@ -19,23 +19,19 @@ package kafka
 import (
 	"fmt"
 	"testing"
-
-	"github.com/weibocom/wqs/config"
 )
 
-func TestExtendMonitor(t *testing.T) {
+func TestExtendManager(t *testing.T) {
 
-	manager := NewExtendManager(config.NewConfig())
+	manager := NewExtendManager([]string{"10.77.109.121:2181"}, "/wqs")
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue1", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue2", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group1", "test_queue", true, true, "test_group1.test_queue1", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group2", "test_queue", true, true, "test_group1.test_queue1", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group3", "test_queue", true, true, "test_group1.test_queue1", []string{"192.168.0.1", "192.168.0.2"}))
-	// fmt.Println(manager.GetAllGroupConfig())
-	// fmt.Println(manager.GetAllGroup())
-	// fmt.Println(manager.GetAllQueue())
-	// fmt.Println(manager.AddQueue("test1234"))
+	fmt.Println(manager.GetAllGroupConfig())
+	fmt.Println(manager.GetQueues())
 	fmt.Println(manager.GetQueueMap())
 
 }

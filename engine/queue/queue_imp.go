@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/weibocom/wqs/config"
-	"github.com/weibocom/wqs/engine/kafka0.9"
+	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/model"
 

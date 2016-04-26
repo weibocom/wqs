@@ -20,60 +20,75 @@ import (
 	log "github.com/cihub/seelog"
 
 	"encoding/json"
+	"fmt"
 	"strings"
 
-	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/zookeeper"
 	"github.com/weibocom/wqs/model"
 )
 
 const (
-	extengPath      = "/wqs"
-	groupConfigPath = extengPath + "/groupconfig"
-	queuePath       = extengPath + "/queue"
+	groupConfigPathSuffix = "/groupconfig"
+	queuePathSuffix       = "/queue"
 
 	emptyString = ""
 )
 
 type ExtendManager struct {
-	config   *config.Config
-	zkClient *zookeeper.ZkClient
+	zkClient        *zookeeper.ZkClient
+	groupConfigPath string
+	queuePath       string
 }
 
-func NewExtendManager(config *config.Config) *ExtendManager {
-	extendManager := ExtendManager{}
-	extendManager.config = config
-	extendManager.zkClient = zookeeper.NewZkClient(strings.Split(config.ZookeeperAddr, ","))
-	return &extendManager
+func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
+	//error预留给优化zkClient时使用
+	zkClient := zookeeper.NewZkClient(zkAddrs)
+	groupConfigPath := zkRoot + groupConfigPathSuffix
+	queuePath := zkRoot + queuePathSuffix
+	return &ExtendManager{zkClient, groupConfigPath, queuePath}, nil
 }
 
 //========extend配置相关函数========//
 
-func (this *ExtendManager) AddGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
-	path := buildConfigPath(group, queue)
-	groupConfig := model.GroupConfig{Group: group, Queue: queue, Write: write, Read: read, Url: url, Ips: ips}
+func (em *ExtendManager) AddGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
+	path := em.buildConfigPath(group, queue)
+	groupConfig := model.GroupConfig{
+		Group: group,
+		Queue: queue,
+		Write: write,
+		Read:  read,
+		Url:   url,
+		Ips:   ips,
+	}
 	data := groupConfig.ToJson()
 	log.Infof("add group config, zk path:%s, data:%s", path, data)
-	return this.zkClient.CreateRec(path, data)
+	return em.zkClient.CreateRec(path, data)
 }
 
-func (this *ExtendManager) DeleteGroupConfig(group string, queue string) bool {
-	path := buildConfigPath(group, queue)
+func (em *ExtendManager) DeleteGroupConfig(group string, queue string) bool {
+	path := em.buildConfigPath(group, queue)
 	log.Infof("delete group config, zk path:%s", path)
-	return this.zkClient.DeleteRec(path)
+	return em.zkClient.DeleteRec(path)
 }
 
-func (this *ExtendManager) UpdateGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
-	path := buildConfigPath(group, queue)
-	groupConfig := model.GroupConfig{Group: group, Queue: queue, Write: write, Read: read, Url: url, Ips: ips}
+func (em *ExtendManager) UpdateGroupConfig(group string, queue string, write bool, read bool, url string, ips []string) bool {
+	path := em.buildConfigPath(group, queue)
+	groupConfig := model.GroupConfig{
+		Group: group,
+		Queue: queue,
+		Write: write,
+		Read:  read,
+		Url:   url,
+		Ips:   ips,
+	}
 	data := groupConfig.ToJson()
 	log.Infof("update group config, zk path:%s, data:%s", path, data)
-	return this.zkClient.Set(path, data)
+	return em.zkClient.Set(path, data)
 }
 
-func (this *ExtendManager) GetGroupConfig(group string, queue string) *model.GroupConfig {
-	path := buildConfigPath(group, queue)
-	data, _ := this.zkClient.Get(path)
+func (em *ExtendManager) GetGroupConfig(group string, queue string) *model.GroupConfig {
+	path := em.buildConfigPath(group, queue)
+	data, _ := em.zkClient.Get(path)
 	if len(data) == 0 {
 		log.Infof("get group config, zk path:%s, data:null", path)
 		return nil
@@ -85,11 +100,11 @@ func (this *ExtendManager) GetGroupConfig(group string, queue string) *model.Gro
 	}
 }
 
-func (this *ExtendManager) GetAllGroupConfig() map[string]*model.GroupConfig {
-	keys, _ := this.zkClient.Children(groupConfigPath)
+func (em *ExtendManager) GetAllGroupConfig() map[string]*model.GroupConfig {
+	keys, _ := em.zkClient.Children(em.groupConfigPath)
 	allGroupConfig := make(map[string]*model.GroupConfig)
 	for _, key := range keys {
-		data, _ := this.zkClient.Get(groupConfigPath + "/" + key)
+		data, _ := em.zkClient.Get(em.groupConfigPath + "/" + key)
 		groupConfig := model.GroupConfig{}
 		json.Unmarshal([]byte(data), &groupConfig)
 		allGroupConfig[key] = &groupConfig
@@ -97,9 +112,9 @@ func (this *ExtendManager) GetAllGroupConfig() map[string]*model.GroupConfig {
 	return allGroupConfig
 }
 
-func (this *ExtendManager) GetGroupMap() map[string][]string {
+func (em *ExtendManager) GetGroupMap() map[string][]string {
 	groupmap := make(map[string][]string)
-	keys, _ := this.zkClient.Children(groupConfigPath)
+	keys, _ := em.zkClient.Children(em.groupConfigPath)
 	for _, k := range keys {
 		group := strings.Split(k, ".")[0]
 		queues, ok := groupmap[group]
@@ -115,10 +130,12 @@ func (this *ExtendManager) GetGroupMap() map[string][]string {
 	return groupmap
 }
 
-func (this *ExtendManager) GetQueueMap() map[string][]string {
+func (em *ExtendManager) GetQueueMap() map[string][]string {
 	queuemap := make(map[string][]string)
-	keys, _ := this.zkClient.Children(groupConfigPath)
-	queues, _ := this.zkClient.Children(queuePath)
+	keys, _ := em.zkClient.Children(em.groupConfigPath)
+	fmt.Println("keys:", keys)
+	queues, _ := em.zkClient.Children(em.queuePath)
+	fmt.Println("queues:", queues)
 	for _, k := range keys {
 		queue := strings.Split(k, ".")[1]
 		groups, ok := queuemap[queue]
@@ -142,28 +159,28 @@ func (this *ExtendManager) GetQueueMap() map[string][]string {
 	return queuemap
 }
 
-func (this *ExtendManager) AddQueue(queue string) bool {
-	path := buildQueuePath(queue)
+func (em *ExtendManager) AddQueue(queue string) bool {
+	path := em.buildQueuePath(queue)
 	data := ""
 	log.Infof("add queue, zk path:%s, data:%s", path, data)
-	return this.zkClient.CreateRec(path, data)
+	return em.zkClient.CreateRec(path, data)
 }
 
-func (this *ExtendManager) DelQueue(queue string) bool {
-	path := buildQueuePath(queue)
+func (em *ExtendManager) DelQueue(queue string) bool {
+	path := em.buildQueuePath(queue)
 	log.Infof("del queue, zk path:%s", path)
-	return this.zkClient.DeleteRec(path)
+	return em.zkClient.DeleteRec(path)
 }
 
-func (this *ExtendManager) GetQueues() []string {
-	queues, _ := this.zkClient.Children(queuePath)
+func (em *ExtendManager) GetQueues() []string {
+	queues, _ := em.zkClient.Children(em.queuePath)
 	return queues
 }
 
-func buildConfigPath(group string, queue string) string {
-	return groupConfigPath + "/" + group + "." + queue
+func (em *ExtendManager) buildConfigPath(group string, queue string) string {
+	return em.groupConfigPath + "/" + group + "." + queue
 }
 
-func buildQueuePath(queue string) string {
-	return queuePath + "/" + queue
+func (em *ExtendManager) buildQueuePath(queue string) string {
+	return em.queuePath + "/" + queue
 }
