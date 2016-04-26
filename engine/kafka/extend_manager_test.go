@@ -23,7 +23,7 @@ import (
 
 func TestExtendManager(t *testing.T) {
 
-	manager := NewExtendManager([]string{"10.77.109.121:2181"}, "/wqs")
+	manager, _ := NewExtendManager([]string{"localhost:2181"}, "/wqs")
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue1", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
 	// fmt.Println(manager.AddGroupConfig("test_group", "test_queue2", true, true, "test_group.test_queue", []string{"192.168.0.1", "192.168.0.2"}))
@@ -33,5 +33,6 @@ func TestExtendManager(t *testing.T) {
 	fmt.Println(manager.GetAllGroupConfig())
 	fmt.Println(manager.GetQueues())
 	fmt.Println(manager.GetQueueMap())
+	fmt.Println(manager.QueueCreateTime("test-queue"))
 
 }
