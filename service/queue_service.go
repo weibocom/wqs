@@ -35,8 +35,8 @@ type QueueService interface {
 	SendMsg(queue string, group string, data []byte) error
 	ReceiveMsg(queue string, group string) (data []byte, err error)
 	AckMsg(queue string, group string) error
-	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int) (metrics.MetricsObj, error)
-	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) (metrics.MetricsObj, error)
+	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
+	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 }
 
 func NewQueueService(config *config.Config) (QueueService, error) {

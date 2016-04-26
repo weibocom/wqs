@@ -104,17 +104,17 @@ func (m *Monitor) doStatistic(key string, count int64) {
 }
 
 func (m *Monitor) GetSendMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) (MetricsObj, error) {
+	start int64, end int64, intervalnum int64) (MetricsObj, error) {
 
 	key := fmt.Sprintf("%s.%s.s", queue, group)
-	return m.doGetMetrics(key, start, end, int64(intervalnum))
+	return m.doGetMetrics(key, start, end, intervalnum)
 }
 
 func (m *Monitor) GetReceiveMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) (MetricsObj, error) {
+	start int64, end int64, intervalnum int64) (MetricsObj, error) {
 
 	key := fmt.Sprintf("%s.%s.r", queue, group)
-	return m.doGetMetrics(key, start, end, int64(intervalnum))
+	return m.doGetMetrics(key, start, end, intervalnum)
 }
 
 func (m *Monitor) doGetMetrics(key string, start int64,

@@ -308,7 +308,7 @@ func (q *queueService) AckMsg(queue string, group string) error {
 //========监控操作相关函数========//
 
 func (q *queueService) GetSendMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
+	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 	if !q.manager.ExistTopic(queue) {
 		return nil, errors.NotFoundf("%s.%s ", queue, group)
 	}
@@ -316,7 +316,7 @@ func (q *queueService) GetSendMetrics(queue string, group string,
 }
 
 func (q *queueService) GetReceiveMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
+	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 	if !q.manager.ExistTopic(queue) {
 		return nil, errors.NotFoundf("%s.%s ", queue, group)
 	}

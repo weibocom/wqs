@@ -47,21 +47,21 @@ func NewHttpServer(queueService service.QueueService, config *config.Config) *Ht
 	}
 }
 
-func (this *HttpServer) Start() {
-	http.HandleFunc("/queue", this.queueHandler)
-	http.HandleFunc("/group", this.groupHandler)
-	http.HandleFunc("/monitor", this.monitorHandler)
-	http.HandleFunc("/alarm", this.alarmHandler)
-	http.HandleFunc("/msg", this.msgHandler)
+func (s *HttpServer) Start() {
+	http.HandleFunc("/queue", s.queueHandler)
+	http.HandleFunc("/group", s.groupHandler)
+	http.HandleFunc("/monitor", s.monitorHandler)
+	http.HandleFunc("/alarm", s.alarmHandler)
+	http.HandleFunc("/msg", s.msgHandler)
 	//http.HandleFunc("/msg/ha", this.msgHandler)
 	//http.HandleFunc("/msg/pipeline", this.msgHandler)
 
-	if this.uidir != "" {
+	if s.uidir != "" {
 		// Static file serving done from /ui/
-		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(this.uidir))))
+		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(s.uidir))))
 	}
 
-	err := http.ListenAndServe(":"+this.port, nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%s", s.port), nil)
 	if err != nil {
 		log.Criticalf("ListenAndServe: ", err)
 		os.Exit(-1)
@@ -69,24 +69,23 @@ func (this *HttpServer) Start() {
 }
 
 //队列操作handler
-func (this *HttpServer) queueHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-
-	var action string = r.FormValue("action")
-	var queue string = r.FormValue("queue")
-	var biz string = r.FormValue("biz")
+func (s *HttpServer) queueHandler(w http.ResponseWriter, r *http.Request) {
 
 	var result string
+	r.ParseForm()
+	action := r.FormValue("action")
+	queue := r.FormValue("queue")
 
 	switch action {
 	case "create":
-		result = this.queueCreate(queue)
+		result = s.queueCreate(queue)
 	case "remove":
-		result = this.queueRemove(queue)
+		result = s.queueRemove(queue)
 	case "update":
-		result = this.queueUpdate(queue)
+		result = s.queueUpdate(queue)
 	case "lookup":
-		result = this.queueLookup(queue, biz)
+		biz := r.FormValue("biz")
+		result = s.queueLookup(queue, biz)
 	default:
 		result = "error, param action=" + action + " not support!"
 	}
@@ -96,6 +95,7 @@ func (this *HttpServer) queueHandler(w http.ResponseWriter, r *http.Request) {
 func (s *HttpServer) queueCreate(queue string) string {
 	err := s.queueService.CreateQueue(queue)
 	if err != nil {
+		log.Debugf("CreateQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"create","result":false}`
 	}
 	return `{"action":"create","result":true}`
@@ -104,6 +104,7 @@ func (s *HttpServer) queueCreate(queue string) string {
 func (s *HttpServer) queueRemove(queue string) string {
 	err := s.queueService.DeleteQueue(queue)
 	if err != nil {
+		log.Debugf("DeleteQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"remove","result":false}`
 	}
 	return `{"action":"remove","result":true}`
@@ -112,20 +113,30 @@ func (s *HttpServer) queueRemove(queue string) string {
 func (s *HttpServer) queueUpdate(queue string) string {
 	err := s.queueService.UpdateQueue(queue)
 	if err != nil {
+		log.Debugf("UpdateQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"update","result":false}`
 	}
 	return `{"action":"update","result":true}`
 }
 
 func (s *HttpServer) queueLookup(queue string, biz string) string {
-	r, _ := s.queueService.LookupQueue(queue, biz)
-	result, _ := json.Marshal(r)
+	r, err := s.queueService.LookupQueue(queue, biz)
+	if err != nil {
+		log.Debugf("LookupQueue err:%s", errors.ErrorStack(err))
+		return "[]"
+	}
+	result, err := json.Marshal(r)
+	if err != nil {
+		log.Debugf("queueLookup Marshal err:%s", err)
+		return "[]"
+	}
 	return string(result)
 }
 
 //业务操作handler
 func (s *HttpServer) groupHandler(w http.ResponseWriter, r *http.Request) {
 
+	var result string
 	r.ParseForm()
 	action := r.FormValue("action")
 	queue := r.FormValue("queue")
@@ -135,7 +146,6 @@ func (s *HttpServer) groupHandler(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
 	ips := r.FormValue("ips")
 
-	var result string
 	switch action {
 	case "add":
 		result = s.groupAdd(group, queue, write, read, url, ips)
@@ -152,29 +162,18 @@ func (s *HttpServer) groupHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HttpServer) groupAdd(group string, queue string, write string, read string, url string, ips string) string {
-	var w bool
-	var r bool
-	var ips_array []string
 
-	if write != "" {
-		w, _ = strconv.ParseBool(write)
-	}
-
-	if read != "" {
-		r, _ = strconv.ParseBool(read)
-	}
-
-	if ips != "" {
-		ips_array = strings.Split(ips, ",")
-	}
+	w, _ := strconv.ParseBool(write)
+	r, _ := strconv.ParseBool(read)
+	ips_array := strings.Split(ips, ",")
 
 	if url == "" {
-		url = group + "." + queue + ".intra.weibo.com"
+		url = fmt.Sprintf("%s.%s.intra.weibo.com", group, queue)
 	}
 
 	err := s.queueService.AddGroup(group, queue, w, r, url, ips_array)
 	if err != nil {
-		log.Warnf("groupAdd failed: %s", errors.ErrorStack(err))
+		log.Debugf("AddGroup failed: %s", errors.ErrorStack(err))
 		return `{"action":"add","result":false}`
 	}
 	return `{"action":"add","result":true}`
@@ -183,7 +182,7 @@ func (s *HttpServer) groupAdd(group string, queue string, write string, read str
 func (s *HttpServer) groupRemove(group string, queue string) string {
 	err := s.queueService.DeleteGroup(group, queue)
 	if err != nil {
-		log.Warnf("groupRemove failed: %s", errors.ErrorStack(err))
+		log.Debugf("groupRemove failed: %s", errors.ErrorStack(err))
 		return `{"action":"remove","result":false}`
 	}
 	return `{"action":"remove","result":true}`
@@ -192,8 +191,11 @@ func (s *HttpServer) groupRemove(group string, queue string) string {
 func (s *HttpServer) groupUpdate(group string, queue string,
 	write string, read string, url string, ips string) string {
 
-	config, _ := s.queueService.GetSingleGroup(group, queue)
-	fmt.Println("config:", config)
+	config, err := s.queueService.GetSingleGroup(group, queue)
+	if err != nil {
+		log.Debugf("GetSingleGroup err:%s", errors.ErrorStack(err))
+		return `{"action":"update","result":false}`
+	}
 	if write != "" {
 		w, err := strconv.ParseBool(write)
 		if err == nil {
@@ -213,17 +215,25 @@ func (s *HttpServer) groupUpdate(group string, queue string,
 		config.Ips = strings.Split(ips, ",")
 	}
 
-	err := s.queueService.UpdateGroup(group, queue, config.Write, config.Read, config.Url, config.Ips)
+	err = s.queueService.UpdateGroup(group, queue, config.Write, config.Read, config.Url, config.Ips)
 	if err != nil {
-		log.Warnf("groupUpdate failed: %s", errors.ErrorStack(err))
+		log.Debugf("groupUpdate failed: %s", errors.ErrorStack(err))
 		return `{"action":"update","result":false}`
 	}
 	return `{"action":"update","result":true}`
 }
 
 func (s *HttpServer) groupLookup(group string) string {
-	r, _ := s.queueService.LookupGroup(group)
-	result, _ := json.Marshal(r)
+	r, err := s.queueService.LookupGroup(group)
+	if err != nil {
+		log.Debugf("LookupGroup err: %s", errors.ErrorStack(err))
+		return "[]"
+	}
+	result, err := json.Marshal(r)
+	if err != nil {
+		log.Debugf("LookupGroup Marshal err: %s", err)
+		return "[]"
+	}
 	return string(result)
 }
 
@@ -254,7 +264,7 @@ func (s *HttpServer) msgSend(queue string, group string, msg string) string {
 	var result string
 	err := s.queueService.SendMsg(queue, group, []byte(msg))
 	if err != nil {
-		log.Warnf("msgSend failed: %s", errors.ErrorStack(err))
+		log.Debugf("msgSend failed: %s", errors.ErrorStack(err))
 		result = err.Error()
 	} else {
 		result = `{"action":"send","result":true}`
@@ -266,7 +276,7 @@ func (s *HttpServer) msgReceive(queue string, group string) string {
 	var result string
 	data, err := s.queueService.ReceiveMsg(queue, group)
 	if err != nil {
-		log.Warnf("msgReceive failed: %s", errors.ErrorStack(err))
+		log.Debugf("msgReceive failed: %s", errors.ErrorStack(err))
 		result = err.Error()
 	} else {
 		result = `{"action":"receive","msg":"` + string(data) + `"}`
@@ -294,31 +304,47 @@ func (s *HttpServer) monitorHandler(w http.ResponseWriter, r *http.Request) {
 
 	end := time.Now().Unix()
 	start := end - 5*60 //5min
-	interval := 1
+	interval := int64(1)
 
-	if r.FormValue("start") != "" {
-		temp, _ := strconv.Atoi(r.FormValue("start"))
-		start = int64(temp)
+	startTime := r.FormValue("start")
+	if startTime != "" {
+		start, _ = strconv.ParseInt(startTime, 10, 0)
 	}
-	if r.FormValue("end") != "" {
-		temp, _ := strconv.Atoi(r.FormValue("end"))
-		end = int64(temp)
+	endTime := r.FormValue("end")
+	if endTime != "" {
+		end, _ = strconv.ParseInt(endTime, 10, 0)
 	}
-	if r.FormValue("interval") != "" {
-		temp, _ := strconv.Atoi(r.FormValue("interval"))
-		interval = temp
+	intervalTime := r.FormValue("interval")
+	if intervalTime != "" {
+		interval, _ = strconv.ParseInt(intervalTime, 10, 0)
 	}
 
 	var result string
 
 	switch monitorType {
 	case "send":
-		m, _ := s.queueService.GetSendMetrics(queue, group, start, end, interval)
-		sm, _ := json.Marshal(m)
+		m, err := s.queueService.GetSendMetrics(queue, group, start, end, interval)
+		if err != nil {
+			log.Debug("GetSendMetrics err: %s", errors.ErrorStack(err))
+			return
+		}
+		sm, err := json.Marshal(m)
+		if err != nil {
+			log.Debugf("GetSendMetrics Marshal err: %s", err)
+			return
+		}
 		result = string(sm)
 	case "receive":
-		m, _ := s.queueService.GetReceiveMetrics(queue, group, start, end, interval)
-		rm, _ := json.Marshal(m)
+		m, err := s.queueService.GetReceiveMetrics(queue, group, start, end, interval)
+		if err != nil {
+			log.Debug("GetReceiveMetrics err: %s", errors.ErrorStack(err))
+			return
+		}
+		rm, err := json.Marshal(m)
+		if err != nil {
+			log.Debugf("GetReceiveMetrics Marshal err: %s", err)
+			return
+		}
 		result = string(rm)
 	default:
 		result = "error, param type=" + monitorType + " not support!"

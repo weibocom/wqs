@@ -426,7 +426,7 @@ func (q *queueService09) AckMsg(queue string, group string) error {
 }
 
 func (q *queueService09) GetSendMetrics(queue string, group string,
-	start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
+	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -439,7 +439,7 @@ func (q *queueService09) GetSendMetrics(queue string, group string,
 	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
 }
 
-func (q *queueService09) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int) (metrics.MetricsObj, error) {
+func (q *queueService09) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
