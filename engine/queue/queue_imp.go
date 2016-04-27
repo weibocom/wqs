@@ -63,15 +63,15 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	sConf.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
 	sConf.ChannelBufferSize = 1024
 
-	extendManager, err := kafka.NewExtendManager(strings.Split(config.ZookeeperAddr, ","), config.ZookeeperRootPath)
+	extendManager, err := kafka.NewExtendManager(strings.Split(config.MetaDataZKAddr, ","), config.MetaDataZKRoot)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	producer, err := kafka.NewProducer(strings.Split(config.BrokerAddr, ","), sConf)
+	producer, err := kafka.NewProducer(strings.Split(config.KafkaBrokerAddr, ","), sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	manager, err := kafka.NewManager(strings.Split(config.BrokerAddr, ","), config.KafkaBin, sConf)
+	manager, err := kafka.NewManager(strings.Split(config.KafkaBrokerAddr, ","), config.KafkaLib, sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -90,11 +90,22 @@ func newQueue(config *config.Config) (*queueImp, error) {
 
 //Create a queue by name.
 func (q *queueImp) Create(queue string) error {
-
+	// 1. check queue name valid
 	if len(queue) == 0 {
 		errors.NotValidf("CreateQueue queue:%s", queue)
 	}
+
+	// 2. check kafka whether the queue exists
 	exist, err := q.manager.ExistTopic(queue, true)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if exist {
+		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
+	}
+
+	// 3. check metadata whether the queue exists
+	exist, err = q.extendManager.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -105,8 +116,8 @@ func (q *queueImp) Create(queue string) error {
 	if err = q.extendManager.AddQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
-	return q.manager.CreateTopic(queue, q.conf.ReplicationsNum,
-		q.conf.PartitionsNum, q.conf.ZookeeperAddr)
+	return q.manager.CreateTopic(queue, q.conf.KafkaReplications,
+		q.conf.KafkaPartitions, q.conf.KafkaZKAddr)
 }
 
 //Updata queue information by name. Nothing to be update so far.
@@ -128,11 +139,22 @@ func (q *queueImp) Update(queue string) error {
 
 //Delete queue by name
 func (q *queueImp) Delete(queue string) error {
-
+	// 1. check queue name valid
 	if len(queue) == 0 {
 		errors.NotValidf("DeleteQueue queue:%s", queue)
 	}
+
+	// 2. check kafka whether the queue exists
 	exist, err := q.manager.ExistTopic(queue, true)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !exist {
+		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
+	}
+
+	// 3. check metadata whether the queue exists
+	exist, err = q.extendManager.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -143,7 +165,7 @@ func (q *queueImp) Delete(queue string) error {
 	if err = q.extendManager.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
-	return q.manager.DeleteTopic(queue, q.conf.ZookeeperAddr)
+	return q.manager.DeleteTopic(queue, q.conf.KafkaZKAddr)
 }
 
 //Get queue information by queue name and group name
@@ -435,7 +457,7 @@ func (q *queueImp) ReceiveMsg(queue string, group string) ([]byte, error) {
 	q.mu.Lock()
 	consumer, ok := q.consumerMap[id]
 	if !ok {
-		consumer, err = kafka.NewConsumer(strings.Split(q.conf.BrokerAddr, ","), queue, group)
+		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
 			return nil, errors.Trace(err)

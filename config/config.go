@@ -23,37 +23,22 @@ import (
 )
 
 type Config struct {
-	ZookeeperAddr      string
-	ZookeeperRootPath  string
-	BrokerAddr         string
+	KafkaZKAddr       string
+	KafkaZKRoot       string
+	KafkaBrokerAddr   string
+	KafkaPartitions   int
+	KafkaReplications int
+
+	UiDir              string
 	HttpPort           string
 	McPort             string
 	McSocketRecvBuffer int
 	McSocketSendBuffer int
 	MotanPort          string
-	UiDir              string
-	KafkaBin           string
-	PartitionsNum      int
-	ReplicationsNum    int
+	KafkaLib           string
+	MetaDataZKAddr     string
+	MetaDataZKRoot     string
 	RedisAddr          string
-}
-
-func NewConfig() *Config {
-	return &Config{
-		ZookeeperAddr:      "localhost:2181",
-		ZookeeperRootPath:  "",
-		BrokerAddr:         "localhost:9092",
-		HttpPort:           "8080",
-		McPort:             "11211",
-		MotanPort:          "8881",
-		UiDir:              "./ui",
-		KafkaBin:           "./bin",
-		PartitionsNum:      16,
-		ReplicationsNum:    2,
-		RedisAddr:          "localhost:6379",
-		McSocketRecvBuffer: 4096,
-		McSocketSendBuffer: 4096,
-	}
 }
 
 func NewConfigFromFile(file string) (*Config, error) {
@@ -63,77 +48,84 @@ func NewConfigFromFile(file string) (*Config, error) {
 		return nil, errors.Trace(err)
 	}
 
-	httpPort, exist := p.Get("http.port")
+	// kafka cluster config
+	kafkaZKAddr, exist := p.Get("kafka.zookeeper.connect")
 	if !exist {
-		return nil, errors.NotFoundf("http.port")
+		return nil, errors.NotFoundf("kafka.zookeeper.connect")
+	}
+	kafkaZKRoot, exist := p.Get("kafka.zookeeper.root")
+	if !exist {
+		return nil, errors.NotFoundf("kafka.zookeeper.root")
+	}
+	kafkaBrokerAddr, exist := p.Get("kafka.broker.connect")
+	if !exist {
+		return nil, errors.NotFoundf("kafka.broker.connect")
 	}
 
+	kafkaPartitions := int(p.GetInt64("kafka.topic.partitions", 0))
+	if kafkaPartitions == 0 {
+		return nil, errors.NotValidf("kafka.topic.partitions")
+	}
+	kafkaReplications := int(p.GetInt64("kafka.topic.replications", 0))
+	if kafkaReplications == 0 {
+		return nil, errors.NotValidf("kafka.topic.replications")
+	}
+
+	// proxy config
+	kafkaLib, exist := p.Get("kafka.lib")
+	if !exist {
+		return nil, errors.NotFoundf("kafka.lib")
+	}
 	uiDir, exist := p.Get("ui.dir")
 	if !exist {
 		return nil, errors.NotFoundf("ui.dir")
 	}
-
-	kafkaBin, exist := p.Get("kafka.bin")
+	httpPort, exist := p.Get("protocol.http.port")
 	if !exist {
-		return nil, errors.NotFoundf("kafka.bin")
+		return nil, errors.NotFoundf("protocol.http.port")
 	}
 
-	zookeeperAddr, exist := p.Get("zookeeper.connect")
+	mcPort, exist := p.Get("protocol.mc.port")
 	if !exist {
-		return nil, errors.NotFoundf("zookeeper.connect")
+		return nil, errors.NotFoundf("protocol.mc.port")
 	}
+	mcSocketRecvBuffer := int(p.GetInt64("mc.socket.recv.buffer", 4096))
+	mcSocketSendBuffer := int(p.GetInt64("mc.socket.send.buffer", 4096))
 
-	zookeeperRootPath, exist := p.Get("zookeeper.rootpath")
+	motanPort, exist := p.Get("protocol.motan.port")
 	if !exist {
-		return nil, errors.NotFoundf("zookeeper.rootpath")
+		return nil, errors.NotFoundf("protocol.motan.port")
 	}
 
-	brokerAddr, exist := p.Get("broker.connect")
+	metaDataZKAddr, exist := p.Get("metadata.zookeeper.connect")
 	if !exist {
-		return nil, errors.NotFoundf("broker.connect")
+		return nil, errors.NotFoundf("metadata.zookeeper.connect")
 	}
-
-	partitionsNum := int(p.GetInt64("partitions.num", 0))
-	if partitionsNum == 0 {
-		return nil, errors.NotValidf("partitions.num")
+	metaDataZKRoot, exist := p.Get("metadata.zookeeper.root")
+	if !exist {
+		return nil, errors.NotFoundf("metadata.zookeeper.root")
 	}
-
-	replicationsNum := int(p.GetInt64("replications.num", -1))
-	if replicationsNum == -1 {
-		return nil, errors.NotValidf("replications.num")
-	}
-
 	redisAddr, exist := p.Get("redis.connect")
 	if !exist {
 		return nil, errors.NotFoundf("redis.connect")
 	}
 
-	mcPort, exist := p.Get("mc.port")
-	if !exist {
-		return nil, errors.NotFoundf("mc.port")
-	}
-
-	motanPort, exist := p.Get("motan.port")
-	if !exist {
-		return nil, errors.NotFoundf("motan.port")
-	}
-
-	mcSocketRecvBuffer := int(p.GetInt64("mc.socket.recv.buffer", 4096))
-	mcSocketSendBuffer := int(p.GetInt64("mc.socket.send.buffer", 4096))
-
 	return &Config{
-		HttpPort:           httpPort,
+		KafkaZKAddr:       kafkaZKAddr,
+		KafkaZKRoot:       kafkaZKRoot,
+		KafkaBrokerAddr:   kafkaBrokerAddr,
+		KafkaPartitions:   kafkaPartitions,
+		KafkaReplications: kafkaReplications,
+
 		UiDir:              uiDir,
-		KafkaBin:           kafkaBin,
-		ZookeeperAddr:      zookeeperAddr,
-		ZookeeperRootPath:  zookeeperRootPath,
-		BrokerAddr:         brokerAddr,
-		PartitionsNum:      partitionsNum,
-		ReplicationsNum:    replicationsNum,
-		RedisAddr:          redisAddr,
+		HttpPort:           httpPort,
 		McPort:             mcPort,
-		MotanPort:          motanPort,
 		McSocketRecvBuffer: mcSocketRecvBuffer,
 		McSocketSendBuffer: mcSocketSendBuffer,
+		MotanPort:          motanPort,
+		KafkaLib:           kafkaLib,
+		MetaDataZKAddr:     metaDataZKAddr,
+		MetaDataZKRoot:     metaDataZKRoot,
+		RedisAddr:          redisAddr,
 	}, nil
 }

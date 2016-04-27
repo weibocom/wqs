@@ -29,10 +29,9 @@ import (
 )
 
 const (
-	groupConfigPathSuffix = "/groupconfig"
-	queuePathSuffix       = "/queue"
-
-	emptyString = ""
+	groupConfigPathSuffix = "/wqs/metadata/groupconfig"
+	queuePathSuffix       = "/wqs/metadata/queue"
+	root                  = "/"
 )
 
 type ExtendManager struct {
@@ -47,10 +46,32 @@ func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
 		return nil, errors.Trace(err)
 	}
 
+	if strings.EqualFold(zkRoot, root) {
+		zkRoot = ""
+	}
+	groupConfigPath := fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix)
+	queuePath := fmt.Sprintf("%s%s", zkRoot, queuePathSuffix)
+
+	exist, _, err := zk.Exists(groupConfigPath)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if !exist {
+		zk.CreateRec(groupConfigPath, "")
+	}
+
+	exist, _, err = zk.Exists(queuePath)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if !exist {
+		zk.CreateRec(queuePath, "")
+	}
+
 	return &ExtendManager{
 		zkClient:        zk,
-		groupConfigPath: fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix),
-		queuePath:       fmt.Sprintf("%s%s", zkRoot, queuePathSuffix),
+		groupConfigPath: groupConfigPath,
+		queuePath:       queuePath,
 	}, nil
 }
 
@@ -224,9 +245,19 @@ func (em *ExtendManager) DelQueue(queue string) error {
 	return nil
 }
 
-func (em *ExtendManager) GetQueues() []string {
-	queues, _, _ := em.zkClient.Children(em.queuePath)
-	return queues
+func (em *ExtendManager) GetQueues() ([]string, error) {
+	queues, _, err := em.zkClient.Children(em.queuePath)
+	return queues, err
+}
+
+func (em *ExtendManager) ExistQueue(queue string) (bool, error) {
+	queues, err := em.GetQueues()
+	for _, q := range queues {
+		if strings.EqualFold(q, queue) {
+			return true, nil
+		}
+	}
+	return false, err
 }
 
 func (em *ExtendManager) QueueCreateTime(queue string) (int64, error) {
