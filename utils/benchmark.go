@@ -33,10 +33,11 @@ const (
 )
 
 type TesterTask func(bt *BenchmarkTester, index int) error
+type TesterClean func(bt *BenchmarkTester)
 
 type BenchmarkTester struct {
 	running         int64
-	count           int64
+	Count           int64
 	failure         int64
 	concurrentLevel int
 	duration        int
@@ -46,6 +47,7 @@ type BenchmarkTester struct {
 	finish          sync.WaitGroup
 	testStart       chan int
 	task            TesterTask
+	cleanHandler    TesterClean
 	err             error
 }
 
@@ -67,17 +69,20 @@ func (bt *BenchmarkTester) recardResponseTime(latency time.Duration) {
 }
 
 func (bt *BenchmarkTester) result() {
+	if bt.cleanHandler != nil {
+		bt.cleanHandler(bt)
+	}
 	fmt.Printf("Benchmark Result:\n")
-	fmt.Printf("\tTotal %d ops, %d%% ops failed.\n", bt.count, bt.failure*100/bt.count)
+	fmt.Printf("\tTotal %d ops, %d%% ops failed.\n", bt.Count, bt.failure*100/bt.Count)
 	if bt.err != nil {
 		fmt.Printf("\tLast error is : %s\n", bt.err.Error())
 	}
-	fmt.Printf("\t%2d%% ops < 2ms\n", bt.responseTime[latencyLt2ms]*100/bt.count)
-	fmt.Printf("\t%2d%% ops 2-5ms\n", bt.responseTime[latencyLt5ms]*100/bt.count)
-	fmt.Printf("\t%2d%% ops 5-10ms\n", bt.responseTime[latencyLt10ms]*100/bt.count)
-	fmt.Printf("\t%2d%% ops 10-20ms\n", bt.responseTime[latencyLt20ms]*100/bt.count)
-	fmt.Printf("\t%2d%% ops 20-50ms\n", bt.responseTime[latencyLt50ms]*100/bt.count)
-	fmt.Printf("\t%2d%% ops >50ms\n", bt.responseTime[latencyGt50ms]*100/bt.count)
+	fmt.Printf("\t%2d%% ops < 2ms\n", bt.responseTime[latencyLt2ms]*100/bt.Count)
+	fmt.Printf("\t%2d%% ops 2-5ms\n", bt.responseTime[latencyLt5ms]*100/bt.Count)
+	fmt.Printf("\t%2d%% ops 5-10ms\n", bt.responseTime[latencyLt10ms]*100/bt.Count)
+	fmt.Printf("\t%2d%% ops 10-20ms\n", bt.responseTime[latencyLt20ms]*100/bt.Count)
+	fmt.Printf("\t%2d%% ops 20-50ms\n", bt.responseTime[latencyLt50ms]*100/bt.Count)
+	fmt.Printf("\t%2d%% ops >50ms\n", bt.responseTime[latencyGt50ms]*100/bt.Count)
 }
 
 func (bt *BenchmarkTester) taskLoop(index int) {
@@ -88,7 +93,7 @@ func (bt *BenchmarkTester) taskLoop(index int) {
 		start := time.Now()
 		err := bt.task(bt, index)
 		bt.recardResponseTime(time.Since(start) / time.Millisecond)
-		atomic.AddInt64(&bt.count, 1)
+		atomic.AddInt64(&bt.Count, 1)
 		if err != nil {
 			atomic.AddInt64(&bt.failure, 1)
 			bt.err = err
@@ -114,10 +119,10 @@ func (bt *BenchmarkTester) Run() error {
 
 	for i := 0; i < bt.duration; i++ {
 		now := time.Now().UnixNano()
-		count1 := atomic.LoadInt64(&bt.count)
+		count1 := atomic.LoadInt64(&bt.Count)
 		time.Sleep(time.Second)
 		dlt := time.Now().UnixNano() - now
-		count2 := atomic.LoadInt64(&bt.count)
+		count2 := atomic.LoadInt64(&bt.Count)
 		if dlt <= 0 {
 			dlt = 1
 		}
@@ -130,7 +135,7 @@ func (bt *BenchmarkTester) Run() error {
 	return nil
 }
 
-func NewBenchmarkTester(concurrentLevel int, duration int, task TesterTask) *BenchmarkTester {
+func NewBenchmarkTester(concurrentLevel int, duration int, task TesterTask, clean TesterClean) *BenchmarkTester {
 	return &BenchmarkTester{
 		running:         1,
 		concurrentLevel: concurrentLevel,
@@ -138,5 +143,6 @@ func NewBenchmarkTester(concurrentLevel int, duration int, task TesterTask) *Ben
 		responseTime:    make([]int64, latencyGt50ms+1),
 		testStart:       make(chan int, 0),
 		task:            task,
+		cleanHandler:    clean,
 	}
 }

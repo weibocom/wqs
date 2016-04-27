@@ -188,7 +188,7 @@ func cmdBenchmarkSet() error {
 				return nil
 			}
 			return recordMetadata.Error
-		})
+		}, nil)
 	return errors.Trace(bt.Run())
 }
 
@@ -234,7 +234,7 @@ func cmdBenchmarkSetNoAck() error {
 				return nil
 			}
 			return recordMetadata.Error
-		})
+		}, nil)
 	return errors.Trace(bt.Run())
 }
 
@@ -284,7 +284,7 @@ func cmdBenchmarkGet() error {
 
 		<-message
 		return nil
-	})
+	}, nil)
 
 	return errors.Trace(bt.Run())
 }

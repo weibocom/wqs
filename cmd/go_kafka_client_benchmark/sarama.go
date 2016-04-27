@@ -56,6 +56,6 @@ func cmdBenchmarkSet2() error {
 				return err
 			}
 			return nil
-		})
+		}, nil)
 	return errors.Trace(bt.Run())
 }
