@@ -65,7 +65,7 @@ func benchmarkMCSet() error {
 		}
 
 		return nil
-	})
+	}, nil)
 	return errors.Trace(bt.Run())
 }
 
@@ -84,6 +84,6 @@ func benchmarkMCGet() error {
 		}
 
 		return nil
-	})
+	}, nil)
 	return errors.Trace(bt.Run())
 }
