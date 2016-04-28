@@ -40,12 +40,15 @@ type ZkClient struct {
 	*zk.Conn
 }
 
+func zkClientSetLogger(c *zk.Conn) {
+	c.SetLogger(logger{})
+}
+
 func NewZkClient(servers []string) (*ZkClient, error) {
-	c, _, err := zk.Connect(servers, time.Second)
+	c, _, err := zk.Connect(servers, time.Second, zkClientSetLogger)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	c.SetLogger(logger{})
 
 	return &ZkClient{Conn: c}, nil
 }
