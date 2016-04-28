@@ -27,6 +27,7 @@ import (
 	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/model"
+	"github.com/weibocom/wqs/utils"
 
 	"github.com/Shopify/sarama"
 	log "github.com/cihub/seelog"
@@ -91,8 +92,8 @@ func newQueue(config *config.Config) (*queueImp, error) {
 //Create a queue by name.
 func (q *queueImp) Create(queue string) error {
 	// 1. check queue name valid
-	if len(queue) == 0 {
-		errors.NotValidf("CreateQueue queue:%s", queue)
+	if utils.BlankString(queue) {
+		return errors.NotValidf("CreateQueue queue:%s", queue)
 	}
 
 	// 2. check kafka whether the queue exists
@@ -123,8 +124,8 @@ func (q *queueImp) Create(queue string) error {
 //Updata queue information by name. Nothing to be update so far.
 func (q *queueImp) Update(queue string) error {
 
-	if len(queue) == 0 {
-		errors.NotValidf("UpdateQueue queue:%s", queue)
+	if utils.BlankString(queue) {
+		return errors.NotValidf("UpdateQueue queue:%s", queue)
 	}
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -140,8 +141,8 @@ func (q *queueImp) Update(queue string) error {
 //Delete queue by name
 func (q *queueImp) Delete(queue string) error {
 	// 1. check queue name valid
-	if len(queue) == 0 {
-		errors.NotValidf("DeleteQueue queue:%s", queue)
+	if utils.BlankString(queue) {
+		return errors.NotValidf("DeleteQueue queue:%s", queue)
 	}
 
 	// 2. check kafka whether the queue exists
@@ -282,8 +283,8 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 func (q *queueImp) AddGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if len(group) == 0 || len(queue) == 0 {
-		errors.NotValidf("add group:%s @ queue:%s", group, queue)
+	if utils.BlankString(group) || utils.BlankString(queue) {
+		return errors.NotValidf("add group:%s @ queue:%s", group, queue)
 	}
 
 	exist, err := q.manager.ExistTopic(queue, true)
@@ -303,8 +304,8 @@ func (q *queueImp) AddGroup(group string, queue string,
 func (q *queueImp) UpdateGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if len(group) == 0 || len(queue) == 0 {
-		errors.NotValidf("add group:%s @ queue:%s", group, queue)
+	if utils.BlankString(group) || utils.BlankString(queue) {
+		return errors.NotValidf("update group:%s @ queue:%s", group, queue)
 	}
 
 	exist, err := q.manager.ExistTopic(queue, true)
@@ -323,8 +324,8 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 
 func (q *queueImp) DeleteGroup(group string, queue string) error {
 
-	if len(group) == 0 || len(queue) == 0 {
-		errors.NotValidf("add group:%s @ queue:%s", group, queue)
+	if utils.BlankString(group) || utils.BlankString(queue) {
+		return errors.NotValidf("delete group:%s @ queue:%s", group, queue)
 	}
 
 	exist, err := q.manager.ExistTopic(queue, true)

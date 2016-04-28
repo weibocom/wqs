@@ -18,6 +18,7 @@ package utils
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/juju/errors"
 )
@@ -36,4 +37,16 @@ func GetIntFromArgs(args map[string]interface{}, arg string, defaultVar int) (in
 		return v, errors.Trace(err)
 	}
 	return defaultVar, nil
+}
+
+func ValidParam(str string) bool {
+	return !strings.Contains(str, " ") && !BlankString(str)
+}
+
+func BlankString(str string) bool {
+	if len(strings.TrimSpace(str)) == 0 {
+		return true
+	} else {
+		return false
+	}
 }
