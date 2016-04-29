@@ -185,7 +185,6 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 	case queue == "":
 		//Get all queue's information
 		queueMap, err := q.extendManager.GetQueueMap()
-		fmt.Println(queueMap)
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
@@ -193,7 +192,6 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 			groupConfigs := make([]*model.GroupConfig, 0)
 			for _, groupName := range groupNames {
 				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
-				fmt.Println("config:", config)
 				if err != nil {
 					return queueInfos, errors.Trace(err)
 				}
