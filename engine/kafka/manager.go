@@ -50,7 +50,6 @@ func (m *Manager) CreateTopic(topic string, replications int, partitions int, zk
 	} else {
 		params := fmt.Sprintf("--create --zookeeper %s --replication-factor %d --partitions %d --topic %s", zkAddr, replications, partitions, topic)
 		script := fmt.Sprintf("%s/bin/kafka-topics.sh %s", m.libPath, params)
-		fmt.Println(script)
 		out, err = exec.Command("sh", "-c", script).Output()
 	}
 	log.Infof("create topic:%s, result:%s", topic, string(out))

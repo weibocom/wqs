@@ -52,8 +52,8 @@ func command_get(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err
 			group = k[1]
 		}
 
-		data, e := q.ReceiveMsg(queue, group)
-		flag := NIL_FLAG
+		id, data, e := q.RecvMsg(queue, group)
+		flag := []byte(strconv.FormatUint(id, 10))
 		if e != nil {
 			_, err = w.Write(ENGINE_ERROR_PREFIX)
 			_, err = w.Write([]byte(e.Error()))

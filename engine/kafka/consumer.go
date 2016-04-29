@@ -49,11 +49,13 @@ func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
 	return &Consumer{topic, group, consumer}, nil
 }
 
-func (c *Consumer) Recv() ([]byte, error) {
+func (c *Consumer) Recv() ([]byte, []byte, error) {
+	var key []byte
 	var data []byte
 	var err error
 	select {
 	case msg := <-c.consumer.Messages():
+		key = msg.Key
 		data = msg.Value
 		c.consumer.MarkOffset(msg, "") // metedata的用处？
 		dig := md5.Sum(msg.Value)
@@ -62,5 +64,9 @@ func (c *Consumer) Recv() ([]byte, error) {
 		err = errors.New("time out")
 	}
 
-	return data, err
+	return key, data, err
+}
+
+func (c *Consumer) Close() error {
+	return c.consumer.Close()
 }

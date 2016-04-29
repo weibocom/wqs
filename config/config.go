@@ -29,6 +29,7 @@ type Config struct {
 	KafkaPartitions   int
 	KafkaReplications int
 
+	ProxyId            int
 	UiDir              string
 	HttpPort           string
 	McPort             string
@@ -72,6 +73,10 @@ func NewConfigFromFile(file string) (*Config, error) {
 	}
 
 	// proxy config
+	proxyId := int(p.GetInt64("proxy.id", -1))
+	if proxyId == -1 {
+		return nil, errors.NotValidf("proxy.id")
+	}
 	kafkaLib, exist := p.Get("kafka.lib")
 	if !exist {
 		return nil, errors.NotFoundf("kafka.lib")
@@ -117,6 +122,7 @@ func NewConfigFromFile(file string) (*Config, error) {
 		KafkaPartitions:   kafkaPartitions,
 		KafkaReplications: kafkaReplications,
 
+		ProxyId:            proxyId,
 		UiDir:              uiDir,
 		HttpPort:           httpPort,
 		McPort:             mcPort,

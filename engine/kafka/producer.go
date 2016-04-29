@@ -37,9 +37,10 @@ func NewProducer(brokerAddrs []string, conf *sarama.Config) (*Producer, error) {
 	return &Producer{producer}, nil
 }
 
-func (k *Producer) Send(topic string, data []byte) error {
+func (k *Producer) Send(topic string, key, data []byte) error {
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
+		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(data),
 	}
 	partition, offset, err := k.producer.SendMessage(msg)

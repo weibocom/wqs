@@ -50,3 +50,29 @@ func BlankString(str string) bool {
 		return false
 	}
 }
+
+func BytesToUint64(bytes []byte) uint64 {
+	u := uint64(0)
+	l := len(bytes)
+	if l == 0 {
+		return uint64(0)
+	}
+	u = u | uint64(bytes[l-1])
+	for i := l - 1; i >= 0; i-- {
+		u = u<<8 | uint64(bytes[i])
+	}
+	return u
+}
+
+func Uint64ToBytes(u uint64) []byte {
+	bytes := make([]byte, 8)
+	bytes[0] = byte(u)
+	bytes[1] = byte(u >> 8)
+	bytes[2] = byte(u >> 16)
+	bytes[3] = byte(u >> 24)
+	bytes[4] = byte(u >> 32)
+	bytes[5] = byte(u >> 40)
+	bytes[6] = byte(u >> 48)
+	bytes[7] = byte(u >> 56)
+	return bytes
+}

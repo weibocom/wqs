@@ -60,7 +60,7 @@ func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err 
 		_, err = w.Write(CLIENT_ERROR_BAD_DATACHUNK)
 		return
 	}
-	log.Debugf("mc command set, key:%s flags:%s exptime:%s len:%d, reply: %s, data: %s\n", key, flags, exptime, dataLength, noreply, data)
+	// log.Debugf("mc command set, key:%s flags:%s exptime:%s len:%d, reply: %s, data: %s\n", key, flags, exptime, dataLength, noreply, data)
 	keys := strings.Split(string(key), ".")
 	queue := keys[0]
 	group := defaultGroup
@@ -68,7 +68,7 @@ func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err 
 		group = keys[1]
 	}
 
-	err = q.SendMsg(queue, group, data)
+	_, err = q.SendMsg(queue, group, data)
 	if err != nil {
 		estr := err.Error()
 		_, err = w.Write(ENGINE_ERROR_PREFIX)

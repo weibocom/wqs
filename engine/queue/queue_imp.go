@@ -113,12 +113,16 @@ func (q *queueImp) Create(queue string) error {
 	if exist {
 		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
 	}
-
+	// 4. create kafka topic
+	if err = q.manager.CreateTopic(queue, q.conf.KafkaReplications,
+		q.conf.KafkaPartitions, q.conf.KafkaZKAddr); err != nil {
+		return errors.Trace(err)
+	}
+	// 5. add metadata of queue
 	if err = q.extendManager.AddQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
-	return q.manager.CreateTopic(queue, q.conf.KafkaReplications,
-		q.conf.KafkaPartitions, q.conf.KafkaZKAddr)
+	return nil
 }
 
 //Updata queue information by name. Nothing to be update so far.
@@ -153,7 +157,6 @@ func (q *queueImp) Delete(queue string) error {
 	if !exist {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
-
 	// 3. check metadata whether the queue exists
 	exist, err = q.extendManager.ExistQueue(queue)
 	if err != nil {
@@ -162,11 +165,15 @@ func (q *queueImp) Delete(queue string) error {
 	if !exist {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
-
+	// 4. delete kafka topic
+	if err = q.manager.DeleteTopic(queue, q.conf.KafkaZKAddr); err != nil {
+		return errors.Trace(err)
+	}
+	// 5. delete metadata of queue
 	if err = q.extendManager.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
-	return q.manager.DeleteTopic(queue, q.conf.KafkaZKAddr)
+	return nil
 }
 
 //Get queue information by queue name and group name
@@ -174,17 +181,19 @@ func (q *queueImp) Delete(queue string) error {
 func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error) {
 
 	queueInfos := make([]*model.QueueInfo, 0)
-	groupConfigs := make([]*model.GroupConfig, 0)
 	switch {
 	case queue == "":
 		//Get all queue's information
 		queueMap, err := q.extendManager.GetQueueMap()
+		fmt.Println(queueMap)
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
 		for queueName, groupNames := range queueMap {
+			groupConfigs := make([]*model.GroupConfig, 0)
 			for _, groupName := range groupNames {
 				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
+				fmt.Println("config:", config)
 				if err != nil {
 					return queueInfos, errors.Trace(err)
 				}
@@ -222,6 +231,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		if !exists {
 			break
 		}
+		groupConfigs := make([]*model.GroupConfig, 0)
 		for _, gName := range groupNames {
 			config, err := q.extendManager.GetGroupConfig(gName, queue)
 			if err != nil {
@@ -256,6 +266,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
+		groupConfigs := make([]*model.GroupConfig, 0)
 		if config != nil {
 			groupConfigs = append(groupConfigs, &model.GroupConfig{
 				Group: config.Group,
@@ -287,7 +298,7 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotValidf("add group:%s @ queue:%s", group, queue)
 	}
 
-	exist, err := q.manager.ExistTopic(queue, true)
+	exist, err := q.extendManager.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -308,7 +319,7 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 		return errors.NotValidf("update group:%s @ queue:%s", group, queue)
 	}
 
-	exist, err := q.manager.ExistTopic(queue, true)
+	exist, err := q.extendManager.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -328,7 +339,7 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotValidf("delete group:%s @ queue:%s", group, queue)
 	}
 
-	exist, err := q.manager.ExistTopic(queue, true)
+	exist, err := q.extendManager.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -347,7 +358,6 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 
 	groupInfos := make([]*model.GroupInfo, 0)
-	groupConfigs := make([]*model.GroupConfig, 0)
 
 	if group == "" {
 		//GET all groups' information
@@ -356,6 +366,7 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 			return groupInfos, errors.Trace(err)
 		}
 		for groupName, queueNames := range groupMap {
+			groupConfigs := make([]*model.GroupConfig, 0)
 			for _, queueName := range queueNames {
 				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
 				if err != nil {
@@ -388,7 +399,7 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 		if !exist {
 			return groupInfos, nil
 		}
-
+		groupConfigs := make([]*model.GroupConfig, 0)
 		for _, queue := range queueNames {
 			config, err := q.extendManager.GetGroupConfig(group, queue)
 			if err != nil {
@@ -427,56 +438,62 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfi
 	return q.extendManager.GetGroupConfig(group, queue)
 }
 
-func (q *queueImp) SendMsg(queue string, group string, data []byte) error {
+func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, error) {
 
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
-		return errors.Trace(err)
+		return uint64(0), errors.Trace(err)
 	}
 	if !exist {
-		return errors.NotFoundf("SendMsg queue:%s ", queue)
+		return uint64(0), errors.NotFoundf("SendMsg queue:%s ", queue)
 	}
-	err = q.producer.Send(queue, data)
+	id := q.genMsgId(queue, group)
+	err = q.producer.Send(queue, utils.Uint64ToBytes(id), data)
 	if err != nil {
-		return errors.Trace(err)
+		return uint64(0), errors.Trace(err)
 	}
 	q.monitor.StatisticSend(queue, group, 1)
-	return nil
+	return id, nil
 }
 
-func (q *queueImp) ReceiveMsg(queue string, group string) ([]byte, error) {
+func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return uint64(0), nil, errors.Trace(err)
 	}
 	if !exist {
-		return nil, errors.NotFoundf("ReceiveMsg queue:%s ", queue)
+		return uint64(0), nil, errors.NotFoundf("ReceiveMsg queue:%s ", queue)
 	}
 
-	id := fmt.Sprintf("%s@%s", queue, group)
+	key := fmt.Sprintf("%s@%s", queue, group)
 	q.mu.Lock()
-	consumer, ok := q.consumerMap[id]
+	consumer, ok := q.consumerMap[key]
 	if !ok {
 		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
-			return nil, errors.Trace(err)
+			return uint64(0), nil, errors.Trace(err)
 		}
-		q.consumerMap[id] = consumer
+		q.consumerMap[key] = consumer
 	}
 	q.mu.Unlock()
 
-	data, err := consumer.Recv()
+	id, data, err := consumer.Recv()
 	if err != nil {
-		return nil, errors.Trace(err)
+		return uint64(0), nil, errors.Trace(err)
 	}
 	q.monitor.StatisticReceive(queue, group, 1)
-	return data, nil
+	return utils.BytesToUint64(id), data, nil
 }
 
 func (q *queueImp) AckMsg(queue string, group string) error {
 	return errors.NotImplementedf("ack")
+}
+
+func (q *queueImp) genMsgId(queue string, group string) uint64 {
+	//TODO: generate real msg id
+	return uint64(1234567890)
 }
 
 func (q *queueImp) GetSendMetrics(queue string, group string,
