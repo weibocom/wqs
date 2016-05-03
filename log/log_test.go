@@ -64,7 +64,7 @@ func TestProfile(t *testing.T) {
 func TestGetLogger(t *testing.T) {
 	for i := LogFatal; i < logLevelMax; i++ {
 		want := stdLogger
-		RestLogger(LogError, want)
+		RestLogger(want, LogError)
 		get := GetLogger(LogError)
 		if get != want {
 			t.Errorf("GetLogger error: want %v, get %v", want, get)
@@ -76,6 +76,6 @@ func TestLogger(t *testing.T) {
 	logger := &Logger{fd: os.Stderr}
 	logger.SetLogLevel(LogError)
 	logger.SetFlags(LstdFlags | Lshortfile | Llevel)
-	RestLogger(LogError, logger)
+	RestLogger(logger, LogError)
 	Errorf("eeeeeeee")
 }

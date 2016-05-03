@@ -40,6 +40,9 @@ type Config struct {
 	MetaDataZKAddr     string
 	MetaDataZKRoot     string
 	RedisAddr          string
+	LogInfo            string
+	LogDebug           string
+	LogProfile         string
 }
 
 func NewConfigFromFile(file string) (*Config, error) {
@@ -115,6 +118,21 @@ func NewConfigFromFile(file string) (*Config, error) {
 		return nil, errors.NotFoundf("redis.connect")
 	}
 
+	logInfo, exist := p.Get("log.info")
+	if !exist {
+		return nil, errors.NotFoundf("log.info")
+	}
+
+	logDebug, exist := p.Get("log.debug")
+	if !exist {
+		return nil, errors.NotFoundf("log.debug")
+	}
+
+	logProfile, exist := p.Get("log.profile")
+	if !exist {
+		return nil, errors.NotFoundf("log.profile")
+	}
+
 	return &Config{
 		KafkaZKAddr:       kafkaZKAddr,
 		KafkaZKRoot:       kafkaZKRoot,
@@ -133,5 +151,8 @@ func NewConfigFromFile(file string) (*Config, error) {
 		MetaDataZKAddr:     metaDataZKAddr,
 		MetaDataZKRoot:     metaDataZKRoot,
 		RedisAddr:          redisAddr,
+		LogInfo:            logInfo,
+		LogDebug:           logDebug,
+		LogProfile:         logProfile,
 	}, nil
 }

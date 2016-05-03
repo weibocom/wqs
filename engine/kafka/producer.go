@@ -21,8 +21,8 @@ import (
 	"encoding/hex"
 
 	"github.com/Shopify/sarama"
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
+	"github.com/weibocom/wqs/log"
 )
 
 type Producer struct {

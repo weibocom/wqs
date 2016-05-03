@@ -23,10 +23,10 @@ import (
 	"io"
 	"net"
 
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
+	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/utils"
 )
 

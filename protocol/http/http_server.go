@@ -28,8 +28,8 @@ import (
 
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
+	"github.com/weibocom/wqs/log"
 
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 )
 
@@ -63,7 +63,7 @@ func (s *HttpServer) Start() {
 
 	err := http.ListenAndServe(fmt.Sprintf(":%s", s.port), nil)
 	if err != nil {
-		log.Criticalf("ListenAndServe: ", err)
+		log.Fatal("ListenAndServe: ", err)
 		os.Exit(-1)
 	}
 }

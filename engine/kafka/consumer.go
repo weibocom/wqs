@@ -22,7 +22,7 @@ import (
 	"time"
 
 	sarama "github.com/bsm/sarama-cluster"
-	log "github.com/cihub/seelog"
+	"github.com/weibocom/wqs/log"
 )
 
 type Consumer struct {

@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
+	"github.com/weibocom/wqs/log"
 )
 
 type Manager struct {

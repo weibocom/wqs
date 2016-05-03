@@ -21,9 +21,9 @@ import (
 	"path"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 	"github.com/samuel/go-zookeeper/zk"
+	"github.com/weibocom/wqs/log"
 )
 
 const defaultVersion = -1

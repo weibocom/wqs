@@ -14,11 +14,6 @@
 			"Rev": "5e519dfe6fffb310bc795b69227d94e7a196cf5b"
 		},
 		{
-			"ImportPath": "github.com/cihub/seelog",
-			"Comment": "v2.6-1-g3549fbb",
-			"Rev": "3549fbb0ea07f15a54dba3d16ccb22785a813d30"
-		},
-		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
 			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},

@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/weibocom/wqs/log"
 	redis "gopkg.in/redis.v3"
 )
 

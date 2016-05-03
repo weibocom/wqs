@@ -25,12 +25,12 @@ import (
 
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/kafka"
+	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/model"
 	"github.com/weibocom/wqs/utils"
 
 	"github.com/Shopify/sarama"
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 )
 

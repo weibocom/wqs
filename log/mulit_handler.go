@@ -31,10 +31,10 @@ var opsRWLock sync.RWMutex
 var opsLogger [logLevelMax]*Logger
 
 func init() {
-	pLogger := &Logger{fd: os.Stdout}
+	pLogger := &Logger{fd: os.Stdout, level: LogInfo, flags: LstdFlags | Llevel}
 	RestProfileLogger(pLogger)
 	for i := LogFatal; i < logLevelMax; i++ {
-		RestLogger(i, pLogger)
+		RestLogger(pLogger, i)
 	}
 }
 
@@ -56,9 +56,11 @@ func Profile(format string, args ...interface{}) {
 	profRWLock.RUnlock()
 }
 
-func RestLogger(level uint32, logger *Logger) {
+func RestLogger(logger *Logger, levels ...uint32) {
 	opsRWLock.Lock()
-	opsLogger[level] = logger
+	for _, level := range levels {
+		opsLogger[level] = logger
+	}
 	opsRWLock.Unlock()
 }
 
@@ -72,12 +74,14 @@ func Fatal(args ...interface{}) {
 	opsRWLock.RLock()
 	opsLogger[LogFatal].log(LogInfo, args...)
 	opsRWLock.RUnlock()
+	os.Exit(-1)
 }
 
 func Fatalf(format string, args ...interface{}) {
 	opsRWLock.RLock()
 	opsLogger[LogFatal].logf(LogFatal, format, args...)
 	opsRWLock.RUnlock()
+	os.Exit(-1)
 }
 
 func Error(args ...interface{}) {
@@ -104,13 +108,13 @@ func Debugf(format string, args ...interface{}) {
 	opsRWLock.RUnlock()
 }
 
-func Warning(args ...interface{}) {
+func Warn(args ...interface{}) {
 	opsRWLock.RLock()
 	opsLogger[LogWarning].log(LogWarning, args...)
 	opsRWLock.RUnlock()
 }
 
-func Warningf(format string, args ...interface{}) {
+func Warnf(format string, args ...interface{}) {
 	opsRWLock.RLock()
 	opsLogger[LogWarning].logf(LogWarning, format, args...)
 	opsRWLock.RUnlock()

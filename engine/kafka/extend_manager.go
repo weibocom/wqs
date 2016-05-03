@@ -22,9 +22,9 @@ import (
 	"strings"
 
 	"github.com/weibocom/wqs/engine/zookeeper"
+	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/model"
 
-	log "github.com/cihub/seelog"
 	"github.com/juju/errors"
 )
 

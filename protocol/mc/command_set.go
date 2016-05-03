@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/cihub/seelog"
 	"github.com/weibocom/wqs/engine/queue"
+	"github.com/weibocom/wqs/log"
 )
 
 const (

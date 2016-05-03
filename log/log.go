@@ -79,6 +79,8 @@ type Logger struct {
 func NewLogger(file string) *Logger {
 	return &Logger{
 		fileName: file,
+		level:    LogInfo,
+		flags:    LstdFlags | Llevel,
 	}
 }
 
@@ -312,11 +314,11 @@ func (l *Logger) Errorf(format string, args ...interface{}) {
 	l.logf(LogError, format, args...)
 }
 
-func (l *Logger) Warning(args ...interface{}) {
+func (l *Logger) Warn(args ...interface{}) {
 	l.log(LogWarning, args...)
 }
 
-func (l *Logger) Warningf(format string, args ...interface{}) {
+func (l *Logger) Warnf(format string, args ...interface{}) {
 	l.logf(LogWarning, format, args...)
 }
 
