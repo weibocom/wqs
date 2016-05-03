@@ -57,9 +57,9 @@ const (
 )
 
 const (
-	rollingDeny RollingType = iota
-	rollingByHour
-	rollingByDay
+	RollingDeny RollingType = iota
+	RollingByHour
+	RollingByDay
 )
 
 type Logger struct {
@@ -138,11 +138,11 @@ func (l *Logger) SetRolling(t RollingType) {
 
 	l.rolling = t
 	switch t {
-	case rollingByHour:
+	case RollingByHour:
 		l.duration = time.Hour
 		l.fileSuffix = "20160430_20"
 		l.toRoll = genNextClock()
-	case rollingByDay:
+	case RollingByDay:
 		l.duration = time.Hour * 24
 		l.fileSuffix = "20160430"
 		l.toRoll = genNextDay()
@@ -150,7 +150,7 @@ func (l *Logger) SetRolling(t RollingType) {
 }
 
 func (l *Logger) rotate(t time.Time) {
-	if l.rolling == rollingByDay || l.rolling == rollingByHour {
+	if l.rolling == RollingByDay || l.rolling == RollingByHour {
 		if t.After(l.toRoll) {
 			var err error
 			suffix := t.Format(l.fileSuffix)
