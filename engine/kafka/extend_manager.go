@@ -90,7 +90,7 @@ func (em *ExtendManager) AddGroupConfig(group string, queue string,
 		Ips:   ips,
 	}
 	data := groupConfig.ToJson()
-	log.Infof("add group config, zk path:%s, data:%s", path, data)
+	log.Debugf("add group config, zk path:%s, data:%s", path, data)
 	err := em.zkClient.CreateRec(path, data)
 	if err != nil {
 		return errors.Trace(err)
@@ -100,7 +100,7 @@ func (em *ExtendManager) AddGroupConfig(group string, queue string,
 
 func (em *ExtendManager) DeleteGroupConfig(group string, queue string) error {
 	path := em.buildConfigPath(group, queue)
-	log.Infof("delete group config, zk path:%s", path)
+	log.Debugf("delete group config, zk path:%s", path)
 	err := em.zkClient.DeleteRec(path)
 	if err != nil {
 		return errors.Trace(err)
@@ -121,7 +121,7 @@ func (em *ExtendManager) UpdateGroupConfig(group string, queue string,
 		Ips:   ips,
 	}
 	data := groupConfig.ToJson()
-	log.Infof("update group config, zk path:%s, data:%s", path, data)
+	log.Debugf("update group config, zk path:%s, data:%s", path, data)
 	if err := em.zkClient.Set(path, data); err != nil {
 		return errors.Trace(err)
 	}
@@ -135,7 +135,7 @@ func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.Grou
 		return nil, errors.Trace(err)
 	}
 	if len(data) == 0 {
-		log.Infof("get group config, zk path:%s, data:null, err:%s", path, err)
+		log.Debugf("get group config, zk path:%s, data:null, err:%s", path, err)
 		return nil, nil
 	}
 
@@ -144,7 +144,7 @@ func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.Grou
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	log.Infof("get group config, zk path:%s, data:%s", path, groupConfig.ToJson())
+	log.Debugf("get group config, zk path:%s, data:%s", path, groupConfig.ToJson())
 	return &groupConfig, nil
 }
 
@@ -228,7 +228,7 @@ func (em *ExtendManager) GetQueueMap() (map[string][]string, error) {
 func (em *ExtendManager) AddQueue(queue string) error {
 	path := em.buildQueuePath(queue)
 	data := ""
-	log.Infof("add queue, zk path:%s, data:%s", path, data)
+	log.Debugf("add queue, zk path:%s, data:%s", path, data)
 	err := em.zkClient.CreateRec(path, data)
 	if err != nil {
 		return errors.Trace(err)
@@ -238,7 +238,7 @@ func (em *ExtendManager) AddQueue(queue string) error {
 
 func (em *ExtendManager) DelQueue(queue string) error {
 	path := em.buildQueuePath(queue)
-	log.Infof("del queue, zk path:%s", path)
+	log.Debugf("del queue, zk path:%s", path)
 	if err := em.zkClient.DeleteRec(path); err != nil {
 		return errors.Trace(err)
 	}

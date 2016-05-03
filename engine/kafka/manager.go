@@ -52,7 +52,7 @@ func (m *Manager) CreateTopic(topic string, replications int, partitions int, zk
 		script := fmt.Sprintf("%s/bin/kafka-topics.sh %s", m.libPath, params)
 		out, err = exec.Command("sh", "-c", script).Output()
 	}
-	log.Infof("create topic:%s, result:%s", topic, string(out))
+	log.Debugf("create topic:%s, result:%s", topic, string(out))
 	if err != nil {
 		log.Errorf("create topic error, topic:%s, result:%s, err:%v", topic, string(out), err)
 	}
@@ -71,7 +71,7 @@ func (m *Manager) UpdateTopic(topic string, partitions int, zkAddr string) error
 		script := fmt.Sprintf("%s/bin/kafka-topics.sh %s", m.libPath, params)
 		out, err = exec.Command("sh", "-c", script).Output()
 	}
-	log.Infof("update topic:%s, result:%s", topic, string(out))
+	log.Debugf("update topic:%s, result:%s", topic, string(out))
 	if err != nil {
 		log.Errorf("update topic error, topic:%s, result:%s, err:%v", topic, string(out), err)
 	}
@@ -90,7 +90,7 @@ func (m *Manager) DeleteTopic(topic string, zkAddr string) error {
 		script := fmt.Sprintf("%s/bin/kafka-topics.sh %s", m.libPath, params)
 		out, err = exec.Command("sh", "-c", script).Output()
 	}
-	log.Infof("delete topic:%s, result:%s", topic, string(out))
+	log.Debugf("delete topic:%s, result:%s", topic, string(out))
 	if err != nil {
 		log.Errorf("delete topic error, topic:%s, result:%s, err:%v", topic, string(out), err)
 	}
