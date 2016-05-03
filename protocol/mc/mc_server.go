@@ -58,15 +58,20 @@ func (ms *McServer) Start() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+	log.Debugf("memcached protocol server start on %s port.", ms.port)
+	go ms.mainLoop()
+	return nil
+}
 
-	log.Infof("proxy McServer started and listen on %s", ms.port)
+func (ms *McServer) mainLoop() {
+
 	for {
 		conn, err := ms.listener.Accept()
 		if err != nil {
-			log.Errorf("Accept error: %s", err)
+			log.Errorf("mc server accept error: %s", err)
 			continue
 		}
-		log.Infof("Accepted client: %s", conn.RemoteAddr())
+		log.Debugf("mc server new client: %s", conn.RemoteAddr())
 		go ms.connLoop(conn)
 	}
 }
@@ -74,9 +79,9 @@ func (ms *McServer) Start() error {
 func (ms *McServer) connLoop(conn net.Conn) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Errorf("panic error: %s", err)
+			log.Errorf("mc server connLoop panic error: %s", err)
 		}
-		log.Infof("connection colsed. remote:%s", conn.RemoteAddr())
+		log.Debugf("mc server client closed :%s", conn.RemoteAddr())
 		conn.Close()
 	}()
 
@@ -89,7 +94,7 @@ func (ms *McServer) connLoop(conn net.Conn) {
 			if err == io.EOF {
 				return
 			}
-			log.Debugf("mc readline err:%s", err)
+			log.Warnf("mc server ReadLine err:%s", err)
 			return
 		}
 		cmdIdx := bytes.IndexByte(line, ' ')
@@ -112,14 +117,13 @@ func (ms *McServer) connLoop(conn net.Conn) {
 	}
 }
 
-func (ms *McServer) Close() {
-
-	log.Infof("McServer Close() be called.")
+func (ms *McServer) Stop() {
+	log.Debugf("mc protocol server stop.")
 	if err := ms.listener.Close(); err != nil {
-		log.Errorf("McServer listener close failed:%s", err)
+		log.Errorf("mc server listener close failed:%s", err)
 	}
 }
 
-func (ms *McServer) Closed() bool {
+func (ms *McServer) Stoped() bool {
 	return ms.listener.GetRemain() == 0
 }

@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/weibocom/wqs/engine/queue"
-	"github.com/weibocom/wqs/log"
 )
 
 const (
@@ -39,10 +38,10 @@ func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err 
 		return
 	}
 	key := fields[0]
-	flags := fields[1]
-	exptime := fields[2]
+	//	flags := fields[1]
+	//	exptime := fields[2]
 	length := fields[3]
-	log.Infof("mc set, key:%s, flags:%s, exptime:%s, length:%s", key, flags, exptime, length)
+
 	var noreply []byte
 	if l == 5 {
 		noreply = fields[4]

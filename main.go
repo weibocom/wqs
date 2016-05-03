@@ -84,19 +84,20 @@ func main() {
 	queue, err := queue.NewQueue(conf)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
-		return
 	}
 
 	httpServer := http.NewHttpServer(queue, conf)
 	go httpServer.Start()
 	mcServer := mc.NewMcServer(queue, conf)
-	go mcServer.Start()
+	err = mcServer.Start()
+	if err != nil {
+		log.Fatal(errors.ErrorStack(err))
+	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
 	log.Info("Process start")
 	<-c
-	mcServer.Close()
+	mcServer.Stop()
 	log.Info("Process stop")
-
 }
