@@ -212,9 +212,9 @@ func (l *Logger) formatPrefix(buf *[]byte, flags uint32, t time.Time, file strin
 	if flags&Ldate != 0 {
 		year, month, day := t.Date()
 		itoa(buf, year, 4)
-		*buf = append(*buf, '/')
+		*buf = append(*buf, '-')
 		itoa(buf, int(month), 2)
-		*buf = append(*buf, '/')
+		*buf = append(*buf, '-')
 		itoa(buf, day, 2)
 		*buf = append(*buf, ' ')
 	}

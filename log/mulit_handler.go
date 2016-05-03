@@ -22,8 +22,6 @@ import (
 	"sync"
 )
 
-const ()
-
 var profRWLock sync.RWMutex
 var profLogger *Logger
 

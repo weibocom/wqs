@@ -61,7 +61,7 @@ func initLogger(conf *config.Config) error {
 	loggerDebug.SetLogLevel(log.LogDebug)
 	log.RestLogger(loggerDebug, log.LogFatal, log.LogError, log.LogWarning, log.LogDebug)
 
-	loggerProfile.SetFlags(0)
+	loggerProfile.SetFlags(log.LstdFlags)
 	loggerProfile.SetLogLevel(log.LogInfo)
 	log.RestProfileLogger(loggerProfile)
 
