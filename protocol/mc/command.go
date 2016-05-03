@@ -27,13 +27,12 @@ type MemcacheCommand func(q queue.Queue, cmdLine []byte, lr LineReader, writer i
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt
-	commands    map[string]MemcacheCommand
+	commands    = make(map[string]MemcacheCommand)
 	CMD_UNKNOWN = "$cmdUnkown$"
 	CMD_NOFIELD = "$cmdNoFields$"
 )
 
 func init() {
-	commands = make(map[string]MemcacheCommand)
 	registerCommand(GET_NAME, command_get)
 	registerCommand(GETS_NAME, command_get)
 	registerCommand(SET_NAME, commandSet)
