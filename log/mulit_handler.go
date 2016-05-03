@@ -70,7 +70,7 @@ func GetLogger(level uint32) *Logger {
 
 func Fatal(args ...interface{}) {
 	opsRWLock.RLock()
-	opsLogger[LogFatal].log(LogInfo, args...)
+	opsLogger[LogFatal].log(LogFatal, args...)
 	opsRWLock.RUnlock()
 	os.Exit(-1)
 }

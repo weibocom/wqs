@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
+	"github.com/weibocom/wqs/utils"
 
 	"github.com/juju/errors"
 )
@@ -37,6 +37,7 @@ type HttpServer struct {
 	port         string
 	uidir        string
 	queueService queue.Queue
+	listener     *utils.Listener
 }
 
 func NewHttpServer(queueService queue.Queue, config *config.Config) *HttpServer {
@@ -47,25 +48,30 @@ func NewHttpServer(queueService queue.Queue, config *config.Config) *HttpServer 
 	}
 }
 
-func (s *HttpServer) Start() {
-	http.HandleFunc("/queue", s.queueHandler)
-	http.HandleFunc("/group", s.groupHandler)
-	http.HandleFunc("/monitor", s.monitorHandler)
-	http.HandleFunc("/alarm", s.alarmHandler)
-	http.HandleFunc("/msg", s.msgHandler)
-	//http.HandleFunc("/msg/ha", this.msgHandler)
-	//http.HandleFunc("/msg/pipeline", this.msgHandler)
+func (s *HttpServer) Start() error {
+
+	var err error
+	mux := http.NewServeMux()
+	mux.HandleFunc("/queue", s.queueHandler)
+	mux.HandleFunc("/group", s.groupHandler)
+	mux.HandleFunc("/monitor", s.monitorHandler)
+	mux.HandleFunc("/alarm", s.alarmHandler)
+	mux.HandleFunc("/msg", s.msgHandler)
 
 	if s.uidir != "" {
 		// Static file serving done from /ui/
-		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(s.uidir))))
+		mux.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(s.uidir))))
 	}
 
-	err := http.ListenAndServe(fmt.Sprintf(":%s", s.port), nil)
+	s.listener, err = utils.Listen("tcp", fmt.Sprintf(":%s", s.port))
 	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
-		os.Exit(-1)
+		return errors.Trace(err)
 	}
+
+	server := &http.Server{Handler: mux}
+	server.SetKeepAlivesEnabled(true)
+	go server.Serve(s.listener)
+	return nil
 }
 
 //队列操作handler

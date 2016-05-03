@@ -277,6 +277,9 @@ func (l *Logger) Output(calldepth int, level uint32, s string) error {
 		l.buf = append(l.buf, '\n')
 	}
 	_, err := l.fd.Write(l.buf)
+	if level == LogFatal {
+		fmt.Fprint(os.Stderr, string(l.buf))
+	}
 	return err
 }
 

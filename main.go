@@ -90,7 +90,10 @@ func main() {
 	}
 
 	httpServer := http.NewHttpServer(queue, conf)
-	go httpServer.Start()
+	err = httpServer.Start()
+	if err != nil {
+		log.Fatal(errors.ErrorStack(err))
+	}
 	mcServer := mc.NewMcServer(queue, conf)
 	err = mcServer.Start()
 	if err != nil {
