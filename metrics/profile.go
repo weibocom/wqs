@@ -49,8 +49,8 @@ func init() {
 
 func storeStatistic() {
 	for _, v := range statisticMap {
-		log.Profile("%s", v.GetStatistic())
-		v.Clear()
+		log.Profile("%s", v.getStatistic())
+		v.clear()
 	}
 }
 
@@ -66,13 +66,13 @@ func doStatistic(queue, group, action string, cost int64) {
 	key := fmt.Sprintf("%s.%s.%s", queue, group, action)
 	statisticItem, ok := statisticMap[key]
 	if ok {
-		statisticItem.Statistic(cost)
+		statisticItem.statistic(cost)
 	} else {
 		mu.Lock()
 		statisticItem = newStatisticItem(queue, group, action)
 		statisticMap[key] = statisticItem
 		mu.Unlock()
-		statisticItem.Statistic(cost)
+		statisticItem.statistic(cost)
 	}
 }
 
@@ -94,24 +94,24 @@ func newStatisticItem(queue, group, action string) *statisticItem {
 	}
 }
 
-func (si *statisticItem) Clear() {
+func (si *statisticItem) clear() {
 	si.count = 0
 	si.cost = 0
 }
 
-func (si *statisticItem) Statistic(cost int64) {
+func (si *statisticItem) statistic(cost int64) {
 	mu.Lock()
 	si.count++
 	si.cost += cost
 	mu.Unlock()
 }
 
-func (si *statisticItem) GetStatistic() string {
+func (si *statisticItem) getStatistic() string {
 	cost := si.cost
 	count := si.count
 	avg := float64(0)
 	if count != 0 {
 		avg = float64(cost) / float64(count)
 	}
-	return `{"type":"WQS","queue":"` + si.queue + `","group":"` + si.group + `","action":"` + si.action + `","total_count":` + strconv.FormatInt(count, 10) + `,"avg_time":` + strconv.FormatFloat(avg, 'f', -1, 64) + `}`
+	return `{"type":"WQS","queue":"` + si.queue + `","group":"` + si.group + `","action":"` + si.action + `","total_count":` + strconv.FormatInt(count, 10) + `,"avg_time":` + strconv.FormatFloat(avg, 'f', 2, 64) + `}`
 }
