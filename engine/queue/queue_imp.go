@@ -55,7 +55,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	sConf.Net.KeepAlive = 30 * time.Second
 	sConf.Metadata.Retry.Backoff = 100 * time.Millisecond
 	sConf.Metadata.Retry.Max = 5
-	sConf.Metadata.RefreshFrequency = 3 * time.Minute
+	sConf.Metadata.RefreshFrequency = 1 * time.Minute
 	sConf.Producer.RequiredAcks = sarama.WaitForLocal
 	//conf.Producer.RequiredAcks = sarama.NoResponse //this one high performance than WaitForLocal
 	sConf.Producer.Partitioner = sarama.NewRandomPartitioner
@@ -437,7 +437,7 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfi
 }
 
 func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, error) {
-
+	start := time.Now()
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
 		return uint64(0), errors.Trace(err)
@@ -450,12 +450,16 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, err
 	if err != nil {
 		return uint64(0), errors.Trace(err)
 	}
+
+	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
+
 	return id, nil
 }
 
 func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
-
+	start := time.Now()
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
 		return uint64(0), nil, errors.Trace(err)
@@ -481,7 +485,11 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 	if err != nil {
 		return uint64(0), nil, errors.Trace(err)
 	}
+
+	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
+
 	return utils.BytesToUint64(id), data, nil
 }
 
