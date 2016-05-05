@@ -148,7 +148,6 @@ func (q *queueImp) Delete(queue string) error {
 	if utils.BlankString(queue) {
 		return errors.NotValidf("DeleteQueue queue:%s", queue)
 	}
-
 	// 2. check kafka whether the queue exists
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -165,11 +164,19 @@ func (q *queueImp) Delete(queue string) error {
 	if !exist {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
-	// 4. delete kafka topic
+	// 4. check metadata whether the queue has group
+	can, err := q.extendManager.CanDeleteQueue(queue)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !can {
+		return errors.NotValidf("DeleteQueue queue:%s has one or more group", queue)
+	}
+	// 5. delete kafka topic
 	if err = q.manager.DeleteTopic(queue, q.conf.KafkaZKAddr); err != nil {
 		return errors.Trace(err)
 	}
-	// 5. delete metadata of queue
+	// 6. delete metadata of queue
 	if err = q.extendManager.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
@@ -208,10 +215,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 				}
 			}
 
-			ctime, err := q.extendManager.QueueCreateTime(queueName)
-			if err != nil {
-				return queueInfos, errors.Trace(err)
-			}
+			ctime, _ := q.extendManager.QueueCreateTime(queueName)
 			queueInfos = append(queueInfos, &model.QueueInfo{
 				Queue:  queueName,
 				Ctime:  ctime,
@@ -248,10 +252,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 			}
 		}
 
-		ctime, err := q.extendManager.QueueCreateTime(queue)
-		if err != nil {
-			return queueInfos, errors.Trace(err)
-		}
+		ctime, _ := q.extendManager.QueueCreateTime(queue)
 		queueInfos = append(queueInfos, &model.QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,
@@ -275,10 +276,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 			})
 		}
 
-		ctime, err := q.extendManager.QueueCreateTime(queue)
-		if err != nil {
-			return queueInfos, errors.Trace(err)
-		}
+		ctime, _ := q.extendManager.QueueCreateTime(queue)
 		queueInfos = append(queueInfos, &model.QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,
