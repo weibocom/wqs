@@ -17,12 +17,8 @@ limitations under the License.
 package kafka
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
-	"github.com/weibocom/wqs/log"
 )
 
 type Producer struct {
@@ -43,12 +39,9 @@ func (k *Producer) Send(topic string, key, data []byte) error {
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(data),
 	}
-	partition, offset, err := k.producer.SendMessage(msg)
+	_, _, err := k.producer.SendMessage(msg)
 	if err != nil {
-		log.Debug("write message err: %s", err)
-		return err
+		return errors.Trace(err)
 	}
-	dig := md5.Sum(data)
-	log.Infof("W %s@%d@%d %s", topic, partition, offset, hex.EncodeToString(dig[:]))
 	return nil
 }

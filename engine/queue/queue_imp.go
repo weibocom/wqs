@@ -17,6 +17,9 @@ limitations under the License.
 package queue
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -444,7 +447,10 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, err
 		return uint64(0), errors.NotFoundf("SendMsg queue:%s ", queue)
 	}
 	id := q.genMsgId(queue, group)
-	err = q.producer.Send(queue, utils.Uint64ToBytes(id), data)
+	dig := md5.Sum(data)
+	key := fmt.Sprintf("%d:%s", id, hex.EncodeToString(dig[:]))
+
+	err = q.producer.Send(queue, []byte(key), data)
 	if err != nil {
 		return uint64(0), errors.Trace(err)
 	}
@@ -452,7 +458,7 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, err
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
-
+	log.Debugf("queue send %s cost %d", key, cost)
 	return id, nil
 }
 
@@ -466,29 +472,34 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 		return uint64(0), nil, errors.NotFoundf("ReceiveMsg queue:%s ", queue)
 	}
 
-	key := fmt.Sprintf("%s@%s", queue, group)
+	owner := fmt.Sprintf("%s@%s", queue, group)
 	q.mu.Lock()
-	consumer, ok := q.consumerMap[key]
+	consumer, ok := q.consumerMap[owner]
 	if !ok {
 		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
 			return uint64(0), nil, errors.Trace(err)
 		}
-		q.consumerMap[key] = consumer
+		q.consumerMap[owner] = consumer
 	}
 	q.mu.Unlock()
 
-	id, data, err := consumer.Recv()
+	key, data, err := consumer.Recv()
 	if err != nil {
 		return uint64(0), nil, errors.Trace(err)
+	}
+	index := bytes.Index(key, []byte{':'})
+	var id uint64
+	if index > 0 {
+		id = utils.BytesToUint64(key[:index])
 	}
 
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-
-	return utils.BytesToUint64(id), data, nil
+	log.Debug("queue receive %s cost %d", string(key), cost)
+	return id, data, nil
 }
 
 func (q *queueImp) AckMsg(queue string, group string) error {

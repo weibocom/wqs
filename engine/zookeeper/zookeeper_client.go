@@ -33,7 +33,7 @@ type logger struct {
 }
 
 func (l logger) Printf(format string, a ...interface{}) {
-	log.Debug("[zk] ", fmt.Sprintf(format, a...))
+	log.Info("[zk] ", fmt.Sprintf(format, a...))
 }
 
 type ZkClient struct {
