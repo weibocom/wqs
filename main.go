@@ -53,18 +53,16 @@ func initLogger(conf *config.Config) error {
 		return errors.Trace(err)
 	}
 
-	loggerInfo.SetFlags(log.LstdFlags)
+	loggerInfo.SetFlags(log.LstdFlags | log.Llevel)
 	loggerInfo.SetLogLevel(log.LogInfo)
-	loggerInfo.SetRolling(log.RollingByHour)
-	log.RestLogger(loggerInfo, log.LogInfo)
+	loggerInfo.SetRolling(log.RollingByDay)
+	log.RestLogger(loggerInfo, log.LogFatal, log.LogError, log.LogWarning, log.LogInfo)
 
-	loggerDebug.SetFlags(log.LstdFlags | log.Llevel)
+	loggerDebug.SetFlags(log.LstdFlags)
 	loggerDebug.SetLogLevel(log.LogDebug)
-	loggerDebug.SetRolling(log.RollingByDay)
-	log.RestLogger(loggerDebug, log.LogFatal, log.LogError, log.LogWarning, log.LogDebug)
+	loggerDebug.SetRolling(log.RollingByHour)
+	log.RestLogger(loggerDebug, log.LogDebug)
 
-	loggerProfile.SetFlags(log.LstdFlags)
-	loggerProfile.SetLogLevel(log.LogInfo)
 	loggerProfile.SetRolling(log.RollingByHour)
 	log.RestProfileLogger(loggerProfile)
 

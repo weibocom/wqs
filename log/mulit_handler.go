@@ -38,6 +38,8 @@ func init() {
 
 func RestProfileLogger(logger *Logger) {
 	profRWLock.Lock()
+	logger.SetFlags(LstdFlags)
+	logger.SetLogLevel(LogInfo)
 	profLogger = logger
 	profRWLock.Unlock()
 }
