@@ -149,7 +149,6 @@ func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.Grou
 }
 
 func (em *ExtendManager) GetAllGroupConfig() (map[string]*model.GroupConfig, error) {
-
 	allGroupConfig := make(map[string]*model.GroupConfig)
 	keys, _, err := em.zkClient.Children(em.groupConfigPath)
 	if err != nil {
@@ -202,24 +201,15 @@ func (em *ExtendManager) GetQueueMap() (map[string][]string, error) {
 	if err != nil {
 		return queuemap, errors.Trace(err)
 	}
+	for _, queue := range queues {
+		queuemap[queue] = make([]string, 0)
+	}
 	for _, k := range keys {
 		queue := strings.Split(k, ".")[1]
 		groups, ok := queuemap[queue]
 		if ok {
 			groups = append(groups, strings.Split(k, ".")[0])
 			queuemap[queue] = groups
-		} else {
-			tempgroups := make([]string, 0)
-			tempgroups = append(tempgroups, strings.Split(k, ".")[0])
-			queuemap[queue] = tempgroups
-		}
-	}
-	for _, queue := range queues {
-		_, ok := queuemap[queue]
-		if ok {
-			continue
-		} else {
-			queuemap[queue] = make([]string, 0)
 		}
 	}
 	return queuemap, nil
@@ -258,6 +248,19 @@ func (em *ExtendManager) ExistQueue(queue string) (bool, error) {
 		}
 	}
 	return false, err
+}
+
+func (em *ExtendManager) CanDeleteQueue(queue string) (bool, error) {
+	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	if err != nil {
+		return false, errors.Trace(err)
+	}
+	for _, key := range keys {
+		if strings.EqualFold(queue, strings.Split(key, ".")[1]) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (em *ExtendManager) QueueCreateTime(queue string) (int64, error) {
