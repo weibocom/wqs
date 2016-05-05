@@ -17,22 +17,24 @@ limitations under the License.
 package mc
 
 import (
-	"io"
+	"bufio"
 
 	"github.com/weibocom/wqs/engine/queue"
 
 	"github.com/juju/errors"
 )
 
-var (
-	ERROR                      = []byte("ERROR\r\n")
-	CLIENT_ERROR_BADCMD_FORMAT = []byte("CLIENT_ERROR bad command line format\r\n")
-	CLIENT_ERROR_BAD_DATACHUNK = []byte("CLIENT_ERROR bad data chunk\r\n")
-	STORED                     = []byte("STORED\r\n")
-	NOREPLY                    = []byte("noreply")
-	ENGINE_ERROR_PREFIX        = []byte("SERVER_ERROR engine error ")
+const (
+	VALUE                      = "VALUE"
+	END                        = "END\r\n"
+	ERROR                      = "ERROR\r\n"
+	NOREPLY                    = "noreply"
+	STORED                     = "STORED\r\n"
+	CLIENT_ERROR_BAD_DATACHUNK = "CLIENT_ERROR bad data chunk\r\n"
+	CLIENT_ERROR_BADCMD_FORMAT = "CLIENT_ERROR bad command line format\r\n"
+	ENGINE_ERROR_PREFIX        = "SERVER_ERROR engine error"
 )
 
-func commandUnkown(q queue.Queue, cmdLine []byte, lr LineReader, writer io.Writer) error {
-	return errors.NotSupportedf("command %s ", string(cmdLine))
+func commandUnkown(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+	return errors.NotSupportedf("command %s ", tokens[0])
 }

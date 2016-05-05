@@ -17,13 +17,13 @@ limitations under the License.
 package mc
 
 import (
+	"bufio"
 	"fmt"
-	"io"
 
 	"github.com/weibocom/wqs/engine/queue"
 )
 
-type MemcacheCommand func(q queue.Queue, cmdLine []byte, lr LineReader, writer io.Writer) error
+type MemcacheCommand func(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt

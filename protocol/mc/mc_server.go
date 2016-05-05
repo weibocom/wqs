@@ -18,10 +18,10 @@ package mc
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
@@ -77,19 +77,19 @@ func (ms *McServer) mainLoop() {
 }
 
 func (ms *McServer) connLoop(conn net.Conn) {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Errorf("mc server connLoop panic error: %s", err)
-		}
-		log.Debugf("mc server client closed :%s", conn.RemoteAddr())
+	defer func(conn net.Conn) {
+		log.Debugf("mc client closed :%s", conn.RemoteAddr())
 		conn.Close()
-	}()
+		if err := recover(); err != nil {
+			log.Errorf("mc connLoop panic error: %s", err)
+		}
+	}(conn)
 
-	br := NewBufferedLineReader(conn, ms.recvBuffSize)
+	br := bufio.NewReaderSize(conn, ms.recvBuffSize)
 	bw := bufio.NewWriterSize(conn, ms.sendBuffSize)
 
 	for {
-		line, err := br.ReadLine()
+		data, err := br.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				return
@@ -97,22 +97,19 @@ func (ms *McServer) connLoop(conn net.Conn) {
 			log.Warnf("mc server ReadLine err:%s", err)
 			return
 		}
-		cmdIdx := bytes.IndexByte(line, ' ')
-		cName := ""
-		if cmdIdx > 0 {
-			cName = string(line[0:cmdIdx])
-		} else {
-			cName = string(line) // total line as a command
-		}
-		command, exists := commands[cName]
+
+		tokens := strings.Split(strings.TrimSpace(data), " ")
+		command, exists := commands[tokens[0]]
 		if !exists {
 			command = commandUnkown
 		}
-		err = command(ms.queue, line, br, bw)
-		br.Reset()
+		err = command(ms.queue, tokens, br, bw)
+		//		br.Reset()
 		bw.Flush()
 		if err != nil {
-			log.Debugf("mc command err:%s", errors.ErrorStack(err))
+			//command返回错误一定是不能容忍的错误，需要退出循环关闭连接，防止将后续有效数据的格式都破坏掉
+			log.Errorf("mc bad command:%s", errors.ErrorStack(err))
+			return
 		}
 	}
 }

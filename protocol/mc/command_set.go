@@ -17,50 +17,51 @@ limitations under the License.
 package mc
 
 import (
-	"bytes"
+	"bufio"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/weibocom/wqs/engine/queue"
+
+	"github.com/juju/errors"
 )
 
 const (
 	SET_NAME = "set"
 )
 
-func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
+func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
-	fields := Fields(cmdLine[4:]) // the first for bytes are "set "
-	l := len(fields)
-	if l < 4 || l > 5 {
-		_, err = w.Write(ERROR)
-		return
-	}
-	key := fields[0]
-	//	flags := fields[1]
-	//	exptime := fields[2]
-	length := fields[3]
+	var noreply string
 
-	var noreply []byte
-	if l == 5 {
-		noreply = fields[4]
+	fields := len(tokens)
+	if fields != 5 && fields != 6 {
+		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		return errors.NotValidf("mc tokens %v ", tokens)
 	}
-	data, err := lr.ReadLine()
-	if err != nil && err != io.EOF {
-		return err
+
+	key := tokens[1]
+	if fields == 6 {
+		noreply = tokens[5]
 	}
-	dataLength, err := strconv.Atoi(string(length))
+
+	length, err := strconv.ParseUint(tokens[4], 10, 32)
 	if err != nil {
-		_, err = w.Write(CLIENT_ERROR_BADCMD_FORMAT)
-		return
+		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		return errors.Trace(err)
 	}
-	if len(data) != dataLength {
-		_, err = w.Write(CLIENT_ERROR_BAD_DATACHUNK)
-		return
+
+	data := make([]byte, length)
+	_, err = io.ReadAtLeast(r, data, int(length))
+	if err != nil {
+		fmt.Fprint(w, CLIENT_ERROR_BAD_DATACHUNK)
+		return errors.Trace(err)
 	}
-	// log.Debugf("mc command set, key:%s flags:%s exptime:%s len:%d, reply: %s, data: %s\n", key, flags, exptime, dataLength, noreply, data)
-	keys := strings.Split(string(key), ".")
+	r.ReadString('\n')
+
+	keys := strings.Split(key, ".")
 	queue := keys[0]
 	group := defaultGroup
 	if len(keys) > 1 {
@@ -69,16 +70,13 @@ func commandSet(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err 
 
 	_, err = q.SendMsg(queue, group, data)
 	if err != nil {
-		estr := err.Error()
-		_, err = w.Write(ENGINE_ERROR_PREFIX)
-		_, err = w.Write([]byte(estr))
-		_, err = w.Write([]byte("\r\n"))
-		return
+		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+		return nil
 	}
 
-	if bytes.Equal(NOREPLY, noreply) {
-		return
+	if NOREPLY == noreply {
+		return nil
 	}
-	_, err = w.Write(STORED)
-	return
+	fmt.Fprint(w, STORED)
+	return nil
 }

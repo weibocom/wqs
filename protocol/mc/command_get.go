@@ -17,10 +17,11 @@ limitations under the License.
 package mc
 
 import (
-	"io"
-	"strconv"
+	"bufio"
+	"fmt"
 	"strings"
 
+	"github.com/juju/errors"
 	"github.com/weibocom/wqs/engine/queue"
 )
 
@@ -29,50 +30,42 @@ const (
 	GETS_NAME = "gets"
 )
 
-var (
-	VALUE_SPACE = []byte("VALUE ")
-	END         = []byte("END\r\n")
-	SPACE       = []byte{' '}
+type pair struct {
+	key   string
+	value []byte
+}
 
-	NIL_FLAG  = []byte{byte('0')}
-	NIL_VALUE = []byte{}
-)
+func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
-func command_get(q queue.Queue, cmdLine []byte, lr LineReader, w io.Writer) (err error) {
-	keys := Fields(cmdLine)
-	if len(keys) <= 1 {
-		_, err = w.Write(ERROR)
-		return
+	fields := len(tokens)
+	if fields < 2 {
+		fmt.Fprint(w, ERROR)
+		return errors.NotValidf("mc tokens %v ", tokens)
 	}
-	for _, key := range keys[1:] {
-		k := strings.Split(string(key), ".")
+
+	keyValues := make([]pair, 0)
+	for _, key := range tokens[1:] {
+		k := strings.Split(key, ".")
 		queue := k[0]
 		group := defaultGroup
 		if len(k) > 1 {
 			group = k[1]
 		}
 
-		_, data, e := q.RecvMsg(queue, group)
-		flag := NIL_FLAG
-		if e != nil {
-			_, err = w.Write(ENGINE_ERROR_PREFIX)
-			_, err = w.Write([]byte(e.Error()))
-			_, err = w.Write([]byte("\r\n"))
-			return
+		_, data, err := q.RecvMsg(queue, group)
+		if err != nil {
+			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+			return nil
 		}
-		if len(data) > 0 {
-			w.Write(VALUE_SPACE)
-			w.Write(key)
-			w.Write(SPACE)
-			w.Write(flag)
-			w.Write(SPACE)
-			w.Write([]byte(strconv.Itoa(len(data))))
-			w.Write(CRLF)
-			w.Write(data)
-			w.Write(CRLF)
-		}
+
+		keyValues = append(keyValues, pair{key: key, value: data})
 	}
 
-	w.Write(END)
-	return
+	for _, kv := range keyValues {
+		fmt.Fprintf(w, "%s %s 0 %d\r\n", VALUE, kv.key, len(kv.value))
+		w.Write(kv.value)
+		w.WriteString("\r\n")
+	}
+	w.WriteString(END)
+	return nil
 }
