@@ -51,8 +51,8 @@ const (
 	LogFatal uint32 = iota
 	LogError
 	LogWarning
-	LogDebug
 	LogInfo
+	LogDebug
 	logLevelMax
 )
 
@@ -71,6 +71,7 @@ type Logger struct {
 	shouldClose bool
 	fd          *os.File
 	mu          sync.Mutex
+	suffixTime  time.Time
 	toRoll      time.Time     //Next time of to cut file.
 	duration    time.Duration //The duration to cut file.
 	buf         []byte
@@ -120,16 +121,18 @@ func (l *Logger) SetFlags(flags uint32) {
 	atomic.StoreUint32(&l.flags, flags)
 }
 
-func genNextClock() time.Time {
+func genNextClock() (time.Time, time.Time) {
 	now := time.Now().Local()
 	year, month, day := now.Date()
 	hour, _, _ := now.Clock()
-	return time.Date(year, month, day, hour+1, 0, 0, 0, time.Local)
+	return time.Date(year, month, day, hour, 0, 0, 0, time.Local),
+		time.Date(year, month, day, hour+1, 0, 0, 0, time.Local)
 }
 
-func genNextDay() time.Time {
+func genNextDay() (time.Time, time.Time) {
 	year, month, day := time.Now().Local().Date()
-	return time.Date(year, month, day+1, 0, 0, 0, 0, time.Local)
+	return time.Date(year, month, day, 0, 0, 0, 0, time.Local),
+		time.Date(year, month, day+1, 0, 0, 0, 0, time.Local)
 }
 
 func (l *Logger) SetRolling(t RollingType) {
@@ -141,11 +144,11 @@ func (l *Logger) SetRolling(t RollingType) {
 	case RollingByHour:
 		l.duration = time.Hour
 		l.fileSuffix = "20060102_15"
-		l.toRoll = genNextClock()
+		l.suffixTime, l.toRoll = genNextClock()
 	case RollingByDay:
 		l.duration = time.Hour * 24
 		l.fileSuffix = "20060102"
-		l.toRoll = genNextDay()
+		l.suffixTime, l.toRoll = genNextDay()
 	}
 }
 
@@ -153,7 +156,7 @@ func (l *Logger) rotate(t time.Time) {
 	if l.rolling == RollingByDay || l.rolling == RollingByHour {
 		if t.After(l.toRoll) {
 			var err error
-			suffix := t.Format(l.fileSuffix)
+			suffix := l.suffixTime.Format(l.fileSuffix)
 			fileName := fmt.Sprintf("%s.%s", l.fileName, suffix)
 			if err = l.fd.Close(); err != nil {
 				fmt.Fprintf(os.Stderr, "Logger Close %s error: %s\n", l.fileName, err)
@@ -169,6 +172,7 @@ func (l *Logger) rotate(t time.Time) {
 				os.Exit(-1)
 			}
 			l.toRoll = l.toRoll.Add(l.duration)
+			l.suffixTime = l.suffixTime.Add(l.duration)
 		}
 	}
 }
