@@ -498,7 +498,7 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debug("queue receive %s cost %d", string(key), cost)
+	log.Debugf("queue receive %s cost %d", string(key), cost)
 	return id, data, nil
 }
 
