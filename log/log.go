@@ -143,7 +143,7 @@ func (l *Logger) SetRolling(t RollingType) {
 	switch t {
 	case RollingByHour:
 		l.duration = time.Hour
-		l.fileSuffix = "20060102_15"
+		l.fileSuffix = "20060102-15"
 		l.suffixTime, l.toRoll = genNextClock()
 	case RollingByDay:
 		l.duration = time.Hour * 24

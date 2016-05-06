@@ -30,7 +30,7 @@ type Consumer struct {
 }
 
 const (
-	timeout = 20 * time.Millisecond // 20ms超时
+	timeout = 10 * time.Millisecond // 20ms超时
 )
 
 func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
