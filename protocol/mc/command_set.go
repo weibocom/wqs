@@ -47,6 +47,12 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		noreply = tokens[5]
 	}
 
+	flag, err := strconv.ParseUint(tokens[2], 10, 32)
+	if err != nil {
+		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		return errors.Trace(err)
+	}
+
 	length, err := strconv.ParseUint(tokens[4], 10, 32)
 	if err != nil {
 		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
@@ -68,7 +74,7 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		group = keys[1]
 	}
 
-	_, err = q.SendMsg(queue, group, data)
+	_, err = q.SendMsg(queue, group, data, flag)
 	if err != nil {
 		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 		return nil

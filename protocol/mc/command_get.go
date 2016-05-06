@@ -33,6 +33,7 @@ const (
 type pair struct {
 	key   string
 	value []byte
+	flag  uint64
 }
 
 func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
@@ -52,17 +53,17 @@ func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Write
 			group = k[1]
 		}
 
-		_, data, err := q.RecvMsg(queue, group)
+		_, data, flag, err := q.RecvMsg(queue, group)
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 			return nil
 		}
 
-		keyValues = append(keyValues, pair{key: key, value: data})
+		keyValues = append(keyValues, pair{key: key, value: data, flag: flag})
 	}
 
 	for _, kv := range keyValues {
-		fmt.Fprintf(w, "%s %s 0 %d\r\n", VALUE, kv.key, len(kv.value))
+		fmt.Fprintf(w, "%s %s %d %d\r\n", VALUE, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
 	}

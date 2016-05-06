@@ -17,11 +17,11 @@ limitations under the License.
 package queue
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -437,7 +437,7 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfi
 	return q.extendManager.GetGroupConfig(group, queue)
 }
 
-func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, error) {
+func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64) (uint64, error) {
 	start := time.Now()
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
@@ -448,7 +448,7 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, err
 	}
 	id := q.genMsgId(queue, group)
 	dig := md5.Sum(data)
-	key := fmt.Sprintf("%d:%s", id, hex.EncodeToString(dig[:]))
+	key := fmt.Sprintf("%d:%d:%s", id, flag, hex.EncodeToString(dig[:]))
 
 	err = q.producer.Send(queue, []byte(key), data)
 	if err != nil {
@@ -462,14 +462,14 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte) (uint64, err
 	return id, nil
 }
 
-func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
+func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, error) {
 	start := time.Now()
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
-		return uint64(0), nil, errors.Trace(err)
+		return uint64(0), nil, 0, errors.Trace(err)
 	}
 	if !exist {
-		return uint64(0), nil, errors.NotFoundf("ReceiveMsg queue:%s ", queue)
+		return uint64(0), nil, 0, errors.NotFoundf("ReceiveMsg queue: %s ", queue)
 	}
 
 	owner := fmt.Sprintf("%s@%s", queue, group)
@@ -479,7 +479,7 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
-			return uint64(0), nil, errors.Trace(err)
+			return uint64(0), nil, 0, errors.Trace(err)
 		}
 		q.consumerMap[owner] = consumer
 	}
@@ -487,19 +487,24 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, error) {
 
 	key, data, err := consumer.Recv()
 	if err != nil {
-		return uint64(0), nil, errors.Trace(err)
+		return uint64(0), nil, 0, errors.Trace(err)
 	}
-	index := bytes.Index(key, []byte{':'})
-	var id uint64
-	if index > 0 {
-		id = utils.BytesToUint64(key[:index])
+
+	tokens := strings.Split(string(key), ":")
+	tokensCnt := len(tokens)
+	var id, flag uint64
+	if tokensCnt > 1 {
+		id, _ = strconv.ParseUint(tokens[0], 10, 64)
+	}
+	if tokensCnt > 2 {
+		flag, _ = strconv.ParseUint(tokens[1], 10, 32)
 	}
 
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
 	log.Debugf("queue receive %s cost %d", string(key), cost)
-	return id, data, nil
+	return id, data, flag, nil
 }
 
 func (q *queueImp) AckMsg(queue string, group string) error {
