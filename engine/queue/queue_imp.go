@@ -458,7 +458,7 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64)
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
-	log.Debugf("queue send %s cost %d", key, cost)
+	log.Debugf("queue @ %s:%s send %s cost %d", queue, group, key, cost)
 	return id, nil
 }
 
@@ -503,7 +503,7 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 	cost := time.Now().Sub(start).Nanoseconds() / 1000000
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debugf("queue receive %s cost %d", string(key), cost)
+	log.Debugf("queue @ %s:%s receive %s cost %d", queue, group, string(key), cost)
 	return id, data, flag, nil
 }
 
