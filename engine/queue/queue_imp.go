@@ -500,10 +500,12 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 		flag, _ = strconv.ParseUint(tokens[1], 10, 32)
 	}
 
-	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	end := time.Now()
+	cost := end.Sub(start).Nanoseconds() / 1000000
+	delay := uint64(end.UnixNano())/1000000 - id
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debugf("queue @ %s:%s receive %s cost %d", queue, group, string(key), cost)
+	log.Debugf("queue @ %s:%s receive %s cost %d, delay %d", queue, group, string(key), cost, delay)
 	return id, data, flag, nil
 }
 
@@ -513,7 +515,7 @@ func (q *queueImp) AckMsg(queue string, group string) error {
 
 func (q *queueImp) genMsgId(queue string, group string) uint64 {
 	//TODO: generate real msg id
-	return uint64(1234567890)
+	return uint64(time.Now().UnixNano() / 1000000)
 }
 
 func (q *queueImp) GetSendMetrics(queue string, group string,
