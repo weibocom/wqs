@@ -502,10 +502,10 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 
 	end := time.Now()
 	cost := end.Sub(start).Nanoseconds() / 1000000
-	delay := uint64(end.UnixNano())/1000000 - id
+	delay := end.UnixNano()/1000000 - int64(id)
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debugf("queue @ %s:%s receive %s cost %d, delay %d", queue, group, string(key), cost, delay)
+	log.Debugf("queue @ %s:%s recv %s cost %d, delay %d", queue, group, string(key), cost, delay)
 	return id, data, flag, nil
 }
 
