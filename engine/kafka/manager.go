@@ -139,3 +139,7 @@ func (m *Manager) TopicSize(topic string) (int64, error) {
 	}
 	return size, err
 }
+
+func (m *Manager) Close() error {
+	return m.client.Close()
+}

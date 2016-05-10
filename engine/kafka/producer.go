@@ -22,7 +22,7 @@ import (
 )
 
 type Producer struct {
-	producer sarama.SyncProducer
+	sarama.SyncProducer
 }
 
 func NewProducer(brokerAddrs []string, conf *sarama.Config) (*Producer, error) {
@@ -39,7 +39,7 @@ func (k *Producer) Send(topic string, key, data []byte) error {
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(data),
 	}
-	_, _, err := k.producer.SendMessage(msg)
+	_, _, err := k.SyncProducer.SendMessage(msg)
 	if err != nil {
 		return errors.Trace(err)
 	}

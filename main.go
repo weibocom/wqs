@@ -103,5 +103,6 @@ func main() {
 	log.Debug("Process start")
 	<-c
 	mcServer.Stop()
+	queue.Close()
 	log.Debug("Process stop")
 }
