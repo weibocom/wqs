@@ -24,7 +24,7 @@ import (
 
 func TestManager(t *testing.T) {
 	var err error
-	manager := NewManager([]string{"localhost:9092"}, "../../kafkalib")
+	manager, _ := NewManager([]string{"localhost:9092"}, "../../kafkalib", nil)
 	topics, err := manager.GetTopics()
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +36,17 @@ func TestManager(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Printf("topic size %d \n", size)
+	topicOffsets, _ := manager.FetchTopicOffsets("queue1")
+	for i := int32(0); i < int32(len(topicOffsets)); i++ {
+		fmt.Printf("%d:%d ", i, topicOffsets[i])
+	}
+	fmt.Println()
+	groupOffsets, _ := manager.FetchGroupOffsets("queue1", "group1")
+	for i := int32(0); i < int32(len(groupOffsets)); i++ {
+		fmt.Printf("%d:%d ", i, groupOffsets[i])
+	}
+	fmt.Println()
+	fmt.Println(manager.Accumulation("queue1", "group1"))
 
 	// err = manager.CreateTopic("test-temp-topic", 1, 2, "10.77.109.120:2181")
 	// if err != nil {

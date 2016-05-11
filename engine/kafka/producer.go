@@ -19,6 +19,8 @@ package kafka
 import (
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
+
+	"fmt"
 )
 
 type Producer struct {
@@ -39,7 +41,8 @@ func (k *Producer) Send(topic string, key, data []byte) error {
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(data),
 	}
-	_, _, err := k.producer.SendMessage(msg)
+	partition, offset, err := k.producer.SendMessage(msg)
+	fmt.Printf("partiton %d, offset %d", partition, offset)
 	if err != nil {
 		return errors.Trace(err)
 	}
