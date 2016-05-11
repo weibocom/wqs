@@ -278,3 +278,7 @@ func (em *ExtendManager) buildConfigPath(group string, queue string) string {
 func (em *ExtendManager) buildQueuePath(queue string) string {
 	return em.queuePath + "/" + queue
 }
+
+func (em *ExtendManager) Close() {
+	em.zkClient.Close()
+}

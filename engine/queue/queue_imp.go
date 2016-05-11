@@ -544,3 +544,33 @@ func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, en
 
 	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
 }
+
+func (q *queueImp) Close() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	err := q.producer.Close()
+	if err != nil {
+		log.Errorf("close producer err: %s", err)
+	}
+
+	for name, consumer := range q.consumerMap {
+		err = consumer.Close()
+		if err != nil {
+			log.Errorf("close consumer %s err: %s", name, err)
+		}
+		delete(q.consumerMap, name)
+	}
+
+	err = q.monitor.Close()
+	if err != nil {
+		log.Errorf("close monitor err: %s", err)
+	}
+
+	err = q.manager.Close()
+	if err != nil {
+		log.Errorf("close manager err: %s", err)
+	}
+
+	q.extendManager.Close()
+}

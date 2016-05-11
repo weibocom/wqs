@@ -22,6 +22,9 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
@@ -38,8 +41,11 @@ type McServer struct {
 	port         string
 	queue        queue.Queue
 	listener     *utils.Listener
+	stopping     int32
 	recvBuffSize int
 	sendBuffSize int
+	connPool     map[net.Conn]net.Conn
+	mu           sync.Mutex
 }
 
 func NewMcServer(q queue.Queue, config *config.Config) *McServer {
@@ -48,6 +54,7 @@ func NewMcServer(q queue.Queue, config *config.Config) *McServer {
 		queue:        q,
 		recvBuffSize: config.McSocketRecvBuffer,
 		sendBuffSize: config.McSocketSendBuffer,
+		connPool:     make(map[net.Conn]net.Conn),
 	}
 }
 
@@ -71,7 +78,14 @@ func (ms *McServer) mainLoop() {
 			log.Errorf("mc server accept error: %s", err)
 			continue
 		}
+		if atomic.LoadInt32(&ms.stopping) != 0 {
+			conn.Close()
+			return
+		}
 		log.Debugf("mc server new client: %s", conn.RemoteAddr())
+		ms.mu.Lock()
+		ms.connPool[conn] = conn
+		ms.mu.Unlock()
 		go ms.connLoop(conn)
 	}
 }
@@ -79,6 +93,9 @@ func (ms *McServer) mainLoop() {
 func (ms *McServer) connLoop(conn net.Conn) {
 	defer func(conn net.Conn) {
 		log.Debugf("mc client closed :%s", conn.RemoteAddr())
+		ms.mu.Lock()
+		delete(ms.connPool, conn)
+		ms.mu.Unlock()
 		conn.Close()
 		if err := recover(); err != nil {
 			log.Errorf("mc connLoop panic error: %s", err)
@@ -88,7 +105,7 @@ func (ms *McServer) connLoop(conn net.Conn) {
 	br := bufio.NewReaderSize(conn, ms.recvBuffSize)
 	bw := bufio.NewWriterSize(conn, ms.sendBuffSize)
 
-	for {
+	for atomic.LoadInt32(&ms.stopping) == 0 {
 		data, err := br.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -104,7 +121,6 @@ func (ms *McServer) connLoop(conn net.Conn) {
 			command = commandUnkown
 		}
 		err = command(ms.queue, tokens, br, bw)
-		//		br.Reset()
 		bw.Flush()
 		if err != nil {
 			//command返回错误一定是不能容忍的错误，需要退出循环关闭连接，防止将后续有效数据的格式都破坏掉
@@ -114,13 +130,26 @@ func (ms *McServer) connLoop(conn net.Conn) {
 	}
 }
 
+//close all connections of memcached protocol server.
+func (ms *McServer) DrainConn() {
+	ms.mu.Lock()
+	for _, conn := range ms.connPool {
+		conn.Close()
+	}
+	ms.mu.Unlock()
+}
+
 func (ms *McServer) Stop() {
+	if !atomic.CompareAndSwapInt32(&ms.stopping, 0, 1) {
+		return
+	}
 	log.Debugf("mc protocol server stop.")
 	if err := ms.listener.Close(); err != nil {
 		log.Errorf("mc server listener close failed:%s", err)
+		return
 	}
-}
-
-func (ms *McServer) Stoped() bool {
-	return ms.listener.GetRemain() == 0
+	ms.DrainConn()
+	for ms.listener.GetRemain() != 0 {
+		time.Sleep(time.Millisecond)
+	}
 }

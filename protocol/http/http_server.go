@@ -74,6 +74,10 @@ func (s *HttpServer) Start() error {
 	return nil
 }
 
+func (s *HttpServer) Stop() error {
+	return s.listener.Close()
+}
+
 //队列操作handler
 func (s *HttpServer) queueHandler(w http.ResponseWriter, r *http.Request) {
 

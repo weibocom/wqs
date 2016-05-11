@@ -212,3 +212,7 @@ func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
 	}
 	return topicCount, groupCount, nil
 }
+
+func (m *Manager) Close() error {
+	return m.client.Close()
+}
