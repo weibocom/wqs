@@ -32,6 +32,10 @@ const (
 	SET_NAME = "set"
 )
 
+func init() {
+	registerCommand(SET_NAME, commandSet)
+}
+
 func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	var noreply string

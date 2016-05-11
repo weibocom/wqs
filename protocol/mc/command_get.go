@@ -36,7 +36,12 @@ type pair struct {
 	flag  uint64
 }
 
-func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func init() {
+	registerCommand(GET_NAME, commandGet)
+	registerCommand(GETS_NAME, commandGet)
+}
+
+func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	fields := len(tokens)
 	if fields < 2 {

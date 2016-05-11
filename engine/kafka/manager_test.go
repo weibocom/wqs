@@ -31,7 +31,7 @@ func TestManager(t *testing.T) {
 	}
 	fmt.Printf("topics:%v \n", topics)
 
-	size, err := manager.TopicSize("test-queue")
+	size, err := manager.FetchTopicSize("test-queue")
 	if err != nil {
 		t.Fatal(err)
 	}

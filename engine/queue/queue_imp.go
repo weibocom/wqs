@@ -568,6 +568,29 @@ func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, en
 	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
 }
 
+func (q *queueImp) AccumulationStatus() ([]model.AccumulationInfo, error) {
+	accumulationInfos := make([]model.AccumulationInfo, 0)
+	queueMap, err := q.extendManager.GetQueueMap()
+	if err != nil {
+		return nil, err
+	}
+	for queue, groups := range queueMap {
+		for _, group := range groups {
+			total, consumed, err := q.manager.Accumulation(queue, group)
+			if err != nil {
+				return nil, err
+			}
+			accumulationInfos = append(accumulationInfos, model.AccumulationInfo{
+				Group:    group,
+				Queue:    queue,
+				Total:    total,
+				Consumed: consumed,
+			})
+		}
+	}
+	return accumulationInfos, nil
+}
+
 func (q *queueImp) Close() {
 	q.mu.Lock()
 	defer q.mu.Unlock()

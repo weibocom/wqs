@@ -37,6 +37,7 @@ type Queue interface {
 	AckMsg(queue string, group string) error
 	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
+	AccumulationStatus() ([]model.AccumulationInfo, error)
 	Close()
 }
 

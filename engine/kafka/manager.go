@@ -161,6 +161,7 @@ func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error
 		Version:       1,
 		ConsumerGroup: group,
 	}
+	m.client.RefreshCoordinator(group)
 	broker, err := m.client.Coordinator(group)
 	if err != nil {
 		return nil, err
@@ -202,13 +203,15 @@ func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
 	}
 	for partition, offset := range topicOffsets {
 		// topic 的offset是下次要写入的位置，而不是最后一条消息的位置，所以在这里要减1
-		offset--
+		if offset > 0 {
+			offset--
+		}
 		topicCount += offset
 		if groupOffsets[partition] < 0 {
 			groupCount += offset
+		} else {
+			groupCount += groupOffsets[partition]
 		}
-		groupCount += groupOffsets[partition]
-
 	}
 	return topicCount, groupCount, nil
 }
