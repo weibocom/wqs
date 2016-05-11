@@ -37,6 +37,29 @@ import (
 	"github.com/juju/errors"
 )
 
+type kafkaLogger struct {
+}
+
+func (l *kafkaLogger) Print(v ...interface{}) {
+	args := []interface{}{"[sarama] "}
+	args = append(args, v...)
+	log.Info(args...)
+}
+
+func (l *kafkaLogger) Printf(format string, v ...interface{}) {
+	log.Info("[sarama] ", fmt.Sprintf(format, v...))
+}
+
+func (l *kafkaLogger) Println(v ...interface{}) {
+	args := []interface{}{"[sarama] "}
+	args = append(args, v...)
+	log.Info(args...)
+}
+
+func init() {
+	sarama.Logger = &kafkaLogger{}
+}
+
 type queueImp struct {
 	conf          *config.Config
 	saramaConf    *sarama.Config
