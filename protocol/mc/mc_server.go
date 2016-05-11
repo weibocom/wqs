@@ -143,7 +143,8 @@ func (ms *McServer) Stop() {
 	if !atomic.CompareAndSwapInt32(&ms.stopping, 0, 1) {
 		return
 	}
-	log.Debugf("mc protocol server stop.")
+	//Make on processing commamd to run over
+	time.Sleep(200 * time.Millisecond)
 	if err := ms.listener.Close(); err != nil {
 		log.Errorf("mc server listener close failed:%s", err)
 		return
@@ -152,4 +153,5 @@ func (ms *McServer) Stop() {
 	for ms.listener.GetRemain() != 0 {
 		time.Sleep(time.Millisecond)
 	}
+	log.Debugf("mc protocol server stop.")
 }
