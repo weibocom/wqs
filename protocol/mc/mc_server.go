@@ -72,7 +72,7 @@ func (ms *McServer) Start() error {
 
 func (ms *McServer) mainLoop() {
 
-	for {
+	for atomic.LoadInt32(&ms.stopping) == 0 {
 		conn, err := ms.listener.Accept()
 		if err != nil {
 			log.Errorf("mc server accept error: %s", err)
