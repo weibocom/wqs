@@ -68,10 +68,11 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 	r.ReadString('\n')
 
 	keys := strings.Split(key, ".")
-	queue := keys[0]
 	group := defaultGroup
+	queue := keys[0]
 	if len(keys) > 1 {
-		group = keys[1]
+		group = keys[0]
+		queue = keys[1]
 	}
 
 	_, err = q.SendMsg(queue, group, data, flag)

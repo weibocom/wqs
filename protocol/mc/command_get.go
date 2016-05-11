@@ -50,7 +50,8 @@ func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Write
 		queue := k[0]
 		group := defaultGroup
 		if len(k) > 1 {
-			group = k[1]
+			group = k[0]
+			queue = k[1]
 		}
 
 		_, data, flag, err := q.RecvMsg(queue, group)
