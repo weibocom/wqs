@@ -35,6 +35,10 @@ const (
 	ENGINE_ERROR_PREFIX        = "SERVER_ERROR engine error"
 )
 
+func init() {
+	registerCommand(CMD_UNKNOWN, commandUnkown)
+}
+
 func commandUnkown(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 	return errors.NotSupportedf("command %s ", tokens[0])
 }

@@ -41,6 +41,13 @@ type GroupConfig struct {
 	Ips   []string `json:"ips"`
 }
 
+type AccumulationInfo struct {
+	Group    string `json:"group,omitempty"`
+	Queue    string `json:"queue,omitempty"`
+	Total    int64  `json:"total,omitempty"`
+	Consumed int64  `json:"consumed,omitempty"`
+}
+
 func (queueInfo *QueueInfo) ToJson() string {
 	result, _ := json.Marshal(queueInfo)
 	return string(result)

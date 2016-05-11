@@ -32,13 +32,6 @@ var (
 	CMD_NOFIELD = "$cmdNoFields$"
 )
 
-func init() {
-	registerCommand(GET_NAME, command_get)
-	registerCommand(GETS_NAME, command_get)
-	registerCommand(SET_NAME, commandSet)
-	registerCommand(CMD_UNKNOWN, commandUnkown)
-}
-
 func registerCommand(name string, command MemcacheCommand) error {
 	if _, exists := commands[name]; exists {
 		return fmt.Errorf("command registered %s", name)
