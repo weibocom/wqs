@@ -17,8 +17,6 @@ limitations under the License.
 package queue
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -67,6 +65,7 @@ type queueImp struct {
 	extendManager *kafka.ExtendManager
 	producer      *kafka.Producer
 	monitor       *metrics.Monitor
+	idGenerator   *idGenerator
 	consumerMap   map[string]*kafka.Consumer
 	mu            sync.Mutex
 }
@@ -110,6 +109,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		extendManager: extendManager,
 		producer:      producer,
 		monitor:       metrics.NewMonitor(config.RedisAddr),
+		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
 		consumerMap:   make(map[string]*kafka.Consumer),
 	}
 	return qs, nil
@@ -469,16 +469,15 @@ func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64)
 	if !exist {
 		return uint64(0), errors.NotFoundf("SendMsg queue:%s ", queue)
 	}
-	id := q.genMsgId(queue, group)
-	dig := md5.Sum(data)
-	key := fmt.Sprintf("%d:%d:%s", id, flag, hex.EncodeToString(dig[:]))
+	id := q.idGenerator.Get()
+	key := fmt.Sprintf("%x:%x", id, flag)
 
 	err = q.producer.Send(queue, []byte(key), data)
 	if err != nil {
 		return uint64(0), errors.Trace(err)
 	}
 
-	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	cost := time.Now().Sub(start).Nanoseconds() / 1e6
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
 	log.Debugf("queue @ %s:%s send %s cost %d", queue, group, key, cost)
@@ -513,19 +512,16 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 		return uint64(0), nil, 0, errors.Trace(err)
 	}
 
-	tokens := strings.Split(string(key), ":")
-	tokensCnt := len(tokens)
 	var id, flag uint64
-	if tokensCnt > 1 {
-		id, _ = strconv.ParseUint(tokens[0], 10, 64)
-	}
-	if tokensCnt > 2 {
-		flag, _ = strconv.ParseUint(tokens[1], 10, 32)
+	tokens := strings.Split(string(key), ":")
+	id, _ = strconv.ParseUint(tokens[0], 16, 64)
+	if len(tokens) > 1 {
+		flag, _ = strconv.ParseUint(tokens[1], 16, 32)
 	}
 
 	end := time.Now()
-	cost := end.Sub(start).Nanoseconds() / 1000000
-	delay := end.UnixNano()/1000000 - int64(id)
+	cost := end.Sub(start).Nanoseconds() / 1e6
+	delay := end.UnixNano()/1e6 - baseTime - int64((id>>24)&0xFFFFFFFFFF)
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
 	log.Debugf("queue @ %s:%s recv %s cost %d, delay %d", queue, group, string(key), cost, delay)
@@ -534,11 +530,6 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 
 func (q *queueImp) AckMsg(queue string, group string) error {
 	return errors.NotImplementedf("ack")
-}
-
-func (q *queueImp) genMsgId(queue string, group string) uint64 {
-	//TODO: generate real msg id
-	return uint64(time.Now().UnixNano() / 1000000)
 }
 
 func (q *queueImp) GetSendMetrics(queue string, group string,
