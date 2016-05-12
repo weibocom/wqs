@@ -19,6 +19,8 @@ package mc
 import (
 	"bufio"
 	"fmt"
+	"strings"
+
 	"github.com/weibocom/wqs/engine/queue"
 
 	"github.com/juju/errors"
@@ -40,19 +42,25 @@ func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writ
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 
-	accumulationInfos, err := q.AccumulationStatus()
-	if err != nil {
-		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
-		return nil
+	if fields == 1 {
+		// TODO: implement stats command
+		fmt.Fprint(w, END)
+	} else if fields == 2 && strings.EqualFold(tokens[1], "queue") {
+		accumulationInfos, err := q.AccumulationStatus()
+		if err != nil {
+			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+			return nil
+		}
+		for _, accumulationInfo := range accumulationInfos {
+			fmt.Fprintf(w, "%s %s.%s %d/%d \r\n", "STAT",
+				accumulationInfo.Group,
+				accumulationInfo.Queue,
+				accumulationInfo.Total,
+				accumulationInfo.Consumed)
+		}
+		fmt.Fprint(w, END)
+	} else {
+		fmt.Fprint(w, ERROR)
 	}
-	for _, accumulationInfo := range accumulationInfos {
-		fmt.Fprintf(w, "%s %s.%s %d/%d \r\n", "STAT",
-			accumulationInfo.Group,
-			accumulationInfo.Queue,
-			accumulationInfo.Total,
-			accumulationInfo.Consumed)
-	}
-
-	fmt.Fprint(w, END)
 	return nil
 }
