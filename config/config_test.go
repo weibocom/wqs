@@ -18,27 +18,26 @@ package config
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
 func TestConfig(t *testing.T) {
-	config, _ := NewConfigFromFile("../test.properties")
-	fmt.Println("KafkaZKAddr:", config.KafkaZKAddr)
-	fmt.Println("KafkaZKRoot:", config.KafkaZKRoot)
-	fmt.Println("KafkaBrokerAddr:", config.KafkaBrokerAddr)
-	fmt.Println("KafkaPartitions:", config.KafkaPartitions)
-	fmt.Println("KafkaReplications:", config.KafkaReplications)
+	config, err := NewConfigFromFile("../config.properties")
+	if err != nil {
+		t.Fatalf("NewConfigFromFile err : %s", err)
+	}
+	if config == nil {
+		t.Fatalf("get nil config")
+	}
 
-	fmt.Println("ProxyId:", config.ProxyId)
-	fmt.Println("UiDir:", config.UiDir)
-	fmt.Println("HttpPort:", config.HttpPort)
-	fmt.Println("McPort:", config.McPort)
-	fmt.Println("McSocketRecvBuffer:", config.McSocketRecvBuffer)
-	fmt.Println("McSocketSendBuffer:", config.McSocketSendBuffer)
-	fmt.Println("MotanPort:", config.MotanPort)
-	fmt.Println("KafkaLib:", config.KafkaLib)
-	fmt.Println("MetaDataZKAddr:", config.MetaDataZKAddr)
-	fmt.Println("MetaDataZKRoot:", config.MetaDataZKRoot)
-	fmt.Println("RedisAddr:", config.RedisAddr)
+	v := reflect.ValueOf(config).Elem()
+	if v.Kind() != reflect.Struct {
+		t.Fatalf("get config with invaild type")
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		fmt.Printf("%s: %v\n", v.Type().Field(i).Name, v.Field(i).Interface())
+	}
 
 }
