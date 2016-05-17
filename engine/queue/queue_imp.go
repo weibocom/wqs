@@ -19,6 +19,7 @@ package queue
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/model"
-	"github.com/weibocom/wqs/utils"
 
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
@@ -67,6 +67,7 @@ type queueImp struct {
 	monitor       *metrics.Monitor
 	idGenerator   *idGenerator
 	consumerMap   map[string]*kafka.Consumer
+	vaildName     *regexp.Regexp
 	mu            sync.Mutex
 }
 
@@ -110,6 +111,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		producer:      producer,
 		monitor:       metrics.NewMonitor(config.RedisAddr),
 		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
+		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
 		consumerMap:   make(map[string]*kafka.Consumer),
 	}
 	return qs, nil
@@ -118,8 +120,8 @@ func newQueue(config *config.Config) (*queueImp, error) {
 //Create a queue by name.
 func (q *queueImp) Create(queue string) error {
 	// 1. check queue name valid
-	if utils.BlankString(queue) {
-		return errors.NotValidf("CreateQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
 
 	// 2. check kafka whether the queue exists
@@ -154,8 +156,8 @@ func (q *queueImp) Create(queue string) error {
 //Updata queue information by name. Nothing to be update so far.
 func (q *queueImp) Update(queue string) error {
 
-	if utils.BlankString(queue) {
-		return errors.NotValidf("UpdateQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -171,8 +173,8 @@ func (q *queueImp) Update(queue string) error {
 //Delete queue by name
 func (q *queueImp) Delete(queue string) error {
 	// 1. check queue name valid
-	if utils.BlankString(queue) {
-		return errors.NotValidf("DeleteQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
 	// 2. check kafka whether the queue exists
 	exist, err := q.manager.ExistTopic(queue, true)
@@ -316,8 +318,8 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 func (q *queueImp) AddGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("add group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
 	exist, err := q.extendManager.ExistQueue(queue)
@@ -337,8 +339,8 @@ func (q *queueImp) AddGroup(group string, queue string,
 func (q *queueImp) UpdateGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("update group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
 	exist, err := q.extendManager.ExistQueue(queue)
@@ -357,8 +359,8 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 
 func (q *queueImp) DeleteGroup(group string, queue string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("delete group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
 	exist, err := q.extendManager.ExistQueue(queue)
