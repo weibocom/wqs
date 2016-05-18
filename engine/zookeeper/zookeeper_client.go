@@ -54,20 +54,20 @@ func NewZkClient(servers []string) (*ZkClient, error) {
 }
 
 //Create a node by path with data.
-func (z *ZkClient) Create(path string, data string) error {
-	_, err := z.Conn.Create(path, []byte(data), 0, zk.WorldACL(zk.PermAll))
+func (z *ZkClient) Create(path string, data string, flags int32) error {
+	_, err := z.Conn.Create(path, []byte(data), flags, zk.WorldACL(zk.PermAll))
 	return err
 }
 
 //递归创建节点
-func (z *ZkClient) CreateRec(zkPath string, data string) error {
-	err := z.Create(zkPath, data)
+func (z *ZkClient) CreateRec(zkPath string, data string, flags int32) error {
+	err := z.Create(zkPath, data, flags)
 	if err == zk.ErrNoNode {
-		err = z.CreateRec(path.Dir(zkPath), "")
+		err = z.CreateRec(path.Dir(zkPath), "", flags)
 		if err != nil && err != zk.ErrNodeExists {
 			return err
 		}
-		err = z.Create(zkPath, data)
+		err = z.Create(zkPath, data, flags)
 	}
 	return err
 }

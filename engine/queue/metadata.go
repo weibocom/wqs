@@ -56,7 +56,7 @@ func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
 		return nil, errors.Trace(err)
 	}
 	if !exist {
-		zk.CreateRec(groupConfigPath, "")
+		zk.CreateRec(groupConfigPath, "", 0)
 	}
 
 	exist, _, err = zk.Exists(queuePath)
@@ -64,7 +64,7 @@ func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
 		return nil, errors.Trace(err)
 	}
 	if !exist {
-		zk.CreateRec(queuePath, "")
+		zk.CreateRec(queuePath, "", 0)
 	}
 
 	return &Metadata{
@@ -90,7 +90,7 @@ func (m *Metadata) AddGroupConfig(group string, queue string,
 	}
 	data := groupConfig.ToJson()
 	log.Debugf("add group config, zk path:%s, data:%s", path, data)
-	err := m.zkClient.CreateRec(path, data)
+	err := m.zkClient.CreateRec(path, data, 0)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -218,7 +218,7 @@ func (m *Metadata) AddQueue(queue string) error {
 	path := m.buildQueuePath(queue)
 	data := ""
 	log.Debugf("add queue, zk path:%s, data:%s", path, data)
-	err := m.zkClient.CreateRec(path, data)
+	err := m.zkClient.CreateRec(path, data, 0)
 	if err != nil {
 		return errors.Trace(err)
 	}
