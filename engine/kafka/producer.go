@@ -33,15 +33,15 @@ func NewProducer(brokerAddrs []string, conf *sarama.Config) (*Producer, error) {
 	return &Producer{producer}, nil
 }
 
-func (k *Producer) Send(topic string, key, data []byte) error {
+func (k *Producer) Send(topic string, key, data []byte) (int32, int64, error) {
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(data),
 	}
-	_, _, err := k.SyncProducer.SendMessage(msg)
+	partition, offset, err := k.SyncProducer.SendMessage(msg)
 	if err != nil {
-		return errors.Trace(err)
+		return 0, 0, errors.Trace(err)
 	}
-	return nil
+	return partition, offset, nil
 }

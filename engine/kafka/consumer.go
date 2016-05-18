@@ -19,48 +19,45 @@ import (
 	"errors"
 	"time"
 
-	sarama "github.com/bsm/sarama-cluster"
+	"github.com/Shopify/sarama"
+	"github.com/bsm/sarama-cluster"
 	"github.com/weibocom/wqs/log"
 )
 
 type Consumer struct {
 	topic    string
 	group    string
-	consumer *sarama.Consumer
+	consumer *cluster.Consumer
 }
 
 const (
-	timeout = 10 * time.Millisecond // 20ms超时
+	timeout = 10 * time.Millisecond
 )
 
 func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
 	//FIXME: consumer的config是否需要支持配置
-	consumer, err := sarama.NewConsumer(brokerAddrs, group, []string{topic}, nil)
+	consumer, err := cluster.NewConsumer(brokerAddrs, group, []string{topic}, nil)
 	if err != nil {
 		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", brokerAddrs, err)
 		return nil, err
 	}
 	go func() {
-		e := <-consumer.Errors()
-		log.Warnf("kafka consumer err:%v", e)
+		for err := range consumer.Errors() {
+			log.Warnf("consumer err : %v", err)
+		}
 	}()
 	return &Consumer{topic, group, consumer}, nil
 }
 
-func (c *Consumer) Recv() ([]byte, []byte, error) {
-	var key []byte
-	var data []byte
-	var err error
+func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
+
 	select {
-	case msg := <-c.consumer.Messages():
-		key = msg.Key
-		data = msg.Value
+	case msg = <-c.consumer.Messages():
 		c.consumer.MarkOffset(msg, "") // metedata的用处？
 	case <-time.After(timeout):
 		err = errors.New("time out")
 	}
-
-	return key, data, err
+	return
 }
 
 func (c *Consumer) Close() error {

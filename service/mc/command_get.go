@@ -59,7 +59,7 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 			queue = k[1]
 		}
 
-		_, data, flag, err := q.RecvMsg(queue, group)
+		_, data, flag, err := q.RecvMessage(queue, group)
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 			return nil

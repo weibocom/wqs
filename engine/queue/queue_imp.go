@@ -471,38 +471,41 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*GroupConfig, err
 	return q.metadata.GetGroupConfig(group, queue)
 }
 
-func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64) (uint64, error) {
+func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uint64) (string, error) {
 	start := time.Now()
+	//TODO refer metadata
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
-		return uint64(0), errors.Trace(err)
+		return "", errors.Trace(err)
 	}
 	if !exist {
-		return uint64(0), errors.NotFoundf("SendMsg queue:%s ", queue)
+		return "", errors.NotFoundf("queue : %q ", queue)
 	}
-	id := q.idGenerator.Get()
-	key := fmt.Sprintf("%x:%x", id, flag)
 
-	err = q.producer.Send(queue, []byte(key), data)
+	sequenceID := q.idGenerator.Get()
+	key := fmt.Sprintf("%x:%x", sequenceID, flag)
+
+	partition, offset, err := q.producer.Send(queue, []byte(key), data)
 	if err != nil {
-		return uint64(0), errors.Trace(err)
+		return "", errors.Trace(err)
 	}
-
+	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, partition, offset)
 	cost := time.Now().Sub(start).Nanoseconds() / 1e6
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
-	log.Debugf("queue @ %s:%s send %s cost %d", queue, group, key, cost)
-	return id, nil
+	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
+	return messageID, nil
 }
 
-func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, error) {
+func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint64, error) {
 	start := time.Now()
+	//TODO refer metadata
 	exist, err := q.manager.ExistTopic(queue, false)
 	if err != nil {
-		return uint64(0), nil, 0, errors.Trace(err)
+		return "", nil, 0, errors.Trace(err)
 	}
 	if !exist {
-		return uint64(0), nil, 0, errors.NotFoundf("ReceiveMsg queue: %s ", queue)
+		return "", nil, 0, errors.NotFoundf("ReceiveMsg queue: %s ", queue)
 	}
 
 	owner := fmt.Sprintf("%s@%s", queue, group)
@@ -512,34 +515,36 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
-			return uint64(0), nil, 0, errors.Trace(err)
+			return "", nil, 0, errors.Trace(err)
 		}
 		q.consumerMap[owner] = consumer
 	}
 	q.mu.Unlock()
 
-	key, data, err := consumer.Recv()
+	msg, err := consumer.Recv()
 	if err != nil {
-		return uint64(0), nil, 0, errors.Trace(err)
+		return "", nil, 0, errors.Trace(err)
 	}
 
-	var id, flag uint64
-	tokens := strings.Split(string(key), ":")
-	id, _ = strconv.ParseUint(tokens[0], 16, 64)
+	var sequenceID, flag uint64
+	tokens := strings.Split(string(msg.Key), ":")
+	sequenceID, _ = strconv.ParseUint(tokens[0], 16, 64)
 	if len(tokens) > 1 {
 		flag, _ = strconv.ParseUint(tokens[1], 16, 32)
 	}
 
+	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, msg.Partition, msg.Offset)
+
 	end := time.Now()
 	cost := end.Sub(start).Nanoseconds() / 1e6
-	delay := end.UnixNano()/1e6 - baseTime - int64((id>>24)&0xFFFFFFFFFF)
+	delay := end.UnixNano()/1e6 - baseTime - int64((sequenceID>>24)&0xFFFFFFFFFF)
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debugf("queue @ %s:%s recv %s cost %d, delay %d", queue, group, string(key), cost, delay)
-	return id, data, flag, nil
+	log.Debugf("recv %s:%s key %s id %s cost %d delay %d", queue, group, string(msg.Key), messageID, cost, delay)
+	return messageID, msg.Value, flag, nil
 }
 
-func (q *queueImp) AckMsg(queue string, group string) error {
+func (q *queueImp) AckMessage(queue string, group string) error {
 	return errors.NotImplementedf("ack")
 }
 

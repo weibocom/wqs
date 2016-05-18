@@ -292,7 +292,7 @@ func (s *Server) msgHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) msgSend(queue string, group string, msg string) string {
 	var result string
-	_, err := s.queue.SendMsg(queue, group, []byte(msg), 0)
+	_, err := s.queue.SendMessage(queue, group, []byte(msg), 0)
 	if err != nil {
 		log.Debugf("msgSend failed: %s", errors.ErrorStack(err))
 		result = err.Error()
@@ -304,7 +304,7 @@ func (s *Server) msgSend(queue string, group string, msg string) string {
 
 func (s *Server) msgReceive(queue string, group string) string {
 	var result string
-	_, data, _, err := s.queue.RecvMsg(queue, group)
+	_, data, _, err := s.queue.RecvMessage(queue, group)
 	if err != nil {
 		log.Debugf("msgReceive failed: %s", errors.ErrorStack(err))
 		result = err.Error()
@@ -316,7 +316,7 @@ func (s *Server) msgReceive(queue string, group string) string {
 
 func (s *Server) msgAck(queue string, group string) string {
 	var result string
-	err := s.queue.AckMsg(queue, group)
+	err := s.queue.AckMessage(queue, group)
 	if err != nil {
 		result = err.Error()
 	} else {

@@ -31,9 +31,9 @@ type Queue interface {
 	DeleteGroup(group string, queue string) error
 	LookupGroup(group string) ([]*GroupInfo, error)
 	GetSingleGroup(group string, queue string) (*GroupConfig, error)
-	SendMsg(queue string, group string, data []byte, flag uint64) (id uint64, err error)
-	RecvMsg(queue string, group string) (id uint64, data []byte, flag uint64, err error)
-	AckMsg(queue string, group string) error
+	SendMessage(queue string, group string, data []byte, flag uint64) (id string, err error)
+	RecvMessage(queue string, group string) (id string, data []byte, flag uint64, err error)
+	AckMessage(queue string, group string) error
 	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	AccumulationStatus() ([]AccumulationInfo, error)
