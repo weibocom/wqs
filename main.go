@@ -24,10 +24,8 @@ import (
 
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
-	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
-	"github.com/weibocom/wqs/protocol/http"
-	"github.com/weibocom/wqs/protocol/mc"
+	"github.com/weibocom/wqs/service"
 )
 
 var (
@@ -82,18 +80,12 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	queue, err := queue.NewQueue(conf)
+	server, err := service.NewServer(conf)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	httpServer := http.NewHttpServer(queue, conf)
-	err = httpServer.Start()
-	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
-	}
-	mcServer := mc.NewMcServer(queue, conf)
-	err = mcServer.Start()
+	err = server.Start()
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -102,8 +94,6 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
 	log.Debug("Process start")
 	<-c
-	mcServer.Stop()
-	httpServer.Stop()
-	queue.Close()
+	server.Stop()
 	log.Debug("Process stop")
 }
