@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kafka
+package queue
 
 import (
 	"encoding/json"
@@ -23,7 +23,6 @@ import (
 
 	"github.com/weibocom/wqs/engine/zookeeper"
 	"github.com/weibocom/wqs/log"
-	"github.com/weibocom/wqs/model"
 
 	"github.com/juju/errors"
 )
@@ -34,13 +33,13 @@ const (
 	root                  = "/"
 )
 
-type ExtendManager struct {
+type Metadata struct {
 	zkClient        *zookeeper.ZkClient
 	groupConfigPath string
 	queuePath       string
 }
 
-func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
+func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
 	zk, err := zookeeper.NewZkClient(zkAddrs)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -68,7 +67,7 @@ func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
 		zk.CreateRec(queuePath, "")
 	}
 
-	return &ExtendManager{
+	return &Metadata{
 		zkClient:        zk,
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
@@ -77,11 +76,11 @@ func NewExtendManager(zkAddrs []string, zkRoot string) (*ExtendManager, error) {
 
 //========extend配置相关函数========//
 
-func (em *ExtendManager) AddGroupConfig(group string, queue string,
+func (m *Metadata) AddGroupConfig(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	path := em.buildConfigPath(group, queue)
-	groupConfig := model.GroupConfig{
+	path := m.buildConfigPath(group, queue)
+	groupConfig := GroupConfig{
 		Group: group,
 		Queue: queue,
 		Write: write,
@@ -91,28 +90,28 @@ func (em *ExtendManager) AddGroupConfig(group string, queue string,
 	}
 	data := groupConfig.ToJson()
 	log.Debugf("add group config, zk path:%s, data:%s", path, data)
-	err := em.zkClient.CreateRec(path, data)
+	err := m.zkClient.CreateRec(path, data)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (em *ExtendManager) DeleteGroupConfig(group string, queue string) error {
-	path := em.buildConfigPath(group, queue)
+func (m *Metadata) DeleteGroupConfig(group string, queue string) error {
+	path := m.buildConfigPath(group, queue)
 	log.Debugf("delete group config, zk path:%s", path)
-	err := em.zkClient.DeleteRec(path)
+	err := m.zkClient.DeleteRec(path)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (em *ExtendManager) UpdateGroupConfig(group string, queue string,
+func (m *Metadata) UpdateGroupConfig(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	path := em.buildConfigPath(group, queue)
-	groupConfig := model.GroupConfig{
+	path := m.buildConfigPath(group, queue)
+	groupConfig := GroupConfig{
 		Group: group,
 		Queue: queue,
 		Write: write,
@@ -122,15 +121,15 @@ func (em *ExtendManager) UpdateGroupConfig(group string, queue string,
 	}
 	data := groupConfig.ToJson()
 	log.Debugf("update group config, zk path:%s, data:%s", path, data)
-	if err := em.zkClient.Set(path, data); err != nil {
+	if err := m.zkClient.Set(path, data); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.GroupConfig, error) {
-	path := em.buildConfigPath(group, queue)
-	data, _, err := em.zkClient.Get(path)
+func (m *Metadata) GetGroupConfig(group string, queue string) (*GroupConfig, error) {
+	path := m.buildConfigPath(group, queue)
+	data, _, err := m.zkClient.Get(path)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -139,7 +138,7 @@ func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.Grou
 		return nil, nil
 	}
 
-	groupConfig := model.GroupConfig{}
+	groupConfig := GroupConfig{}
 	err = json.Unmarshal(data, &groupConfig)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -148,19 +147,19 @@ func (em *ExtendManager) GetGroupConfig(group string, queue string) (*model.Grou
 	return &groupConfig, nil
 }
 
-func (em *ExtendManager) GetAllGroupConfig() (map[string]*model.GroupConfig, error) {
-	allGroupConfig := make(map[string]*model.GroupConfig)
-	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+func (m *Metadata) GetAllGroupConfig() (map[string]*GroupConfig, error) {
+	allGroupConfig := make(map[string]*GroupConfig)
+	keys, _, err := m.zkClient.Children(m.groupConfigPath)
 	if err != nil {
 		return allGroupConfig, errors.Trace(err)
 	}
 
 	for _, key := range keys {
-		data, _, err := em.zkClient.Get(fmt.Sprintf("%s/%s", em.groupConfigPath, key))
+		data, _, err := m.zkClient.Get(fmt.Sprintf("%s/%s", m.groupConfigPath, key))
 		if err != nil {
 			return allGroupConfig, errors.Trace(err)
 		}
-		groupConfig := &model.GroupConfig{}
+		groupConfig := &GroupConfig{}
 		err = json.Unmarshal(data, groupConfig)
 		if err != nil {
 			return allGroupConfig, errors.Trace(err)
@@ -170,9 +169,9 @@ func (em *ExtendManager) GetAllGroupConfig() (map[string]*model.GroupConfig, err
 	return allGroupConfig, nil
 }
 
-func (em *ExtendManager) GetGroupMap() (map[string][]string, error) {
+func (m *Metadata) GetGroupMap() (map[string][]string, error) {
 	groupmap := make(map[string][]string)
-	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	keys, _, err := m.zkClient.Children(m.groupConfigPath)
 	if err != nil {
 		return groupmap, errors.Trace(err)
 	}
@@ -191,13 +190,13 @@ func (em *ExtendManager) GetGroupMap() (map[string][]string, error) {
 	return groupmap, nil
 }
 
-func (em *ExtendManager) GetQueueMap() (map[string][]string, error) {
+func (m *Metadata) GetQueueMap() (map[string][]string, error) {
 	queuemap := make(map[string][]string)
-	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+	keys, _, err := m.zkClient.Children(m.groupConfigPath)
 	if err != nil {
 		return queuemap, errors.Trace(err)
 	}
-	queues, _, err := em.zkClient.Children(em.queuePath)
+	queues, _, err := m.zkClient.Children(m.queuePath)
 	if err != nil {
 		return queuemap, errors.Trace(err)
 	}
@@ -215,33 +214,33 @@ func (em *ExtendManager) GetQueueMap() (map[string][]string, error) {
 	return queuemap, nil
 }
 
-func (em *ExtendManager) AddQueue(queue string) error {
-	path := em.buildQueuePath(queue)
+func (m *Metadata) AddQueue(queue string) error {
+	path := m.buildQueuePath(queue)
 	data := ""
 	log.Debugf("add queue, zk path:%s, data:%s", path, data)
-	err := em.zkClient.CreateRec(path, data)
+	err := m.zkClient.CreateRec(path, data)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (em *ExtendManager) DelQueue(queue string) error {
-	path := em.buildQueuePath(queue)
+func (m *Metadata) DelQueue(queue string) error {
+	path := m.buildQueuePath(queue)
 	log.Debugf("del queue, zk path:%s", path)
-	if err := em.zkClient.DeleteRec(path); err != nil {
+	if err := m.zkClient.DeleteRec(path); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (em *ExtendManager) GetQueues() ([]string, error) {
-	queues, _, err := em.zkClient.Children(em.queuePath)
+func (m *Metadata) GetQueues() ([]string, error) {
+	queues, _, err := m.zkClient.Children(m.queuePath)
 	return queues, err
 }
 
-func (em *ExtendManager) ExistQueue(queue string) (bool, error) {
-	queues, err := em.GetQueues()
+func (m *Metadata) ExistQueue(queue string) (bool, error) {
+	queues, err := m.GetQueues()
 	for _, q := range queues {
 		if strings.EqualFold(q, queue) {
 			return true, nil
@@ -250,8 +249,8 @@ func (em *ExtendManager) ExistQueue(queue string) (bool, error) {
 	return false, err
 }
 
-func (em *ExtendManager) CanDeleteQueue(queue string) (bool, error) {
-	keys, _, err := em.zkClient.Children(em.groupConfigPath)
+func (m *Metadata) CanDeleteQueue(queue string) (bool, error) {
+	keys, _, err := m.zkClient.Children(m.groupConfigPath)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -263,22 +262,22 @@ func (em *ExtendManager) CanDeleteQueue(queue string) (bool, error) {
 	return true, nil
 }
 
-func (em *ExtendManager) QueueCreateTime(queue string) (int64, error) {
-	_, stat, err := em.zkClient.Get(em.buildQueuePath(queue))
+func (m *Metadata) QueueCreateTime(queue string) (int64, error) {
+	_, stat, err := m.zkClient.Get(m.buildQueuePath(queue))
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
 	return stat.Ctime / 1000, nil
 }
 
-func (em *ExtendManager) buildConfigPath(group string, queue string) string {
-	return em.groupConfigPath + "/" + group + "." + queue
+func (m *Metadata) buildConfigPath(group string, queue string) string {
+	return m.groupConfigPath + "/" + group + "." + queue
 }
 
-func (em *ExtendManager) buildQueuePath(queue string) string {
-	return em.queuePath + "/" + queue
+func (m *Metadata) buildQueuePath(queue string) string {
+	return m.queuePath + "/" + queue
 }
 
-func (em *ExtendManager) Close() {
-	em.zkClient.Close()
+func (m *Metadata) Close() {
+	m.zkClient.Close()
 }

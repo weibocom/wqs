@@ -19,25 +19,24 @@ package queue
 import (
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/metrics"
-	"github.com/weibocom/wqs/model"
 )
 
 type Queue interface {
 	Create(queue string) error
 	Update(queue string) error
 	Delete(queue string) error
-	Lookup(queue string, group string) ([]*model.QueueInfo, error)
+	Lookup(queue string, group string) ([]*QueueInfo, error)
 	AddGroup(group string, queue string, write bool, read bool, url string, ips []string) error
 	UpdateGroup(group string, queue string, write bool, read bool, url string, ips []string) error
 	DeleteGroup(group string, queue string) error
-	LookupGroup(group string) ([]*model.GroupInfo, error)
-	GetSingleGroup(group string, queue string) (*model.GroupConfig, error)
+	LookupGroup(group string) ([]*GroupInfo, error)
+	GetSingleGroup(group string, queue string) (*GroupConfig, error)
 	SendMsg(queue string, group string, data []byte, flag uint64) (id uint64, err error)
 	RecvMsg(queue string, group string) (id uint64, data []byte, flag uint64, err error)
 	AckMsg(queue string, group string) error
 	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
-	AccumulationStatus() ([]model.AccumulationInfo, error)
+	AccumulationStatus() ([]AccumulationInfo, error)
 	Close()
 }
 

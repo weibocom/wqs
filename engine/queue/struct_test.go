@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package queue
 
 import (
 	"fmt"
 	"testing"
 )
 
-func TestModel(t *testing.T) {
+func TestStruct(t *testing.T) {
 	groupConfig := GroupConfig{
 		Group: "test_group",
 		Queue: "test_queue",
 		Write: true,
 		Read:  true,
-		Url:   "test_group.test_queue.intra.weibo.com",
+		Url:   "test_group.test_queue.xx.com",
 		Ips:   []string{"172.0.0.1", "172.0.0.2"},
 	}
 	fmt.Println(groupConfig.ToJson())

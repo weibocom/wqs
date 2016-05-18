@@ -29,7 +29,6 @@ import (
 	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/metrics"
-	"github.com/weibocom/wqs/model"
 
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
@@ -59,16 +58,16 @@ func init() {
 }
 
 type queueImp struct {
-	conf          *config.Config
-	saramaConf    *sarama.Config
-	manager       *kafka.Manager
-	extendManager *kafka.ExtendManager
-	producer      *kafka.Producer
-	monitor       *metrics.Monitor
-	idGenerator   *idGenerator
-	consumerMap   map[string]*kafka.Consumer
-	vaildName     *regexp.Regexp
-	mu            sync.Mutex
+	conf        *config.Config
+	saramaConf  *sarama.Config
+	manager     *kafka.Manager
+	metadata    *Metadata
+	producer    *kafka.Producer
+	monitor     *metrics.Monitor
+	idGenerator *idGenerator
+	consumerMap map[string]*kafka.Consumer
+	vaildName   *regexp.Regexp
+	mu          sync.Mutex
 }
 
 func newQueue(config *config.Config) (*queueImp, error) {
@@ -90,7 +89,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	sConf.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
 	sConf.ChannelBufferSize = 1024
 
-	extendManager, err := kafka.NewExtendManager(strings.Split(config.MetaDataZKAddr, ","), config.MetaDataZKRoot)
+	metadata, err := NewMetadata(strings.Split(config.MetaDataZKAddr, ","), config.MetaDataZKRoot)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -104,15 +103,15 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	}
 
 	qs := &queueImp{
-		conf:          config,
-		saramaConf:    sConf,
-		manager:       manager,
-		extendManager: extendManager,
-		producer:      producer,
-		monitor:       metrics.NewMonitor(config.RedisAddr),
-		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
-		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
-		consumerMap:   make(map[string]*kafka.Consumer),
+		conf:        config,
+		saramaConf:  sConf,
+		manager:     manager,
+		metadata:    metadata,
+		producer:    producer,
+		monitor:     metrics.NewMonitor(config.RedisAddr),
+		idGenerator: newIDGenerator(uint64(config.ProxyId)),
+		vaildName:   regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
+		consumerMap: make(map[string]*kafka.Consumer),
 	}
 	return qs, nil
 }
@@ -134,7 +133,7 @@ func (q *queueImp) Create(queue string) error {
 	}
 
 	// 3. check metadata whether the queue exists
-	exist, err = q.extendManager.ExistQueue(queue)
+	exist, err = q.metadata.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -147,7 +146,7 @@ func (q *queueImp) Create(queue string) error {
 		return errors.Trace(err)
 	}
 	// 5. add metadata of queue
-	if err = q.extendManager.AddQueue(queue); err != nil {
+	if err = q.metadata.AddQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -185,7 +184,7 @@ func (q *queueImp) Delete(queue string) error {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
 	// 3. check metadata whether the queue exists
-	exist, err = q.extendManager.ExistQueue(queue)
+	exist, err = q.metadata.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -193,7 +192,7 @@ func (q *queueImp) Delete(queue string) error {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
 	// 4. check metadata whether the queue has group
-	can, err := q.extendManager.CanDeleteQueue(queue)
+	can, err := q.metadata.CanDeleteQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -205,7 +204,7 @@ func (q *queueImp) Delete(queue string) error {
 		return errors.Trace(err)
 	}
 	// 6. delete metadata of queue
-	if err = q.extendManager.DelQueue(queue); err != nil {
+	if err = q.metadata.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -213,25 +212,25 @@ func (q *queueImp) Delete(queue string) error {
 
 //Get queue information by queue name and group name
 //When queue name is "" to get all queue' information.
-func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error) {
+func (q *queueImp) Lookup(queue string, group string) ([]*QueueInfo, error) {
 
-	queueInfos := make([]*model.QueueInfo, 0)
+	queueInfos := make([]*QueueInfo, 0)
 	switch {
 	case queue == "":
 		//Get all queue's information
-		queueMap, err := q.extendManager.GetQueueMap()
+		queueMap, err := q.metadata.GetQueueMap()
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
 		for queueName, groupNames := range queueMap {
-			groupConfigs := make([]*model.GroupConfig, 0)
+			groupConfigs := make([]*GroupConfig, 0)
 			for _, groupName := range groupNames {
-				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
+				config, err := q.metadata.GetGroupConfig(groupName, queueName)
 				if err != nil {
 					return queueInfos, errors.Trace(err)
 				}
 				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{
+					groupConfigs = append(groupConfigs, &GroupConfig{
 						Group: config.Group,
 						Write: config.Write,
 						Read:  config.Read,
@@ -243,8 +242,8 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 				}
 			}
 
-			ctime, _ := q.extendManager.QueueCreateTime(queueName)
-			queueInfos = append(queueInfos, &model.QueueInfo{
+			ctime, _ := q.metadata.QueueCreateTime(queueName)
+			queueInfos = append(queueInfos, &QueueInfo{
 				Queue:  queueName,
 				Ctime:  ctime,
 				Length: 0,
@@ -253,7 +252,7 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		}
 	case queue != "" && group == "":
 		//Get a queue's all groups information
-		queueMap, err := q.extendManager.GetQueueMap()
+		queueMap, err := q.metadata.GetQueueMap()
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
@@ -261,14 +260,14 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		if !exists {
 			break
 		}
-		groupConfigs := make([]*model.GroupConfig, 0)
+		groupConfigs := make([]*GroupConfig, 0)
 		for _, gName := range groupNames {
-			config, err := q.extendManager.GetGroupConfig(gName, queue)
+			config, err := q.metadata.GetGroupConfig(gName, queue)
 			if err != nil {
 				return queueInfos, errors.Trace(err)
 			}
 			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{
+				groupConfigs = append(groupConfigs, &GroupConfig{
 					Group: config.Group,
 					Write: config.Write,
 					Read:  config.Read,
@@ -280,8 +279,8 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 			}
 		}
 
-		ctime, _ := q.extendManager.QueueCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{
+		ctime, _ := q.metadata.QueueCreateTime(queue)
+		queueInfos = append(queueInfos, &QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,
 			Length: 0,
@@ -289,13 +288,13 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 		})
 	default:
 		//Get group's information by queue and group's name
-		config, err := q.extendManager.GetGroupConfig(group, queue)
+		config, err := q.metadata.GetGroupConfig(group, queue)
 		if err != nil {
 			return queueInfos, errors.Trace(err)
 		}
-		groupConfigs := make([]*model.GroupConfig, 0)
+		groupConfigs := make([]*GroupConfig, 0)
 		if config != nil {
-			groupConfigs = append(groupConfigs, &model.GroupConfig{
+			groupConfigs = append(groupConfigs, &GroupConfig{
 				Group: config.Group,
 				Write: config.Write,
 				Read:  config.Read,
@@ -304,8 +303,8 @@ func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error
 			})
 		}
 
-		ctime, _ := q.extendManager.QueueCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{
+		ctime, _ := q.metadata.QueueCreateTime(queue)
+		queueInfos = append(queueInfos, &QueueInfo{
 			Queue:  queue,
 			Ctime:  ctime,
 			Length: 0,
@@ -322,7 +321,7 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	exist, err := q.metadata.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -330,7 +329,7 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotFoundf("AddGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err = q.metadata.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -343,7 +342,7 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	exist, err := q.metadata.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -351,7 +350,7 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 		return errors.NotFoundf("UpdateGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err = q.metadata.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -363,7 +362,7 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	exist, err := q.metadata.ExistQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -371,7 +370,7 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotFoundf("DeleteGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.DeleteGroupConfig(group, queue); err != nil {
+	if err = q.metadata.DeleteGroupConfig(group, queue); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -379,25 +378,25 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 }
 
 //Get group's information
-func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
+func (q *queueImp) LookupGroup(group string) ([]*GroupInfo, error) {
 
-	groupInfos := make([]*model.GroupInfo, 0)
+	groupInfos := make([]*GroupInfo, 0)
 
 	if group == "" {
 		//GET all groups' information
-		groupMap, err := q.extendManager.GetGroupMap()
+		groupMap, err := q.metadata.GetGroupMap()
 		if err != nil {
 			return groupInfos, errors.Trace(err)
 		}
 		for groupName, queueNames := range groupMap {
-			groupConfigs := make([]*model.GroupConfig, 0)
+			groupConfigs := make([]*GroupConfig, 0)
 			for _, queueName := range queueNames {
-				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
+				config, err := q.metadata.GetGroupConfig(groupName, queueName)
 				if err != nil {
 					return groupInfos, errors.Trace(err)
 				}
 				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{
+					groupConfigs = append(groupConfigs, &GroupConfig{
 						Queue: config.Queue,
 						Write: config.Write,
 						Read:  config.Read,
@@ -408,14 +407,14 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 					log.Warnf("config is nil group:%s, queue:%s", groupName, queueName)
 				}
 			}
-			groupInfos = append(groupInfos, &model.GroupInfo{
+			groupInfos = append(groupInfos, &GroupInfo{
 				Group:  groupName,
 				Queues: groupConfigs,
 			})
 		}
 	} else {
 		//GET one group's information
-		groupMap, err := q.extendManager.GetGroupMap()
+		groupMap, err := q.metadata.GetGroupMap()
 		if err != nil {
 			return groupInfos, errors.Trace(err)
 		}
@@ -423,14 +422,14 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 		if !exist {
 			return groupInfos, nil
 		}
-		groupConfigs := make([]*model.GroupConfig, 0)
+		groupConfigs := make([]*GroupConfig, 0)
 		for _, queue := range queueNames {
-			config, err := q.extendManager.GetGroupConfig(group, queue)
+			config, err := q.metadata.GetGroupConfig(group, queue)
 			if err != nil {
 				return groupInfos, errors.Trace(err)
 			}
 			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{
+				groupConfigs = append(groupConfigs, &GroupConfig{
 					Queue: config.Queue,
 					Write: config.Write,
 					Read:  config.Read,
@@ -441,7 +440,7 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 				log.Warnf("config is nil group:%s, queue:%s", group, queue)
 			}
 		}
-		groupInfos = append(groupInfos, &model.GroupInfo{
+		groupInfos = append(groupInfos, &GroupInfo{
 			Group:  group,
 			Queues: groupConfigs,
 		})
@@ -449,7 +448,7 @@ func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
 	return groupInfos, nil
 }
 
-func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfig, error) {
+func (q *queueImp) GetSingleGroup(group string, queue string) (*GroupConfig, error) {
 
 	exist, err := q.manager.ExistTopic(queue, true)
 	if err != nil {
@@ -459,7 +458,7 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfi
 		return nil, errors.NotFoundf("GetSingleGroup queue:%s ", queue)
 	}
 
-	return q.extendManager.GetGroupConfig(group, queue)
+	return q.metadata.GetGroupConfig(group, queue)
 }
 
 func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64) (uint64, error) {
@@ -561,9 +560,9 @@ func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, en
 	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
 }
 
-func (q *queueImp) AccumulationStatus() ([]model.AccumulationInfo, error) {
-	accumulationInfos := make([]model.AccumulationInfo, 0)
-	queueMap, err := q.extendManager.GetQueueMap()
+func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
+	accumulationInfos := make([]AccumulationInfo, 0)
+	queueMap, err := q.metadata.GetQueueMap()
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +572,7 @@ func (q *queueImp) AccumulationStatus() ([]model.AccumulationInfo, error) {
 			if err != nil {
 				return nil, err
 			}
-			accumulationInfos = append(accumulationInfos, model.AccumulationInfo{
+			accumulationInfos = append(accumulationInfos, AccumulationInfo{
 				Group:    group,
 				Queue:    queue,
 				Total:    total,
@@ -611,5 +610,5 @@ func (q *queueImp) Close() {
 		log.Errorf("close manager err: %s", err)
 	}
 
-	q.extendManager.Close()
+	q.metadata.Close()
 }
