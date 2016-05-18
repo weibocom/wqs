@@ -87,11 +87,15 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) Stop() error {
-	s.mc.Stop()
-	err := s.listener.Close()
+func (s *Server) Stop() (err error) {
+	if s.mc != nil {
+		s.mc.Stop()
+	}
+	if s.listener != nil {
+		err = s.listener.Close()
+	}
 	s.queue.Close()
-	return err
+	return
 }
 
 //队列操作handler
