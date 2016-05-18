@@ -18,6 +18,8 @@ package queue
 
 import (
 	"encoding/json"
+
+	"github.com/weibocom/wqs/config"
 )
 
 type QueueInfo struct {
@@ -61,4 +63,14 @@ func (groupInfo *GroupInfo) ToJson() string {
 func (groupConfig *GroupConfig) ToJson() string {
 	result, _ := json.Marshal(groupConfig)
 	return string(result)
+}
+
+type ServiceInfo struct {
+	Host   string         `json:"host"`
+	Config *config.Config `json:"config"`
+}
+
+func (s *ServiceInfo) String() string {
+	data, _ := json.Marshal(s)
+	return string(data)
 }

@@ -25,11 +25,13 @@ import (
 	"github.com/weibocom/wqs/log"
 
 	"github.com/juju/errors"
+	"github.com/samuel/go-zookeeper/zk"
 )
 
 const (
 	groupConfigPathSuffix = "/wqs/metadata/groupconfig"
 	queuePathSuffix       = "/wqs/metadata/queue"
+	servicePathPrefix     = "/wqs/metadata/service"
 	root                  = "/"
 )
 
@@ -37,10 +39,11 @@ type Metadata struct {
 	zkClient        *zookeeper.ZkClient
 	groupConfigPath string
 	queuePath       string
+	servicePath     string
 }
 
 func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
-	zk, err := zookeeper.NewZkClient(zkAddrs)
+	zkClient, err := zookeeper.NewZkClient(zkAddrs)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -50,31 +53,42 @@ func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
 	}
 	groupConfigPath := fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix)
 	queuePath := fmt.Sprintf("%s%s", zkRoot, queuePathSuffix)
+	servicePath := fmt.Sprintf("%s%s", zkRoot, servicePathPrefix)
 
-	exist, _, err := zk.Exists(groupConfigPath)
-	if err != nil {
+	err = zkClient.CreateRec(groupConfigPath, "", 0)
+	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
-	if !exist {
-		zk.CreateRec(groupConfigPath, "", 0)
-	}
 
-	exist, _, err = zk.Exists(queuePath)
-	if err != nil {
+	err = zkClient.CreateRec(queuePath, "", 0)
+	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
-	if !exist {
-		zk.CreateRec(queuePath, "", 0)
+
+	err = zkClient.CreateRec(servicePath, "", 0)
+	if err != nil && err != zk.ErrNodeExists {
+		return nil, errors.Trace(err)
 	}
 
 	return &Metadata{
-		zkClient:        zk,
+		zkClient:        zkClient,
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
+		servicePath:     servicePath,
 	}, nil
 }
 
 //========extend配置相关函数========//
+func (m *Metadata) RegisterService(id int, data string) error {
+	err := m.zkClient.Create(fmt.Sprintf("%s/%d", m.servicePath, id), data, zk.FlagEphemeral)
+	if err != nil {
+		if err == zk.ErrNodeExists {
+			return errors.AlreadyExistsf("service %d", id)
+		}
+		return errors.Trace(err)
+	}
+	return nil
+}
 
 func (m *Metadata) AddGroupConfig(group string, queue string,
 	write bool, read bool, url string, ips []string) error {

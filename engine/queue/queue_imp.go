@@ -93,6 +93,16 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
+	srvInfo := &ServiceInfo{
+		Host:   hostname,
+		Config: config,
+	}
+	err = metadata.RegisterService(config.ProxyId, srvInfo.String())
+	if err != nil {
+		metadata.Close()
+		return nil, errors.Trace(err)
+	}
 	producer, err := kafka.NewProducer(strings.Split(config.KafkaBrokerAddr, ","), sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
