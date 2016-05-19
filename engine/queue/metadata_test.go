@@ -16,19 +16,19 @@ limitations under the License.
 
 package queue
 
-import (
-	"fmt"
-	"testing"
-)
+//import (
+//	"fmt"
+//	"testing"
+//)
 
-func TestMetadata(t *testing.T) {
+//func TestMetadata(t *testing.T) {
 
-	metadata, err := NewMetadata([]string{"localhost:2181"}, "/wqs")
-	if err != nil {
-		t.Skipf("Can't connect to zookeeper localhost:2181")
-	}
-	fmt.Println(metadata.GetAllGroupConfig())
-	fmt.Println(metadata.GetQueues())
-	fmt.Println(metadata.GetQueueMap())
-	fmt.Println(metadata.QueueCreateTime("test-queue"))
-}
+//	metadata, err := NewMetadata([]string{"localhost:2181"}, "/wqs")
+//	if err != nil {
+//		t.Skipf("Can't connect to zookeeper localhost:2181")
+//	}
+//	fmt.Println(metadata.GetAllGroupConfig())
+//	fmt.Println(metadata.GetQueues())
+//	fmt.Println(metadata.GetQueueMap())
+//	fmt.Println(metadata.QueueCreateTime("test-queue"))
+//}

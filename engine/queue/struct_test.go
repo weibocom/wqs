@@ -21,6 +21,12 @@ import (
 	"testing"
 )
 
+const (
+	testString1 = "11111111111111111"
+	testString2 = "2222222222222222222222222"
+	testString3 = "33333333333333333333333333333333333"
+)
+
 func TestStruct(t *testing.T) {
 	groupConfig := GroupConfig{
 		Group: "test_group",
@@ -44,4 +50,28 @@ func TestStruct(t *testing.T) {
 	queues = append(queues, &groupConfig)
 	groupInfo := GroupInfo{Group: "test_group", Queues: queues}
 	fmt.Println(groupInfo.ToJson())
+}
+
+func stringDummy(s string) {
+
+}
+
+func BenchmarkStringSprintf(b *testing.B) {
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s := fmt.Sprintf("%s/%s/%s", testString1, testString2, testString3)
+		stringDummy(s)
+	}
+}
+
+func BenchmarkStringPlus(b *testing.B) {
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s := testString1 + "/" + testString2 + "/" + testString3
+		stringDummy(s)
+	}
 }

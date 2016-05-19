@@ -40,6 +40,10 @@ func NewManager(brokerAddrs []string, libPath string, conf *sarama.Config) (*Man
 	return &Manager{client, libPath}, nil
 }
 
+func (m *Manager) RefreshMetadata() error {
+	return m.client.RefreshMetadata()
+}
+
 func (m *Manager) CreateTopic(topic string, replications int, partitions int, zkAddr string) error {
 	var out []byte
 	var err error
@@ -100,13 +104,12 @@ func (m *Manager) DeleteTopic(topic string, zkAddr string) error {
 func (m *Manager) GetTopics() ([]string, error) {
 	topics, err := m.client.Topics()
 	if err != nil {
-		log.Warnf("get topics error, err:%s", err)
+		log.Warnf("get topics err : %s", err)
 	}
 	return topics, err
 }
 
-//It will refresh metadata and double check when refrsh is true.
-func (m *Manager) ExistTopic(topic string, refresh bool) (bool, error) {
+func (m *Manager) ExistTopic(topic string) (bool, error) {
 	topics, err := m.GetTopics()
 	if err != nil {
 		return false, errors.Trace(err)
@@ -115,10 +118,6 @@ func (m *Manager) ExistTopic(topic string, refresh bool) (bool, error) {
 		if strings.EqualFold(t, topic) {
 			return true, nil
 		}
-	}
-	if refresh {
-		m.client.RefreshMetadata()
-		return m.ExistTopic(topic, false)
 	}
 	return false, nil
 }

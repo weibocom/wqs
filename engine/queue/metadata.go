@@ -20,10 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/weibocom/wqs/config"
+	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/engine/zookeeper"
 	"github.com/weibocom/wqs/log"
 
+	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
 	"github.com/samuel/go-zookeeper/zk"
 )
@@ -36,21 +41,28 @@ const (
 )
 
 type Metadata struct {
+	config          *config.Config
 	zkClient        *zookeeper.ZkClient
+	manager         *kafka.Manager
 	groupConfigPath string
 	queuePath       string
 	servicePath     string
+	queueConfigs    map[string]QueueConfig
+	closeCh         chan struct{}
+	mu              sync.Mutex
 }
 
-func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
-	zkClient, err := zookeeper.NewZkClient(zkAddrs)
+func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, error) {
+	zkClient, err := zookeeper.NewZkClient(strings.Split(config.MetaDataZKAddr, ","))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
+	zkRoot := config.MetaDataZKRoot
 	if strings.EqualFold(zkRoot, root) {
 		zkRoot = ""
 	}
+
 	groupConfigPath := fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix)
 	queuePath := fmt.Sprintf("%s%s", zkRoot, queuePathSuffix)
 	servicePath := fmt.Sprintf("%s%s", zkRoot, servicePathPrefix)
@@ -70,15 +82,46 @@ func NewMetadata(zkAddrs []string, zkRoot string) (*Metadata, error) {
 		return nil, errors.Trace(err)
 	}
 
-	return &Metadata{
+	manager, err := kafka.NewManager(strings.Split(config.KafkaBrokerAddr, ","), config.KafkaLib, sconfig)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	metadata := &Metadata{
+		config:          config,
 		zkClient:        zkClient,
+		manager:         manager,
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
 		servicePath:     servicePath,
-	}, nil
+		queueConfigs:    make(map[string]QueueConfig),
+		closeCh:         make(chan struct{}),
+	}
+
+	err = metadata.RefreshMetadata()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	go func(m *Metadata) {
+		timeout := time.NewTicker(sconfig.Metadata.RefreshFrequency)
+		for {
+			select {
+			case <-timeout.C:
+				err := m.RefreshMetadata()
+				if err != nil {
+					log.Warnf("timeout refresh metadata err : %s", err)
+				}
+			case <-m.closeCh:
+				timeout.Stop()
+				return
+			}
+		}
+	}(metadata)
+
+	return metadata, nil
 }
 
-//========extend配置相关函数========//
 func (m *Metadata) RegisterService(id int, data string) error {
 	err := m.zkClient.Create(fmt.Sprintf("%s/%d", m.servicePath, id), data, zk.FlagEphemeral)
 	if err != nil {
@@ -87,6 +130,83 @@ func (m *Metadata) RegisterService(id int, data string) error {
 		}
 		return errors.Trace(err)
 	}
+	return nil
+}
+
+func (m *Metadata) RefreshMetadata() error {
+	queueConfigs := make(map[string]QueueConfig)
+
+	err := m.manager.RefreshMetadata()
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	queues, _, err := m.zkClient.Children(m.queuePath)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	for _, queue := range queues {
+		_, stat, err := m.zkClient.Get(m.buildQueuePath(queue))
+		if err != nil {
+			log.Errorf("refresh err : %s", err)
+			return errors.Trace(err)
+		}
+
+		exist, err := m.manager.ExistTopic(queue)
+		if err != nil {
+			log.Errorf("refresh err : %s", err)
+			return errors.Trace(err)
+		}
+		if !exist {
+			log.Errorf("queue : %q has metadata, but has no topic")
+			continue
+		}
+
+		queueConfigs[queue] = QueueConfig{
+			Queue:  queue,
+			Ctime:  stat.Ctime / 1e3,
+			Length: 0,
+			Groups: make(map[string]GroupConfig),
+		}
+	}
+
+	groupKeys, _, err := m.zkClient.Children(m.groupConfigPath)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	for _, groupKey := range groupKeys {
+		tokens := strings.Split(groupKey, ".")
+		if len(tokens) != 2 {
+			continue
+		}
+		queueName, groupName := tokens[1], tokens[0]
+		queue, ok := queueConfigs[queueName]
+		if !ok {
+			continue
+		}
+
+		groupDataPath := fmt.Sprintf("%s/%s", m.groupConfigPath, groupKey)
+		groupData, _, err := m.zkClient.Get(groupDataPath)
+		if err != nil {
+			log.Warnf("get %s err: %s", groupDataPath, err)
+			continue
+		}
+
+		groupConfig := GroupConfig{}
+		err = json.Unmarshal(groupData, &groupConfig)
+		if err != nil {
+			log.Warnf("Unmarshal %s data err: %s", groupDataPath, err)
+			continue
+		}
+
+		queue.Groups[groupName] = groupConfig
+	}
+
+	m.mu.Lock()
+	m.queueConfigs = queueConfigs
+	m.mu.Unlock()
 	return nil
 }
 
@@ -141,147 +261,158 @@ func (m *Metadata) UpdateGroupConfig(group string, queue string,
 	return nil
 }
 
-func (m *Metadata) GetGroupConfig(group string, queue string) (*GroupConfig, error) {
-	path := m.buildConfigPath(group, queue)
-	data, _, err := m.zkClient.Get(path)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if len(data) == 0 {
-		log.Debugf("get group config, zk path:%s, data:null, err:%s", path, err)
-		return nil, nil
+//TODO 回头修改HTTP API时同时修改返回的数据结构，能够最大化简化逻辑
+func (m *Metadata) GetQueueConfig(queues ...string) ([]*QueueInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	queueInfos := make([]*QueueInfo, 0)
+	for _, queue := range queues {
+		queueConfig, ok := m.queueConfigs[queue]
+		if !ok {
+			return queueInfos, errors.NotFoundf("queue: %q", queue)
+		}
+
+		queueInfo := QueueInfo{
+			Queue:  queue,
+			Ctime:  queueConfig.Ctime,
+			Length: queueConfig.Length,
+			Groups: make([]*GroupConfig, 0),
+		}
+
+		for _, groupConfig := range queueConfig.Groups {
+			queueInfo.Groups = append(queueInfo.Groups, &groupConfig)
+		}
+		queueInfos = append(queueInfos, &queueInfo)
 	}
 
-	groupConfig := GroupConfig{}
-	err = json.Unmarshal(data, &groupConfig)
-	if err != nil {
-		return nil, errors.Trace(err)
+	return queueInfos, nil
+}
+
+func (m *Metadata) GetGroupConfig(group string, queue string) (*GroupConfig, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	queueConfig, ok := m.queueConfigs[queue]
+	if !ok {
+		return nil, errors.NotFoundf("queue: %q", queue)
 	}
-	log.Debugf("get group config, zk path:%s, data:%s", path, groupConfig.ToJson())
+
+	groupConfig, ok := queueConfig.Groups[group]
+	if !ok {
+		return nil, errors.NotFoundf("group: %q", group)
+	}
 	return &groupConfig, nil
 }
 
-func (m *Metadata) GetAllGroupConfig() (map[string]*GroupConfig, error) {
-	allGroupConfig := make(map[string]*GroupConfig)
-	keys, _, err := m.zkClient.Children(m.groupConfigPath)
-	if err != nil {
-		return allGroupConfig, errors.Trace(err)
-	}
-
-	for _, key := range keys {
-		data, _, err := m.zkClient.Get(fmt.Sprintf("%s/%s", m.groupConfigPath, key))
-		if err != nil {
-			return allGroupConfig, errors.Trace(err)
-		}
-		groupConfig := &GroupConfig{}
-		err = json.Unmarshal(data, groupConfig)
-		if err != nil {
-			return allGroupConfig, errors.Trace(err)
-		}
-		allGroupConfig[key] = groupConfig
-	}
-	return allGroupConfig, nil
-}
-
-func (m *Metadata) GetGroupMap() (map[string][]string, error) {
+//Get queue names of per group
+func (m *Metadata) GetGroupMap() map[string][]string {
 	groupmap := make(map[string][]string)
-	keys, _, err := m.zkClient.Children(m.groupConfigPath)
-	if err != nil {
-		return groupmap, errors.Trace(err)
-	}
-	for _, k := range keys {
-		group := strings.Split(k, ".")[0]
-		queues, ok := groupmap[group]
-		if ok {
-			queues = append(queues, strings.Split(k, ".")[1])
-			groupmap[group] = queues
-		} else {
-			tempqueues := make([]string, 0)
-			tempqueues = append(tempqueues, strings.Split(k, ".")[1])
-			groupmap[group] = tempqueues
+	queuemap := m.GetQueueMap()
+	for queue, groups := range queuemap {
+		for _, group := range groups {
+			groupmap[group] = append(groupmap[group], queue)
 		}
 	}
-	return groupmap, nil
+	return groupmap
 }
 
-func (m *Metadata) GetQueueMap() (map[string][]string, error) {
+//Get group names of per queue
+func (m *Metadata) GetQueueMap() map[string][]string {
 	queuemap := make(map[string][]string)
-	keys, _, err := m.zkClient.Children(m.groupConfigPath)
-	if err != nil {
-		return queuemap, errors.Trace(err)
-	}
-	queues, _, err := m.zkClient.Children(m.queuePath)
-	if err != nil {
-		return queuemap, errors.Trace(err)
-	}
-	for _, queue := range queues {
-		queuemap[queue] = make([]string, 0)
-	}
-	for _, k := range keys {
-		queue := strings.Split(k, ".")[1]
-		groups, ok := queuemap[queue]
-		if ok {
-			groups = append(groups, strings.Split(k, ".")[0])
-			queuemap[queue] = groups
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for queue, queueConfig := range m.queueConfigs {
+		groups := make([]string, 0)
+		for group := range queueConfig.Groups {
+			groups = append(groups, group)
 		}
+		queuemap[queue] = groups
 	}
-	return queuemap, nil
+	return queuemap
 }
 
+//Add a queue by name
 func (m *Metadata) AddQueue(queue string) error {
+
+	if err := m.manager.CreateTopic(queue, m.config.KafkaReplications,
+		m.config.KafkaPartitions, m.config.KafkaZKAddr); err != nil {
+		return errors.Trace(err)
+	}
+
 	path := m.buildQueuePath(queue)
 	data := ""
 	log.Debugf("add queue, zk path:%s, data:%s", path, data)
-	err := m.zkClient.CreateRec(path, data, 0)
-	if err != nil {
+
+	if err := m.zkClient.CreateRec(path, data, 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
+//Delete a queue by name
 func (m *Metadata) DelQueue(queue string) error {
 	path := m.buildQueuePath(queue)
 	log.Debugf("del queue, zk path:%s", path)
 	if err := m.zkClient.DeleteRec(path); err != nil {
 		return errors.Trace(err)
 	}
+	delete(m.queueConfigs, queue)
+	if err := m.manager.DeleteTopic(queue, m.config.KafkaZKAddr); err != nil {
+		return errors.Trace(err)
+	}
 	return nil
 }
 
-func (m *Metadata) GetQueues() ([]string, error) {
-	queues, _, err := m.zkClient.Children(m.queuePath)
-	return queues, err
-}
+//Get all queues' name
+func (m *Metadata) GetQueues() (queues []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-func (m *Metadata) ExistQueue(queue string) (bool, error) {
-	queues, err := m.GetQueues()
-	for _, q := range queues {
-		if strings.EqualFold(q, queue) {
-			return true, nil
-		}
+	for queue := range m.queueConfigs {
+		queues = append(queues, queue)
 	}
-	return false, err
+	return
 }
 
+//Test a queue exist
+func (m *Metadata) ExistQueue(queue string) bool {
+	m.mu.Lock()
+	_, exist := m.queueConfigs[queue]
+	m.mu.Unlock()
+	return exist
+}
+
+//Test a group exist
+func (m *Metadata) ExistGroup(queue, group string) bool {
+	m.mu.Lock()
+	queueConfig, exist := m.queueConfigs[queue]
+	if !exist {
+		m.mu.Unlock()
+		return false
+	}
+	_, exist = queueConfig.Groups[group]
+	m.mu.Unlock()
+	return exist
+}
+
+//test a queue can be delete
 func (m *Metadata) CanDeleteQueue(queue string) (bool, error) {
-	keys, _, err := m.zkClient.Children(m.groupConfigPath)
-	if err != nil {
-		return false, errors.Trace(err)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	queueConfig, ok := m.queueConfigs[queue]
+	if !ok {
+		return false, errors.NotFoundf("queue: %q", queue)
 	}
-	for _, key := range keys {
-		if strings.EqualFold(queue, strings.Split(key, ".")[1]) {
-			return false, nil
-		}
-	}
-	return true, nil
+
+	return len(queueConfig.Groups) == 0, nil
 }
 
-func (m *Metadata) QueueCreateTime(queue string) (int64, error) {
-	_, stat, err := m.zkClient.Get(m.buildQueuePath(queue))
-	if err != nil {
-		return 0, errors.Trace(err)
-	}
-	return stat.Ctime / 1000, nil
+func (m *Metadata) Accumulation(queue, group string) (int64, int64, error) {
+	return m.manager.Accumulation(queue, group)
 }
 
 func (m *Metadata) buildConfigPath(group string, queue string) string {
@@ -293,5 +424,7 @@ func (m *Metadata) buildQueuePath(queue string) string {
 }
 
 func (m *Metadata) Close() {
+	close(m.closeCh)
 	m.zkClient.Close()
+	m.manager.Close()
 }

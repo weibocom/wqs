@@ -29,6 +29,13 @@ type QueueInfo struct {
 	Groups []*GroupConfig `json:"groups,omitempty"`
 }
 
+type QueueConfig struct {
+	Queue  string                 `json:"queue"`
+	Ctime  int64                  `json:"ctime"`
+	Length int64                  `json:"length"`
+	Groups map[string]GroupConfig `json:"groups,omitempty"`
+}
+
 type GroupInfo struct {
 	Group  string         `json:"group"`
 	Queues []*GroupConfig `json:"queues,omitempty"`

@@ -34,6 +34,11 @@ const (
 	timeout = 10 * time.Millisecond
 )
 
+var (
+	ErrTimeout = errors.New("Timeout")
+	ErrClosed  = errors.New("consumer closed")
+)
+
 func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
 	//FIXME: consumer的config是否需要支持配置
 	consumer, err := cluster.NewConsumer(brokerAddrs, group, []string{topic}, nil)
@@ -53,9 +58,13 @@ func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 
 	select {
 	case msg = <-c.consumer.Messages():
+		if msg == nil {
+			err = ErrClosed
+			return
+		}
 		c.consumer.MarkOffset(msg, "") // metedata的用处？
 	case <-time.After(timeout):
-		err = errors.New("time out")
+		err = ErrTimeout
 	}
 	return
 }
