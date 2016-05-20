@@ -304,25 +304,32 @@ func (s *Server) msgSend(queue string, group string, msg string) string {
 
 func (s *Server) msgReceive(queue string, group string) string {
 	var result string
-	_, data, _, err := s.queue.RecvMessage(queue, group)
+	id, data, _, err := s.queue.RecvMessage(queue, group)
 	if err != nil {
 		log.Debugf("msgReceive failed: %s", errors.ErrorStack(err))
 		result = err.Error()
 	} else {
-		result = `{"action":"receive","msg":"` + string(data) + `"}`
+		err = s.queue.AckMessage(queue, group, id)
+		if err != nil {
+			log.Warnf("ack message queue:%q group:%q id:%q err:%s", queue, group, id, err)
+			result = err.Error()
+		} else {
+			result = `{"action":"receive","msg":"` + string(data) + `"}`
+		}
 	}
 	return result
 }
 
 func (s *Server) msgAck(queue string, group string) string {
-	var result string
-	err := s.queue.AckMessage(queue, group)
-	if err != nil {
-		result = err.Error()
-	} else {
-		result = `{"action":"ack","result":true}`
-	}
-	return result
+	//	var result string
+	//	err := s.queue.AckMessage(queue, group)
+	//	if err != nil {
+	//		result = err.Error()
+	//	} else {
+	//		result = `{"action":"ack","result":true}`
+	//	}
+	//	return result
+	return `{"action":"ack","result":true}`
 }
 
 func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {

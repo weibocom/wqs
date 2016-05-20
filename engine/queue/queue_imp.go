@@ -413,8 +413,43 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	return messageID, msg.Value, flag, nil
 }
 
-func (q *queueImp) AckMessage(queue string, group string) error {
-	return errors.NotImplementedf("ack")
+func (q *queueImp) AckMessage(queue string, group string, id string) error {
+	start := time.Now()
+
+	if exist := q.metadata.ExistGroup(queue, group); !exist {
+		return errors.NotFoundf("queue : %q , group: %q", queue, group)
+	}
+
+	owner := fmt.Sprintf("%s@%s", queue, group)
+	q.mu.Lock()
+	consumer, ok := q.consumerMap[owner]
+	q.mu.Unlock()
+	if !ok {
+		return errors.NotFoundf("group consumer")
+	}
+
+	tokens := strings.Split(id, ":")
+	if len(tokens) != 5 {
+		return errors.NotValidf("message ID : %q", id)
+	}
+
+	partition, err := strconv.ParseInt(tokens[3], 16, 32)
+	if err != nil {
+		return errors.NotValidf("message ID : %q", id)
+	}
+	offset, err := strconv.ParseInt(tokens[4], 16, 64)
+	if err != nil {
+		return errors.NotValidf("message ID : %q", id)
+	}
+
+	err = consumer.Ack(int32(partition), offset)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	cost := time.Now().Sub(start).Nanoseconds() / 1e6
+	log.Debugf("ack %s:%s key nil id %s cost %d", queue, group, id, cost)
+	return nil
 }
 
 func (q *queueImp) GetSendMetrics(queue string, group string,

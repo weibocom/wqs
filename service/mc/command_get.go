@@ -32,6 +32,9 @@ const (
 
 type pair struct {
 	key   string
+	queue string
+	group string
+	id    string
 	value []byte
 	flag  uint64
 }
@@ -59,19 +62,27 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 			queue = k[1]
 		}
 
-		_, data, flag, err := q.RecvMessage(queue, group)
+		id, data, flag, err := q.RecvMessage(queue, group)
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 			return nil
 		}
 
-		keyValues = append(keyValues, pair{key: key, value: data, flag: flag})
+		keyValues = append(keyValues, pair{
+			key:   key,
+			queue: queue,
+			group: group,
+			id:    id,
+			value: data,
+			flag:  flag,
+		})
 	}
 
 	for _, kv := range keyValues {
 		fmt.Fprintf(w, "%s %s %d %d\r\n", VALUE, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
+		q.AckMessage(kv.queue, kv.group, kv.id)
 	}
 	w.WriteString(END)
 	return nil
