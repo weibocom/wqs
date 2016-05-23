@@ -17,31 +17,121 @@ limitations under the License.
 package kafka
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
+
+	"github.com/weibocom/wqs/engine/zookeeper"
+	"github.com/weibocom/wqs/log"
 
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
-	"github.com/weibocom/wqs/log"
 )
 
-type Manager struct {
-	client  sarama.Client
-	libPath string
+const (
+	brokersIds = "/brokers/ids"
+)
+
+type brokerConfig struct {
+	JmxPort   int32    `json:"jmx_port,omitempty"`
+	TimeStamp int64    `json:"timestamp,string"`
+	EndPoints []string `json:"endpoints"`
+	Host      string   `json:"host"`
+	Version   int32    `json:"version"`
+	Port      int32    `json:"port"`
 }
 
-func NewManager(brokerAddrs []string, libPath string, conf *sarama.Config) (*Manager, error) {
+type Manager struct {
+	client      sarama.Client
+	zkClient    *zookeeper.ZkClient
+	libPath     string
+	kafkaRoot   string
+	brokerAddrs []string
+	mu          sync.Mutex
+}
+
+func getBrokerAddrs(zkClient *zookeeper.ZkClient, kafkaRoot string) ([]string, error) {
+	brokerAddrs := make([]string, 0)
+
+	brokers, _, err := zkClient.Children(fmt.Sprintf("%s%s", kafkaRoot, brokersIds))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	for _, broker := range brokers {
+		data, _, err := zkClient.Get(fmt.Sprintf("%s%s/%s", kafkaRoot, brokersIds, broker))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		var config brokerConfig
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		brokerAddrs = append(brokerAddrs, fmt.Sprintf("%s:%d", config.Host, config.Port))
+	}
+
+	return brokerAddrs, nil
+}
+
+func NewManager(zkAddrs []string, libPath string, kafkaRoot string, conf *sarama.Config) (*Manager, error) {
+
+	if kafkaRoot == "/" {
+		kafkaRoot = ""
+	}
+
+	zkClient, err := zookeeper.NewZkClient(zkAddrs)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	brokerAddrs, err := getBrokerAddrs(zkClient, kafkaRoot)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	client, err := sarama.NewClient(brokerAddrs, conf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return &Manager{client, libPath}, nil
+
+	manager := &Manager{
+		client:      client,
+		zkClient:    zkClient,
+		libPath:     libPath,
+		kafkaRoot:   kafkaRoot,
+		brokerAddrs: brokerAddrs,
+	}
+
+	err = manager.RefreshMetadata()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return manager, nil
 }
 
 func (m *Manager) RefreshMetadata() error {
+
+	brokerAddrs, err := getBrokerAddrs(m.zkClient, m.kafkaRoot)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	m.mu.Lock()
+	m.brokerAddrs = brokerAddrs
+	m.mu.Unlock()
 	return m.client.RefreshMetadata()
+}
+
+func (m *Manager) BrokerAddrs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.brokerAddrs
 }
 
 func (m *Manager) CreateTopic(topic string, replications int, partitions int, zkAddr string) error {

@@ -24,7 +24,7 @@ import (
 
 func TestManager(t *testing.T) {
 	var err error
-	manager, _ := NewManager([]string{"localhost:9092"}, "../../kafkalib", nil)
+	manager, _ := NewManager([]string{"localhost:2181"}, "../../kafkalib", "", nil)
 	topics, err := manager.GetTopics()
 	if err != nil {
 		t.Fatal(err)

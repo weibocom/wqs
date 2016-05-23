@@ -25,7 +25,6 @@ import (
 type Config struct {
 	KafkaZKAddr       string
 	KafkaZKRoot       string
-	KafkaBrokerAddr   string
 	KafkaPartitions   int
 	KafkaReplications int
 
@@ -60,10 +59,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 	kafkaZKRoot, exist := p.Get("kafka.zookeeper.root")
 	if !exist {
 		return nil, errors.NotFoundf("kafka.zookeeper.root")
-	}
-	kafkaBrokerAddr, exist := p.Get("kafka.broker.connect")
-	if !exist {
-		return nil, errors.NotFoundf("kafka.broker.connect")
 	}
 
 	kafkaPartitions := int(p.GetInt64("kafka.topic.partitions", 0))
@@ -136,7 +131,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 	return &Config{
 		KafkaZKAddr:       kafkaZKAddr,
 		KafkaZKRoot:       kafkaZKRoot,
-		KafkaBrokerAddr:   kafkaBrokerAddr,
 		KafkaPartitions:   kafkaPartitions,
 		KafkaReplications: kafkaReplications,
 

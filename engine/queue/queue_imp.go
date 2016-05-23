@@ -101,7 +101,7 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		metadata.Close()
 		return nil, errors.Trace(err)
 	}
-	producer, err := kafka.NewProducer(strings.Split(config.KafkaBrokerAddr, ","), sConf)
+	producer, err := kafka.NewProducer(metadata.manager.BrokerAddrs(), sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -381,7 +381,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	q.mu.Lock()
 	consumer, ok := q.consumerMap[owner]
 	if !ok {
-		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
+		consumer, err = kafka.NewConsumer(q.metadata.manager.BrokerAddrs(), queue, group)
 		if err != nil {
 			q.mu.Unlock()
 			return "", nil, 0, errors.Trace(err)

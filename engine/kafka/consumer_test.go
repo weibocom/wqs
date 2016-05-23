@@ -16,15 +16,12 @@ limitations under the License.
 
 package kafka
 
-import (
-	"fmt"
-	"testing"
-)
+import "testing"
 
 func TestConsumer(t *testing.T) {
-	consumer := NewConsumer([]string{"localhost:9092"}, "test-queue", "go-consumer")
-	for i := 1; i < 1000; i++ {
-		data, _ := consumer.Recv()
-		fmt.Println(string(data))
-	}
+	//	consumer, err := NewConsumer([]string{"localhost:2181"}, "test-queue", "go-consumer")
+	//	if err != nil {
+	//		t.Errorf("NewConsumer err: %s", err)
+	//	}
+	//	consumer.Close()
 }

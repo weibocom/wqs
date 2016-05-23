@@ -82,7 +82,7 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		return nil, errors.Trace(err)
 	}
 
-	manager, err := kafka.NewManager(strings.Split(config.KafkaBrokerAddr, ","), config.KafkaLib, sconfig)
+	manager, err := kafka.NewManager(strings.Split(config.KafkaZKAddr, ","), config.KafkaLib, config.KafkaZKRoot, sconfig)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
