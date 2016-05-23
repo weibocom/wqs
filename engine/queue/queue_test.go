@@ -16,20 +16,7 @@ limitations under the License.
 
 package queue
 
-import (
-	"encoding/json"
-	"fmt"
-	"testing"
+import "testing"
 
-	"github.com/weibocom/wqs/config"
-)
-
-func TestQueueService(t *testing.T) {
-	queueService, _ := NewQueue(config.NewConfig())
-
-	queueService.Delete("test_queue")
-
-	groupinfo1 := queueService.LookupGroup("test_group2")
-	result3, _ := json.Marshal(groupinfo1)
-	fmt.Println(string(result3))
+func TestQueue(t *testing.T) {
 }

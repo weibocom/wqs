@@ -14,30 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package queue
 
-import (
-	"fmt"
-	"reflect"
-	"testing"
-)
+//import (
+//	"fmt"
+//	"testing"
+//)
 
-func TestConfig(t *testing.T) {
-	config, err := NewConfigFromFile("../config.properties")
-	if err != nil {
-		t.Fatalf("NewConfigFromFile err : %s", err)
-	}
-	if config == nil {
-		t.Fatalf("get nil config")
-	}
+//func TestMetadata(t *testing.T) {
 
-	v := reflect.ValueOf(config).Elem()
-	if v.Kind() != reflect.Struct {
-		t.Fatalf("get config with invaild type")
-	}
-
-	for i := 0; i < v.NumField(); i++ {
-		fmt.Printf("%s: %v\n", v.Type().Field(i).Name, v.Field(i).Interface())
-	}
-
-}
+//	metadata, err := NewMetadata([]string{"localhost:2181"}, "/wqs")
+//	if err != nil {
+//		t.Skipf("Can't connect to zookeeper localhost:2181")
+//	}
+//	fmt.Println(metadata.GetAllGroupConfig())
+//	fmt.Println(metadata.GetQueues())
+//	fmt.Println(metadata.GetQueueMap())
+//	fmt.Println(metadata.QueueCreateTime("test-queue"))
+//}

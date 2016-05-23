@@ -36,6 +36,7 @@ type Monitor struct {
 	redisClient  *redis.Client
 	statisticMap map[string]int64 //key=$queue.$group.$action eg:remind.if.s remind.if.r
 	stopChan     chan error
+	stopedNotify chan error
 	mu           sync.Mutex
 }
 
@@ -47,6 +48,8 @@ func NewMonitor(redisAddr string) *Monitor {
 			DB:       0,  // use default DB
 		}),
 		statisticMap: make(map[string]int64),
+		stopChan:     make(chan error),
+		stopedNotify: make(chan error),
 	}).start()
 }
 
@@ -58,12 +61,20 @@ func (m *Monitor) start() *Monitor {
 			case <-m.stopChan:
 				ticker.Stop()
 				m.storeStatistic()
+				close(m.stopedNotify)
+				return
 			case <-ticker.C:
 				m.storeStatistic()
 			}
 		}
 	}()
 	return m
+}
+
+func (m *Monitor) Close() error {
+	close(m.stopChan)
+	<-m.stopedNotify
+	return m.redisClient.Close()
 }
 
 func (m *Monitor) storeStatistic() {

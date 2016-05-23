@@ -5,13 +5,13 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
-			"Comment": "v1.8.0-25-gfdea379",
-			"Rev": "fdea37926ffa7d09c6e6ec511f22c48954fef5de"
+			"Comment": "v1.8.0-51-g2acd68e",
+			"Rev": "2acd68e45eac3abd90240ccb78673da642906fc5"
 		},
 		{
 			"ImportPath": "github.com/bsm/sarama-cluster",
-			"Comment": "v1.0.2-18-g5e519df",
-			"Rev": "5e519dfe6fffb310bc795b69227d94e7a196cf5b"
+			"Comment": "v1.0.2-25-g122d138",
+			"Rev": "122d1380662642f52d112e7e7e8d2c1e0c12e086"
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
@@ -48,11 +48,6 @@
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
-		},
-		{
-			"ImportPath": "gopkg.in/Shopify/sarama.v1",
-			"Comment": "v1.8.0",
-			"Rev": "4ba9bba6adb6697bcec3841e1ecdfecf5227c3b9"
 		},
 		{
 			"ImportPath": "gopkg.in/bsm/ratelimit.v1",

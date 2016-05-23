@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package queue
 
 import (
 	"encoding/json"
+
+	"github.com/weibocom/wqs/config"
 )
 
 type QueueInfo struct {
@@ -25,6 +27,13 @@ type QueueInfo struct {
 	Ctime  int64          `json:"ctime"`
 	Length int64          `json:"length"`
 	Groups []*GroupConfig `json:"groups,omitempty"`
+}
+
+type QueueConfig struct {
+	Queue  string                 `json:"queue"`
+	Ctime  int64                  `json:"ctime"`
+	Length int64                  `json:"length"`
+	Groups map[string]GroupConfig `json:"groups,omitempty"`
 }
 
 type GroupInfo struct {
@@ -41,6 +50,13 @@ type GroupConfig struct {
 	Ips   []string `json:"ips"`
 }
 
+type AccumulationInfo struct {
+	Group    string `json:"group,omitempty"`
+	Queue    string `json:"queue,omitempty"`
+	Total    int64  `json:"total,omitempty"`
+	Consumed int64  `json:"consumed,omitempty"`
+}
+
 func (queueInfo *QueueInfo) ToJson() string {
 	result, _ := json.Marshal(queueInfo)
 	return string(result)
@@ -54,4 +70,14 @@ func (groupInfo *GroupInfo) ToJson() string {
 func (groupConfig *GroupConfig) ToJson() string {
 	result, _ := json.Marshal(groupConfig)
 	return string(result)
+}
+
+type ServiceInfo struct {
+	Host   string         `json:"host"`
+	Config *config.Config `json:"config"`
+}
+
+func (s *ServiceInfo) String() string {
+	data, _ := json.Marshal(s)
+	return string(data)
 }

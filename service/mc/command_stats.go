@@ -21,52 +21,46 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/juju/errors"
 	"github.com/weibocom/wqs/engine/queue"
+
+	"github.com/juju/errors"
 )
 
 const (
-	GET_NAME  = "get"
-	GETS_NAME = "gets"
+	STATS_NAME = "stats"
 )
 
-type pair struct {
-	key   string
-	value []byte
-	flag  uint64
+func init() {
+	registerCommand(STATS_NAME, commandStats)
 }
 
-func command_get(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	fields := len(tokens)
-	if fields < 2 {
-		fmt.Fprint(w, ERROR)
+	if fields != 1 && fields != 2 {
+		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 
-	keyValues := make([]pair, 0)
-	for _, key := range tokens[1:] {
-		k := strings.Split(key, ".")
-		queue := k[0]
-		group := defaultGroup
-		if len(k) > 1 {
-			group = k[1]
-		}
-
-		_, data, flag, err := q.RecvMsg(queue, group)
+	if fields == 1 {
+		// TODO: implement stats command
+		fmt.Fprint(w, END)
+	} else if fields == 2 && strings.EqualFold(tokens[1], "queue") {
+		accumulationInfos, err := q.AccumulationStatus()
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 			return nil
 		}
-
-		keyValues = append(keyValues, pair{key: key, value: data, flag: flag})
+		for _, accumulationInfo := range accumulationInfos {
+			fmt.Fprintf(w, "%s %s.%s %d/%d \r\n", "STAT",
+				accumulationInfo.Group,
+				accumulationInfo.Queue,
+				accumulationInfo.Total,
+				accumulationInfo.Consumed)
+		}
+		fmt.Fprint(w, END)
+	} else {
+		fmt.Fprint(w, ERROR)
 	}
-
-	for _, kv := range keyValues {
-		fmt.Fprintf(w, "%s %s %d %d\r\n", VALUE, kv.key, kv.flag, len(kv.value))
-		w.Write(kv.value)
-		w.WriteString("\r\n")
-	}
-	w.WriteString(END)
 	return nil
 }

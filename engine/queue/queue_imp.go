@@ -17,10 +17,9 @@ limitations under the License.
 package queue
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,22 +29,43 @@ import (
 	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/metrics"
-	"github.com/weibocom/wqs/model"
-	"github.com/weibocom/wqs/utils"
 
 	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
 )
 
+type kafkaLogger struct {
+}
+
+func (l *kafkaLogger) Print(v ...interface{}) {
+	args := []interface{}{"[sarama] "}
+	args = append(args, v...)
+	log.Info(args...)
+}
+
+func (l *kafkaLogger) Printf(format string, v ...interface{}) {
+	log.Info("[sarama] ", fmt.Sprintf(format, v...))
+}
+
+func (l *kafkaLogger) Println(v ...interface{}) {
+	args := []interface{}{"[sarama] "}
+	args = append(args, v...)
+	log.Info(args...)
+}
+
+func init() {
+	sarama.Logger = &kafkaLogger{}
+}
+
 type queueImp struct {
-	conf          *config.Config
-	saramaConf    *sarama.Config
-	manager       *kafka.Manager
-	extendManager *kafka.ExtendManager
-	producer      *kafka.Producer
-	monitor       *metrics.Monitor
-	consumerMap   map[string]*kafka.Consumer
-	mu            sync.Mutex
+	conf        *config.Config
+	metadata    *Metadata
+	producer    *kafka.Producer
+	monitor     *metrics.Monitor
+	idGenerator *idGenerator
+	consumerMap map[string]*kafka.Consumer
+	vaildName   *regexp.Regexp
+	mu          sync.Mutex
 }
 
 func newQueue(config *config.Config) (*queueImp, error) {
@@ -67,27 +87,33 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	sConf.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
 	sConf.ChannelBufferSize = 1024
 
-	extendManager, err := kafka.NewExtendManager(strings.Split(config.MetaDataZKAddr, ","), config.MetaDataZKRoot)
+	metadata, err := NewMetadata(config, sConf)
 	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	srvInfo := &ServiceInfo{
+		Host:   hostname,
+		Config: config,
+	}
+	err = metadata.RegisterService(config.ProxyId, srvInfo.String())
+	if err != nil {
+		metadata.Close()
 		return nil, errors.Trace(err)
 	}
 	producer, err := kafka.NewProducer(strings.Split(config.KafkaBrokerAddr, ","), sConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	manager, err := kafka.NewManager(strings.Split(config.KafkaBrokerAddr, ","), config.KafkaLib, sConf)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
 
 	qs := &queueImp{
-		conf:          config,
-		saramaConf:    sConf,
-		manager:       manager,
-		extendManager: extendManager,
-		producer:      producer,
-		monitor:       metrics.NewMonitor(config.RedisAddr),
-		consumerMap:   make(map[string]*kafka.Consumer),
+		conf:        config,
+		metadata:    metadata,
+		producer:    producer,
+		monitor:     metrics.NewMonitor(config.RedisAddr),
+		idGenerator: newIDGenerator(uint64(config.ProxyId)),
+		vaildName:   regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
+		consumerMap: make(map[string]*kafka.Consumer),
 	}
 	return qs, nil
 }
@@ -95,34 +121,20 @@ func newQueue(config *config.Config) (*queueImp, error) {
 //Create a queue by name.
 func (q *queueImp) Create(queue string) error {
 	// 1. check queue name valid
-	if utils.BlankString(queue) {
-		return errors.NotValidf("CreateQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
 
-	// 2. check kafka whether the queue exists
-	exist, err := q.manager.ExistTopic(queue, true)
+	// 2. check metadata whether the queue exists
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if exist {
+	if exist := q.metadata.ExistQueue(queue); exist {
 		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
 	}
-
-	// 3. check metadata whether the queue exists
-	exist, err = q.extendManager.ExistQueue(queue)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist {
-		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
-	}
-	// 4. create kafka topic
-	if err = q.manager.CreateTopic(queue, q.conf.KafkaReplications,
-		q.conf.KafkaPartitions, q.conf.KafkaZKAddr); err != nil {
-		return errors.Trace(err)
-	}
-	// 5. add metadata of queue
-	if err = q.extendManager.AddQueue(queue); err != nil {
+	// 3. add metadata of queue
+	if err = q.metadata.AddQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -131,56 +143,45 @@ func (q *queueImp) Create(queue string) error {
 //Updata queue information by name. Nothing to be update so far.
 func (q *queueImp) Update(queue string) error {
 
-	if utils.BlankString(queue) {
-		return errors.NotValidf("UpdateQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
-	exist, err := q.manager.ExistTopic(queue, true)
+
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !exist {
-		return errors.NotFoundf("UpdateQueue queue:%s ", queue)
+	if exist := q.metadata.ExistQueue(queue); !exist {
+		return errors.NotFoundf("queue : %q", queue)
 	}
-	//TODO
+	//TODO 暂时没有需要更新的内容
 	return nil
 }
 
 //Delete queue by name
 func (q *queueImp) Delete(queue string) error {
 	// 1. check queue name valid
-	if utils.BlankString(queue) {
-		return errors.NotValidf("DeleteQueue queue:%s", queue)
+	if !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("queue : %q", queue)
 	}
-	// 2. check kafka whether the queue exists
-	exist, err := q.manager.ExistTopic(queue, true)
+	// 2. check metadata whether the queue exists
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !exist {
+	if exist := q.metadata.ExistQueue(queue); !exist {
 		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
 	}
-	// 3. check metadata whether the queue exists
-	exist, err = q.extendManager.ExistQueue(queue)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if !exist {
-		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
-	}
-	// 4. check metadata whether the queue has group
-	can, err := q.extendManager.CanDeleteQueue(queue)
+	// 3. check metadata whether the queue has group
+	can, err := q.metadata.CanDeleteQueue(queue)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	if !can {
 		return errors.NotValidf("DeleteQueue queue:%s has one or more group", queue)
 	}
-	// 5. delete kafka topic
-	if err = q.manager.DeleteTopic(queue, q.conf.KafkaZKAddr); err != nil {
-		return errors.Trace(err)
-	}
-	// 6. delete metadata of queue
-	if err = q.extendManager.DelQueue(queue); err != nil {
+	// 4. delete metadata of queue
+	if err = q.metadata.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -188,124 +189,60 @@ func (q *queueImp) Delete(queue string) error {
 
 //Get queue information by queue name and group name
 //When queue name is "" to get all queue' information.
-func (q *queueImp) Lookup(queue string, group string) ([]*model.QueueInfo, error) {
+func (q *queueImp) Lookup(queue string, group string) (queueInfos []*QueueInfo, err error) {
 
-	queueInfos := make([]*model.QueueInfo, 0)
+	err = q.metadata.RefreshMetadata()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	switch {
 	case queue == "":
 		//Get all queue's information
-		queueMap, err := q.extendManager.GetQueueMap()
-		if err != nil {
-			return queueInfos, errors.Trace(err)
-		}
-		for queueName, groupNames := range queueMap {
-			groupConfigs := make([]*model.GroupConfig, 0)
-			for _, groupName := range groupNames {
-				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
-				if err != nil {
-					return queueInfos, errors.Trace(err)
-				}
-				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{
-						Group: config.Group,
-						Write: config.Write,
-						Read:  config.Read,
-						Url:   config.Url,
-						Ips:   config.Ips,
-					})
-				} else {
-					log.Warnf("config is nil queue:%s, group:%s", queueName, groupName)
-				}
-			}
-
-			ctime, _ := q.extendManager.QueueCreateTime(queueName)
-			queueInfos = append(queueInfos, &model.QueueInfo{
-				Queue:  queueName,
-				Ctime:  ctime,
-				Length: 0,
-				Groups: groupConfigs,
-			})
-		}
+		queues := q.metadata.GetQueues()
+		queueInfos, err = q.metadata.GetQueueConfig(queues...)
 	case queue != "" && group == "":
 		//Get a queue's all groups information
-		queueMap, err := q.extendManager.GetQueueMap()
-		if err != nil {
-			return queueInfos, errors.Trace(err)
-		}
-		groupNames, exists := queueMap[queue]
-		if !exists {
-			break
-		}
-		groupConfigs := make([]*model.GroupConfig, 0)
-		for _, gName := range groupNames {
-			config, err := q.extendManager.GetGroupConfig(gName, queue)
-			if err != nil {
-				return queueInfos, errors.Trace(err)
-			}
-			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{
-					Group: config.Group,
-					Write: config.Write,
-					Read:  config.Read,
-					Url:   config.Url,
-					Ips:   config.Ips,
-				})
-			} else {
-				log.Warnf("config is nil queue:%s, group:%s", queue, gName)
-			}
-		}
-
-		ctime, _ := q.extendManager.QueueCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{
-			Queue:  queue,
-			Ctime:  ctime,
-			Length: 0,
-			Groups: groupConfigs,
-		})
+		queueInfos, err = q.metadata.GetQueueConfig(queue)
 	default:
 		//Get group's information by queue and group's name
-		config, err := q.extendManager.GetGroupConfig(group, queue)
-		if err != nil {
-			return queueInfos, errors.Trace(err)
+		exist := q.metadata.ExistGroup(queue, group)
+		if !exist {
+			err = errors.NotFoundf("queue: %q, group : %q")
+			return
 		}
-		groupConfigs := make([]*model.GroupConfig, 0)
-		if config != nil {
-			groupConfigs = append(groupConfigs, &model.GroupConfig{
-				Group: config.Group,
-				Write: config.Write,
-				Read:  config.Read,
-				Url:   config.Url,
-				Ips:   config.Ips,
-			})
+		queueInfos, err = q.metadata.GetQueueConfig(queue)
+		if err != nil || len(queueInfos) != 1 {
+			return
 		}
-
-		ctime, _ := q.extendManager.QueueCreateTime(queue)
-		queueInfos = append(queueInfos, &model.QueueInfo{
-			Queue:  queue,
-			Ctime:  ctime,
-			Length: 0,
-			Groups: groupConfigs,
-		})
+		for _, groupConfig := range queueInfos[0].Groups {
+			if groupConfig.Group == group {
+				queueInfos[0].Groups = queueInfos[0].Groups[:1]
+				queueInfos[0].Groups[0] = groupConfig
+				return
+			}
+		}
+		queueInfos[0].Groups = make([]*GroupConfig, 0)
 	}
-	return queueInfos, nil
+	return
 }
 
 func (q *queueImp) AddGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("add group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !exist {
+	if exist := q.metadata.ExistQueue(queue); !exist {
 		return errors.NotFoundf("AddGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err = q.metadata.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -314,19 +251,19 @@ func (q *queueImp) AddGroup(group string, queue string,
 func (q *queueImp) UpdateGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("update group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !exist {
+	if exist := q.metadata.ExistQueue(queue); !exist {
 		return errors.NotFoundf("UpdateGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err = q.metadata.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -334,19 +271,19 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 
 func (q *queueImp) DeleteGroup(group string, queue string) error {
 
-	if utils.BlankString(group) || utils.BlankString(queue) {
-		return errors.NotValidf("delete group:%s @ queue:%s", group, queue)
+	if !q.vaildName.MatchString(group) || !q.vaildName.MatchString(queue) {
+		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	exist, err := q.extendManager.ExistQueue(queue)
+	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if !exist {
+	if exist := q.metadata.ExistQueue(queue); !exist {
 		return errors.NotFoundf("DeleteGroup queue:%s ", queue)
 	}
 
-	if err = q.extendManager.DeleteGroupConfig(group, queue); err != nil {
+	if err = q.metadata.DeleteGroupConfig(group, queue); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -354,122 +291,90 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 }
 
 //Get group's information
-func (q *queueImp) LookupGroup(group string) ([]*model.GroupInfo, error) {
+func (q *queueImp) LookupGroup(group string) ([]*GroupInfo, error) {
 
-	groupInfos := make([]*model.GroupInfo, 0)
+	groupInfos := make([]*GroupInfo, 0)
+	if err := q.metadata.RefreshMetadata(); err != nil {
+		return groupInfos, errors.Trace(err)
+	}
 
 	if group == "" {
 		//GET all groups' information
-		groupMap, err := q.extendManager.GetGroupMap()
-		if err != nil {
-			return groupInfos, errors.Trace(err)
-		}
-		for groupName, queueNames := range groupMap {
-			groupConfigs := make([]*model.GroupConfig, 0)
-			for _, queueName := range queueNames {
-				config, err := q.extendManager.GetGroupConfig(groupName, queueName)
-				if err != nil {
-					return groupInfos, errors.Trace(err)
-				}
-				if config != nil {
-					groupConfigs = append(groupConfigs, &model.GroupConfig{
-						Queue: config.Queue,
-						Write: config.Write,
-						Read:  config.Read,
-						Url:   config.Url,
-						Ips:   config.Ips,
-					})
-				} else {
-					log.Warnf("config is nil group:%s, queue:%s", groupName, queueName)
-				}
+		groupMap := q.metadata.GetGroupMap()
+		for group, queues := range groupMap {
+
+			groupInfo := GroupInfo{
+				Group:  group,
+				Queues: make([]*GroupConfig, 0),
 			}
-			groupInfos = append(groupInfos, &model.GroupInfo{
-				Group:  groupName,
-				Queues: groupConfigs,
-			})
+
+			for _, queue := range queues {
+				groupConfig, err := q.metadata.GetGroupConfig(group, queue)
+				if err != nil {
+					continue
+				}
+				groupInfo.Queues = append(groupInfo.Queues, groupConfig)
+			}
+			groupInfos = append(groupInfos, &groupInfo)
 		}
 	} else {
 		//GET one group's information
-		groupMap, err := q.extendManager.GetGroupMap()
-		if err != nil {
-			return groupInfos, errors.Trace(err)
+		groupMap := q.metadata.GetGroupMap()
+		queues, ok := groupMap[group]
+		if !ok {
+			return groupInfos, errors.NotFoundf("group : %q", group)
 		}
-		queueNames, exist := groupMap[group]
-		if !exist {
-			return groupInfos, nil
-		}
-		groupConfigs := make([]*model.GroupConfig, 0)
-		for _, queue := range queueNames {
-			config, err := q.extendManager.GetGroupConfig(group, queue)
-			if err != nil {
-				return groupInfos, errors.Trace(err)
-			}
-			if config != nil {
-				groupConfigs = append(groupConfigs, &model.GroupConfig{
-					Queue: config.Queue,
-					Write: config.Write,
-					Read:  config.Read,
-					Url:   config.Url,
-					Ips:   config.Ips,
-				})
-			} else {
-				log.Warnf("config is nil group:%s, queue:%s", group, queue)
-			}
-		}
-		groupInfos = append(groupInfos, &model.GroupInfo{
+
+		groupInfo := GroupInfo{
 			Group:  group,
-			Queues: groupConfigs,
-		})
+			Queues: make([]*GroupConfig, 0),
+		}
+
+		for _, queue := range queues {
+			groupConfig, err := q.metadata.GetGroupConfig(group, queue)
+			if err != nil {
+				continue
+			}
+			groupInfo.Queues = append(groupInfo.Queues, groupConfig)
+		}
+		groupInfos = append(groupInfos, &groupInfo)
 	}
 	return groupInfos, nil
 }
 
-func (q *queueImp) GetSingleGroup(group string, queue string) (*model.GroupConfig, error) {
-
-	exist, err := q.manager.ExistTopic(queue, true)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if !exist {
-		return nil, errors.NotFoundf("GetSingleGroup queue:%s ", queue)
-	}
-
-	return q.extendManager.GetGroupConfig(group, queue)
+func (q *queueImp) GetSingleGroup(group string, queue string) (*GroupConfig, error) {
+	return q.metadata.GetGroupConfig(group, queue)
 }
 
-func (q *queueImp) SendMsg(queue string, group string, data []byte, flag uint64) (uint64, error) {
+func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uint64) (string, error) {
 	start := time.Now()
-	exist, err := q.manager.ExistTopic(queue, false)
-	if err != nil {
-		return uint64(0), errors.Trace(err)
-	}
+
+	exist := q.metadata.ExistGroup(queue, group)
 	if !exist {
-		return uint64(0), errors.NotFoundf("SendMsg queue:%s ", queue)
+		return "", errors.NotFoundf("queue : %q , group: %q", queue, group)
 	}
-	id := q.genMsgId(queue, group)
-	dig := md5.Sum(data)
-	key := fmt.Sprintf("%d:%d:%s", id, flag, hex.EncodeToString(dig[:]))
 
-	err = q.producer.Send(queue, []byte(key), data)
+	sequenceID := q.idGenerator.Get()
+	key := fmt.Sprintf("%x:%x", sequenceID, flag)
+
+	partition, offset, err := q.producer.Send(queue, []byte(key), data)
 	if err != nil {
-		return uint64(0), errors.Trace(err)
+		return "", errors.Trace(err)
 	}
-
-	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, partition, offset)
+	cost := time.Now().Sub(start).Nanoseconds() / 1e6
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
-	log.Debugf("queue @ %s:%s send %s cost %d", queue, group, key, cost)
-	return id, nil
+	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
+	return messageID, nil
 }
 
-func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, error) {
+func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint64, error) {
+	var err error
 	start := time.Now()
-	exist, err := q.manager.ExistTopic(queue, false)
-	if err != nil {
-		return uint64(0), nil, 0, errors.Trace(err)
-	}
+	exist := q.metadata.ExistGroup(queue, group)
 	if !exist {
-		return uint64(0), nil, 0, errors.NotFoundf("ReceiveMsg queue: %s ", queue)
+		return "", nil, 0, errors.NotFoundf("queue : %q , group: %q", queue, group)
 	}
 
 	owner := fmt.Sprintf("%s@%s", queue, group)
@@ -479,52 +384,79 @@ func (q *queueImp) RecvMsg(queue string, group string) (uint64, []byte, uint64, 
 		consumer, err = kafka.NewConsumer(strings.Split(q.conf.KafkaBrokerAddr, ","), queue, group)
 		if err != nil {
 			q.mu.Unlock()
-			return uint64(0), nil, 0, errors.Trace(err)
+			return "", nil, 0, errors.Trace(err)
 		}
 		q.consumerMap[owner] = consumer
 	}
 	q.mu.Unlock()
 
-	key, data, err := consumer.Recv()
+	msg, err := consumer.Recv()
 	if err != nil {
-		return uint64(0), nil, 0, errors.Trace(err)
+		return "", nil, 0, errors.Trace(err)
 	}
 
-	tokens := strings.Split(string(key), ":")
-	tokensCnt := len(tokens)
-	var id, flag uint64
-	if tokensCnt > 1 {
-		id, _ = strconv.ParseUint(tokens[0], 10, 64)
-	}
-	if tokensCnt > 2 {
-		flag, _ = strconv.ParseUint(tokens[1], 10, 32)
+	var sequenceID, flag uint64
+	tokens := strings.Split(string(msg.Key), ":")
+	sequenceID, _ = strconv.ParseUint(tokens[0], 16, 64)
+	if len(tokens) > 1 {
+		flag, _ = strconv.ParseUint(tokens[1], 16, 32)
 	}
 
-	cost := time.Now().Sub(start).Nanoseconds() / 1000000
+	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, msg.Partition, msg.Offset)
+
+	end := time.Now()
+	cost := end.Sub(start).Nanoseconds() / 1e6
+	delay := end.UnixNano()/1e6 - baseTime - int64((sequenceID>>24)&0xFFFFFFFFFF)
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
-	log.Debugf("queue @ %s:%s receive %s cost %d", queue, group, string(key), cost)
-	return id, data, flag, nil
+	log.Debugf("recv %s:%s key %s id %s cost %d delay %d", queue, group, string(msg.Key), messageID, cost, delay)
+	return messageID, msg.Value, flag, nil
 }
 
-func (q *queueImp) AckMsg(queue string, group string) error {
-	return errors.NotImplementedf("ack")
-}
+func (q *queueImp) AckMessage(queue string, group string, id string) error {
+	start := time.Now()
 
-func (q *queueImp) genMsgId(queue string, group string) uint64 {
-	//TODO: generate real msg id
-	return uint64(1234567890)
+	if exist := q.metadata.ExistGroup(queue, group); !exist {
+		return errors.NotFoundf("queue : %q , group: %q", queue, group)
+	}
+
+	owner := fmt.Sprintf("%s@%s", queue, group)
+	q.mu.Lock()
+	consumer, ok := q.consumerMap[owner]
+	q.mu.Unlock()
+	if !ok {
+		return errors.NotFoundf("group consumer")
+	}
+
+	tokens := strings.Split(id, ":")
+	if len(tokens) != 5 {
+		return errors.NotValidf("message ID : %q", id)
+	}
+
+	partition, err := strconv.ParseInt(tokens[3], 16, 32)
+	if err != nil {
+		return errors.NotValidf("message ID : %q", id)
+	}
+	offset, err := strconv.ParseInt(tokens[4], 16, 64)
+	if err != nil {
+		return errors.NotValidf("message ID : %q", id)
+	}
+
+	err = consumer.Ack(int32(partition), offset)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	cost := time.Now().Sub(start).Nanoseconds() / 1e6
+	log.Debugf("ack %s:%s key nil id %s cost %d", queue, group, id, cost)
+	return nil
 }
 
 func (q *queueImp) GetSendMetrics(queue string, group string,
 	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
-	exist, err := q.manager.ExistTopic(queue, true)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if !exist {
-		return nil, errors.NotFoundf("GetSendMetrics queue:%s ", queue)
+	if exist := q.metadata.ExistGroup(queue, group); !exist {
+		return nil, errors.NotFoundf("GetSendMetrics queue : %q , group : %q", queue, group)
 	}
 
 	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
@@ -532,13 +464,59 @@ func (q *queueImp) GetSendMetrics(queue string, group string,
 
 func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
 
-	exist, err := q.manager.ExistTopic(queue, true)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if !exist {
-		return nil, errors.NotFoundf("GetReceiveMetrics queue:%s ", queue)
+	if exist := q.metadata.ExistGroup(queue, group); !exist {
+		return nil, errors.NotFoundf("GetReceiveMetrics queue : %q , group : %q", queue, group)
 	}
 
 	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
+}
+
+func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
+	accumulationInfos := make([]AccumulationInfo, 0)
+	err := q.metadata.RefreshMetadata()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	queueMap := q.metadata.GetQueueMap()
+	for queue, groups := range queueMap {
+		for _, group := range groups {
+			total, consumed, err := q.metadata.Accumulation(queue, group)
+			if err != nil {
+				return nil, err
+			}
+			accumulationInfos = append(accumulationInfos, AccumulationInfo{
+				Group:    group,
+				Queue:    queue,
+				Total:    total,
+				Consumed: consumed,
+			})
+		}
+	}
+	return accumulationInfos, nil
+}
+
+func (q *queueImp) Close() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	err := q.producer.Close()
+	if err != nil {
+		log.Errorf("close producer err: %s", err)
+	}
+
+	for name, consumer := range q.consumerMap {
+		err = consumer.Close()
+		if err != nil {
+			log.Errorf("close consumer %s err: %s", name, err)
+		}
+		delete(q.consumerMap, name)
+	}
+
+	err = q.monitor.Close()
+	if err != nil {
+		log.Errorf("close monitor err: %s", err)
+	}
+
+	q.metadata.Close()
 }

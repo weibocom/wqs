@@ -14,20 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package queue
 
 import (
 	"fmt"
 	"testing"
 )
 
-func TestModel(t *testing.T) {
+const (
+	testString1 = "11111111111111111"
+	testString2 = "2222222222222222222222222"
+	testString3 = "33333333333333333333333333333333333"
+)
+
+func TestStruct(t *testing.T) {
 	groupConfig := GroupConfig{
 		Group: "test_group",
 		Queue: "test_queue",
 		Write: true,
 		Read:  true,
-		Url:   "test_group.test_queue.intra.weibo.com",
+		Url:   "test_group.test_queue.xx.com",
 		Ips:   []string{"172.0.0.1", "172.0.0.2"},
 	}
 	fmt.Println(groupConfig.ToJson())
@@ -44,4 +50,28 @@ func TestModel(t *testing.T) {
 	queues = append(queues, &groupConfig)
 	groupInfo := GroupInfo{Group: "test_group", Queues: queues}
 	fmt.Println(groupInfo.ToJson())
+}
+
+func stringDummy(s string) {
+
+}
+
+func BenchmarkStringSprintf(b *testing.B) {
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s := fmt.Sprintf("%s/%s/%s", testString1, testString2, testString3)
+		stringDummy(s)
+	}
+}
+
+func BenchmarkStringPlus(b *testing.B) {
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s := testString1 + "/" + testString2 + "/" + testString3
+		stringDummy(s)
+	}
 }

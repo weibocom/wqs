@@ -32,6 +32,10 @@ const (
 	SET_NAME = "set"
 )
 
+func init() {
+	registerCommand(SET_NAME, commandSet)
+}
+
 func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	var noreply string
@@ -68,13 +72,14 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 	r.ReadString('\n')
 
 	keys := strings.Split(key, ".")
-	queue := keys[0]
 	group := defaultGroup
+	queue := keys[0]
 	if len(keys) > 1 {
-		group = keys[1]
+		group = keys[0]
+		queue = keys[1]
 	}
 
-	_, err = q.SendMsg(queue, group, data, flag)
+	_, err = q.SendMessage(queue, group, data, flag)
 	if err != nil {
 		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 		return nil
