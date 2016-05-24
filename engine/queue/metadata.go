@@ -82,7 +82,7 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		return nil, errors.Trace(err)
 	}
 
-	manager, err := kafka.NewManager(strings.Split(config.KafkaZKAddr, ","), config.KafkaLib, config.KafkaZKRoot, sconfig)
+	manager, err := kafka.NewManager(strings.Split(config.KafkaZKAddr, ","), config.KafkaZKRoot, sconfig)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -337,8 +337,8 @@ func (m *Metadata) GetQueueMap() map[string][]string {
 //Add a queue by name
 func (m *Metadata) AddQueue(queue string) error {
 
-	if err := m.manager.CreateTopic(queue, m.config.KafkaReplications,
-		m.config.KafkaPartitions, m.config.KafkaZKAddr); err != nil {
+	if err := m.manager.CreateTopic(queue, int32(m.config.KafkaReplications),
+		int32(m.config.KafkaPartitions)); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -360,7 +360,7 @@ func (m *Metadata) DelQueue(queue string) error {
 		return errors.Trace(err)
 	}
 	delete(m.queueConfigs, queue)
-	if err := m.manager.DeleteTopic(queue, m.config.KafkaZKAddr); err != nil {
+	if err := m.manager.DeleteTopic(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil

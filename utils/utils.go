@@ -76,3 +76,17 @@ func Uint64ToBytes(u uint64) []byte {
 	bytes[7] = byte(u >> 56)
 	return bytes
 }
+
+type Int32Slice []int32
+
+func (slice Int32Slice) Len() int {
+	return len(slice)
+}
+
+func (slice Int32Slice) Less(i, j int) bool {
+	return slice[i] < slice[j]
+}
+
+func (slice Int32Slice) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
