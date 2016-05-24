@@ -124,17 +124,8 @@ func (q *queueImp) Create(queue string) error {
 	if !q.vaildName.MatchString(queue) {
 		return errors.NotValidf("queue : %q", queue)
 	}
-
-	// 2. check metadata whether the queue exists
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist := q.metadata.ExistQueue(queue); exist {
-		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
-	}
-	// 3. add metadata of queue
-	if err = q.metadata.AddQueue(queue); err != nil {
+	// 2. add metadata of queue
+	if err := q.metadata.AddQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -146,7 +137,7 @@ func (q *queueImp) Update(queue string) error {
 	if !q.vaildName.MatchString(queue) {
 		return errors.NotValidf("queue : %q", queue)
 	}
-
+	//TODO
 	err := q.metadata.RefreshMetadata()
 	if err != nil {
 		return errors.Trace(err)
@@ -164,24 +155,8 @@ func (q *queueImp) Delete(queue string) error {
 	if !q.vaildName.MatchString(queue) {
 		return errors.NotValidf("queue : %q", queue)
 	}
-	// 2. check metadata whether the queue exists
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist := q.metadata.ExistQueue(queue); !exist {
-		return errors.NotFoundf("DeleteQueue queue:%s ", queue)
-	}
-	// 3. check metadata whether the queue has group
-	can, err := q.metadata.CanDeleteQueue(queue)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if !can {
-		return errors.NotValidf("DeleteQueue queue:%s has one or more group", queue)
-	}
-	// 4. delete metadata of queue
-	if err = q.metadata.DelQueue(queue); err != nil {
+	// 2. delete metadata of queue
+	if err := q.metadata.DelQueue(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -234,15 +209,7 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist := q.metadata.ExistQueue(queue); !exist {
-		return errors.NotFoundf("AddGroup queue:%s ", queue)
-	}
-
-	if err = q.metadata.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err := q.metadata.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -255,15 +222,7 @@ func (q *queueImp) UpdateGroup(group string, queue string,
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist := q.metadata.ExistQueue(queue); !exist {
-		return errors.NotFoundf("UpdateGroup queue:%s ", queue)
-	}
-
-	if err = q.metadata.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err := q.metadata.UpdateGroupConfig(group, queue, write, read, url, ips); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -275,15 +234,7 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if exist := q.metadata.ExistQueue(queue); !exist {
-		return errors.NotFoundf("DeleteGroup queue:%s ", queue)
-	}
-
-	if err = q.metadata.DeleteGroupConfig(group, queue); err != nil {
+	if err := q.metadata.DeleteGroupConfig(group, queue); err != nil {
 		return errors.Trace(err)
 	}
 

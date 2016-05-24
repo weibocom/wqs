@@ -37,6 +37,7 @@ const (
 	groupConfigPathSuffix = "/wqs/metadata/groupconfig"
 	queuePathSuffix       = "/wqs/metadata/queue"
 	servicePathPrefix     = "/wqs/metadata/service"
+	operationPathPrefix   = "/wqs/metadata/operation"
 	root                  = "/"
 )
 
@@ -47,6 +48,7 @@ type Metadata struct {
 	groupConfigPath string
 	queuePath       string
 	servicePath     string
+	operationPath   string
 	queueConfigs    map[string]QueueConfig
 	closeCh         chan struct{}
 	mu              sync.Mutex
@@ -66,6 +68,7 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 	groupConfigPath := fmt.Sprintf("%s%s", zkRoot, groupConfigPathSuffix)
 	queuePath := fmt.Sprintf("%s%s", zkRoot, queuePathSuffix)
 	servicePath := fmt.Sprintf("%s%s", zkRoot, servicePathPrefix)
+	operationPath := fmt.Sprintf("%s%s", zkRoot, operationPathPrefix)
 
 	err = zkClient.CreateRec(groupConfigPath, "", 0)
 	if err != nil && err != zk.ErrNodeExists {
@@ -82,6 +85,11 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		return nil, errors.Trace(err)
 	}
 
+	err = zkClient.CreateRec(operationPath, "", 0)
+	if err != nil && err != zk.ErrNodeExists {
+		return nil, errors.Trace(err)
+	}
+
 	manager, err := kafka.NewManager(strings.Split(config.KafkaZKAddr, ","), config.KafkaZKRoot, sconfig)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -94,6 +102,7 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
 		servicePath:     servicePath,
+		operationPath:   operationPath,
 		queueConfigs:    make(map[string]QueueConfig),
 		closeCh:         make(chan struct{}),
 	}
@@ -213,6 +222,20 @@ func (m *Metadata) RefreshMetadata() error {
 func (m *Metadata) AddGroupConfig(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
+	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
+	if err := mutex.Lock(); err != nil {
+		return errors.Trace(err)
+	}
+	defer mutex.Unlock()
+
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	if exist := m.ExistGroup(queue, group); exist {
+		return errors.AlreadyExistsf("queue : %q, group : %q", queue, group)
+	}
+
 	path := m.buildConfigPath(group, queue)
 	groupConfig := GroupConfig{
 		Group: group,
@@ -224,18 +247,31 @@ func (m *Metadata) AddGroupConfig(group string, queue string,
 	}
 	data := groupConfig.ToJson()
 	log.Debugf("add group config, zk path:%s, data:%s", path, data)
-	err := m.zkClient.CreateRec(path, data, 0)
-	if err != nil {
+	if err := m.zkClient.CreateRec(path, data, 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
 func (m *Metadata) DeleteGroupConfig(group string, queue string) error {
+
+	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
+	if err := mutex.Lock(); err != nil {
+		return errors.Trace(err)
+	}
+	defer mutex.Unlock()
+
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	if exist := m.ExistGroup(queue, group); !exist {
+		return errors.NotFoundf("queue : %q, group : %q", queue, group)
+	}
+
 	path := m.buildConfigPath(group, queue)
 	log.Debugf("delete group config, zk path:%s", path)
-	err := m.zkClient.DeleteRec(path)
-	if err != nil {
+	if err := m.zkClient.DeleteRec(path); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -243,6 +279,20 @@ func (m *Metadata) DeleteGroupConfig(group string, queue string) error {
 
 func (m *Metadata) UpdateGroupConfig(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
+
+	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
+	if err := mutex.Lock(); err != nil {
+		return errors.Trace(err)
+	}
+	defer mutex.Unlock()
+
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	if exist := m.ExistGroup(queue, group); !exist {
+		return errors.NotFoundf("queue : %q, group: %q", queue, group)
+	}
 
 	path := m.buildConfigPath(group, queue)
 	groupConfig := GroupConfig{
@@ -337,6 +387,20 @@ func (m *Metadata) GetQueueMap() map[string][]string {
 //Add a queue by name
 func (m *Metadata) AddQueue(queue string) error {
 
+	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
+	if err := mutex.Lock(); err != nil {
+		return errors.Trace(err)
+	}
+	defer mutex.Unlock()
+
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	if exist := m.ExistQueue(queue); exist {
+		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
+	}
+
 	if err := m.manager.CreateTopic(queue, int32(m.config.KafkaReplications),
 		int32(m.config.KafkaPartitions)); err != nil {
 		return errors.Trace(err)
@@ -354,6 +418,25 @@ func (m *Metadata) AddQueue(queue string) error {
 
 //Delete a queue by name
 func (m *Metadata) DelQueue(queue string) error {
+
+	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
+	if err := mutex.Lock(); err != nil {
+		return errors.Trace(err)
+	}
+	defer mutex.Unlock()
+
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	can, err := m.canDeleteQueue(queue)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !can {
+		return errors.NotValidf("DeleteQueue queue:%s has one or more group", queue)
+	}
+
 	path := m.buildQueuePath(queue)
 	log.Debugf("del queue, zk path:%s", path)
 	if err := m.zkClient.DeleteRec(path); err != nil {
@@ -399,7 +482,7 @@ func (m *Metadata) ExistGroup(queue, group string) bool {
 }
 
 //test a queue can be delete
-func (m *Metadata) CanDeleteQueue(queue string) (bool, error) {
+func (m *Metadata) canDeleteQueue(queue string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
