@@ -35,7 +35,7 @@ const (
 
 const (
 	defaultChSize   = 1024 * 4
-	defaultPrintTTL = time.Second * 10
+	defaultPrintTTL = time.Second * 30
 )
 
 var defaultClient *MetricsClient
@@ -52,6 +52,7 @@ func Init() (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		printTTL:    defaultPrintTTL,
+		stop:        make(chan struct{}),
 	}
 	go defaultClient.run()
 	return
@@ -64,12 +65,13 @@ type Packet struct {
 }
 
 type MetricsClient struct {
-	in          chan *Packet // async do
+	in          chan *Packet
 	r           metrics.Registry
 	printTTL    time.Duration
 	serviceName string
 	endpoint    string
 	wg          *sync.WaitGroup
+	stop        chan struct{}
 
 	// TODO Report interface
 	// TODO QPS stat
@@ -88,6 +90,8 @@ func (m *MetricsClient) run() {
 			m.do(p)
 		case <-tk.C:
 			m.print()
+		case <-m.stop:
+			return
 		}
 	}
 }
