@@ -29,16 +29,14 @@ import (
 )
 
 const (
-	SET_NAME  = "set"
-	ESET_NAME = "eset"
+	ACK_NAME = "ack"
 )
 
 func init() {
-	registerCommand(SET_NAME, commandSet)
-	registerCommand(ESET_NAME, commandSet)
+	registerCommand(ACK_NAME, commandACK)
 }
 
-func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	var noreply string
 
@@ -47,13 +45,14 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
-	cmd := tokens[0]
+
 	key := tokens[1]
 	if fields == 6 {
 		noreply = tokens[5]
 	}
 
-	flag, err := strconv.ParseUint(tokens[2], 10, 32)
+	// for ack command, flag is unused
+	_, err := strconv.ParseUint(tokens[2], 10, 32)
 	if err != nil {
 		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
 		return errors.Trace(err)
@@ -65,8 +64,8 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		return errors.Trace(err)
 	}
 
-	data := make([]byte, length)
-	_, err = io.ReadAtLeast(r, data, int(length))
+	id := make([]byte, length)
+	_, err = io.ReadAtLeast(r, id, int(length))
 	if err != nil {
 		fmt.Fprint(w, CLIENT_ERROR_BAD_DATACHUNK)
 		return errors.Trace(err)
@@ -81,7 +80,7 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		queue = keys[1]
 	}
 
-	id, err := q.SendMessage(queue, group, data, flag)
+	err = q.AckMessage(queue, group, string(id))
 	if err != nil {
 		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 		return nil
@@ -91,11 +90,6 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		return nil
 	}
 
-	// if eset command, return message id
-	if strings.EqualFold(cmd, ESET_NAME) {
-		fmt.Fprint(w, id+" "+STORED)
-		return nil
-	}
 	fmt.Fprint(w, STORED)
 	return nil
 }

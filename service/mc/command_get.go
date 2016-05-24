@@ -27,7 +27,7 @@ import (
 
 const (
 	GET_NAME  = "get"
-	GETS_NAME = "gets"
+	EGET_NAME = "eget"
 )
 
 type pair struct {
@@ -41,7 +41,7 @@ type pair struct {
 
 func init() {
 	registerCommand(GET_NAME, commandGet)
-	registerCommand(GETS_NAME, commandGet)
+	registerCommand(EGET_NAME, commandGet)
 }
 
 func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
@@ -51,7 +51,7 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprint(w, ERROR)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
-
+	cmd := tokens[0]
 	keyValues := make([]pair, 0)
 	for _, key := range tokens[1:] {
 		k := strings.Split(key, ".")
@@ -66,6 +66,14 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
 			return nil
+		}
+		// eset data : idlen id data
+		if strings.EqualFold(cmd, EGET_NAME) {
+			idLen := (byte)(len(id))
+			esetData := make([]byte, 0)
+			esetData = append(esetData, idLen)
+			esetData = append(esetData, ([]byte)(id)...)
+			data = append(esetData, data...)
 		}
 
 		keyValues = append(keyValues, pair{
@@ -82,7 +90,9 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprintf(w, "%s %s %d %d\r\n", VALUE, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
-		q.AckMessage(kv.queue, kv.group, kv.id)
+		if strings.EqualFold(cmd, GET_NAME) {
+			q.AckMessage(kv.queue, kv.group, kv.id)
+		}
 	}
 	w.WriteString(END)
 	return nil
