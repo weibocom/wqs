@@ -87,8 +87,8 @@ func NewConfigFromFile(file string) (*Config, error) {
 	if !exist {
 		return nil, errors.NotFoundf("protocol.mc.port")
 	}
-	mcSocketRecvBuffer := int(p.GetInt64("mc.socket.recv.buffer", 4096))
-	mcSocketSendBuffer := int(p.GetInt64("mc.socket.send.buffer", 4096))
+	mcSocketRecvBuffer := int(p.GetInt64("protocol.mc.socket.buffer.recv", 4096))
+	mcSocketSendBuffer := int(p.GetInt64("protocol.mc.socket.buffer.send", 4096))
 
 	motanPort, exist := p.Get("protocol.motan.port")
 	if !exist {
