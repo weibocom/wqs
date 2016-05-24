@@ -36,12 +36,12 @@ func TestStruct(t *testing.T) {
 		Url:   "test_group.test_queue.xx.com",
 		Ips:   []string{"172.0.0.1", "172.0.0.2"},
 	}
-	fmt.Println(groupConfig.ToJson())
+	fmt.Println(groupConfig.String())
 
 	groups := make([]*GroupConfig, 0)
 	groups = append(groups, &groupConfig)
 	queueInfo := QueueInfo{Queue: "test_queue", Ctime: 1234567890, Groups: groups}
-	fmt.Println(queueInfo.ToJson())
+	fmt.Println(queueInfo.String())
 
 	groupConfig.Queue = "test_queue"
 	groupConfig.Group = ""
@@ -49,7 +49,7 @@ func TestStruct(t *testing.T) {
 	queues := make([]*GroupConfig, 0)
 	queues = append(queues, &groupConfig)
 	groupInfo := GroupInfo{Group: "test_group", Queues: queues}
-	fmt.Println(groupInfo.ToJson())
+	fmt.Println(groupInfo.String())
 }
 
 func stringDummy(s string) {

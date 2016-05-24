@@ -57,17 +57,17 @@ type AccumulationInfo struct {
 	Consumed int64  `json:"consumed,omitempty"`
 }
 
-func (queueInfo *QueueInfo) ToJson() string {
+func (queueInfo *QueueInfo) String() string {
 	result, _ := json.Marshal(queueInfo)
 	return string(result)
 }
 
-func (groupInfo *GroupInfo) ToJson() string {
+func (groupInfo *GroupInfo) String() string {
 	result, _ := json.Marshal(groupInfo)
 	return string(result)
 }
 
-func (groupConfig *GroupConfig) ToJson() string {
+func (groupConfig *GroupConfig) String() string {
 	result, _ := json.Marshal(groupConfig)
 	return string(result)
 }

@@ -245,7 +245,7 @@ func (m *Metadata) AddGroupConfig(group string, queue string,
 		Url:   url,
 		Ips:   ips,
 	}
-	data := groupConfig.ToJson()
+	data := groupConfig.String()
 	log.Debugf("add group config, zk path:%s, data:%s", path, data)
 	if err := m.zkClient.CreateRec(path, data, 0); err != nil {
 		return errors.Trace(err)
@@ -303,7 +303,7 @@ func (m *Metadata) UpdateGroupConfig(group string, queue string,
 		Url:   url,
 		Ips:   ips,
 	}
-	data := groupConfig.ToJson()
+	data := groupConfig.String()
 	log.Debugf("update group config, zk path:%s, data:%s", path, data)
 	if err := m.zkClient.Set(path, data); err != nil {
 		return errors.Trace(err)
