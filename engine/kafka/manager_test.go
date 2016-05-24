@@ -19,43 +19,63 @@ package kafka
 import (
 	"fmt"
 	"testing"
-	// "time"
 )
 
-func TestManager(t *testing.T) {
-	var err error
-	manager, _ := NewManager([]string{"localhost:2181"}, "../../kafkalib", "", nil)
-	topics, err := manager.GetTopics()
+func TestAssignment0(t *testing.T) {
+	brokersList := []int32{0}
+	_, err := assignReplicasToBrokers(brokersList, 4, 2, -1, -1)
+	if err == nil {
+		t.Errorf("should ocurr error.")
+	}
+}
+
+func TestAssignment1(t *testing.T) {
+	brokersList := []int32{0}
+	assignment, err := assignReplicasToBrokers(brokersList, 4, 1, -1, -1)
 	if err != nil {
-		t.Fatal(err)
+		t.Errorf("unexpect error: %s", err)
 	}
-	fmt.Printf("topics:%v \n", topics)
+	fmt.Printf("broker:1 partiton:1 replication:1 :\n\t%v\n", assignment)
+}
 
-	size, err := manager.FetchTopicSize("test-queue")
+func TestAssignment2(t *testing.T) {
+	brokersList := []int32{0, 1, 2, 3}
+	assignment, err := assignReplicasToBrokers(brokersList, 4, 1, -1, -1)
 	if err != nil {
-		t.Fatal(err)
+		t.Errorf("unexpect error: %s", err)
 	}
-	fmt.Printf("topic size %d \n", size)
-	topicOffsets, _ := manager.FetchTopicOffsets("queue1")
-	for i := int32(0); i < int32(len(topicOffsets)); i++ {
-		fmt.Printf("%d:%d ", i, topicOffsets[i])
+	fmt.Printf("broker:4 partiton:1 replication:1 :\n\t%v\n", assignment)
+}
+
+func TestAssignment3(t *testing.T) {
+	brokersList := []int32{0, 1, 2, 3}
+	assignment, err := assignReplicasToBrokers(brokersList, 4, 4, -1, -1)
+	if err != nil {
+		t.Errorf("unexpect error: %s", err)
 	}
-	fmt.Println()
-	groupOffsets, _ := manager.FetchGroupOffsets("queue1", "group1")
-	for i := int32(0); i < int32(len(groupOffsets)); i++ {
-		fmt.Printf("%d:%d ", i, groupOffsets[i])
+	fmt.Printf("broker:4 partiton:4 replication:4 :\n\t%v\n", assignment)
+}
+
+func TestAssignment4(t *testing.T) {
+	brokersList := []int32{0, 1, 2, 3}
+	assignment, err := assignReplicasToBrokers(brokersList, 4, 4, -1, -1)
+	if err != nil {
+		t.Errorf("unexpect error: %s", err)
 	}
-	fmt.Println()
-	fmt.Println(manager.Accumulation("queue1", "group1"))
+	fmt.Printf("prev broker:4 partiton:4 replication:4 :\n\t%v\n", assignment)
 
-	// err = manager.CreateTopic("test-temp-topic", 1, 2, "10.77.109.120:2181")
-	// if err != nil {
-	// 	// t.Fatal(err)
-	// }
+	newAssignment, err := assignReplicasToBrokers(brokersList, 4,
+		4, assignment["0"][0], int32(len(assignment)))
+	if err != nil {
+		t.Errorf("unexpect error: %s", err)
+	}
+	fmt.Printf("new broker:4 partiton:2 replication:4 :\n\t%v\n", newAssignment)
 
-	// err = manager.DeleteTopic("test-temp-topic", "10.77.109.120:2181")
-	// if err != nil {
-	// 	// t.Fatal(err)
-	// }
-
+	for partition, assign := range newAssignment {
+		if len(assign) != 4 {
+			t.Errorf("new replication assignment %v", newAssignment)
+		}
+		assignment[partition] = assign
+	}
+	fmt.Printf("merge broker:4 partiton:6 replication:4 :\n\t%v\n", assignment)
 }

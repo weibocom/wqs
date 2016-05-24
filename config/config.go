@@ -35,7 +35,6 @@ type Config struct {
 	McSocketRecvBuffer int
 	McSocketSendBuffer int
 	MotanPort          string
-	KafkaLib           string
 	MetaDataZKAddr     string
 	MetaDataZKRoot     string
 	RedisAddr          string
@@ -74,10 +73,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 	proxyId := int(p.GetInt64("proxy.id", -1))
 	if proxyId == -1 {
 		return nil, errors.NotValidf("proxy.id")
-	}
-	kafkaLib, exist := p.Get("kafka.lib")
-	if !exist {
-		return nil, errors.NotFoundf("kafka.lib")
 	}
 	uiDir, exist := p.Get("ui.dir")
 	if !exist {
@@ -129,11 +124,10 @@ func NewConfigFromFile(file string) (*Config, error) {
 	}
 
 	return &Config{
-		KafkaZKAddr:       kafkaZKAddr,
-		KafkaZKRoot:       kafkaZKRoot,
-		KafkaPartitions:   kafkaPartitions,
-		KafkaReplications: kafkaReplications,
-
+		KafkaZKAddr:        kafkaZKAddr,
+		KafkaZKRoot:        kafkaZKRoot,
+		KafkaPartitions:    kafkaPartitions,
+		KafkaReplications:  kafkaReplications,
 		ProxyId:            proxyId,
 		UiDir:              uiDir,
 		HttpPort:           httpPort,
@@ -141,7 +135,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 		McSocketRecvBuffer: mcSocketRecvBuffer,
 		McSocketSendBuffer: mcSocketSendBuffer,
 		MotanPort:          motanPort,
-		KafkaLib:           kafkaLib,
 		MetaDataZKAddr:     metaDataZKAddr,
 		MetaDataZKRoot:     metaDataZKRoot,
 		RedisAddr:          redisAddr,
