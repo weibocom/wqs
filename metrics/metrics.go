@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	defaultChSize   = 1024 * 4
+	defaultChSize   = 1024 * 10
 	defaultPrintTTL = time.Second * 30
 )
 
@@ -128,5 +128,10 @@ func (m *MetricsClient) decr(k string, v int64) {
 }
 
 func Add(key string, val int64) {
-	defaultClient.in <- &Packet{INCR, key, val}
+	pkt := &Packet{INCR, key, val}
+	select {
+	case defaultClient.in <- pkt:
+	case <-time.After(time.Millisecond * 100):
+		println("metrics chan is full")
+	}
 }
