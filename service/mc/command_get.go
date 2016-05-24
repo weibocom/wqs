@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
+	"github.com/weibocom/wqs/engine/kafka"
 	"github.com/weibocom/wqs/engine/queue"
 )
 
@@ -64,7 +65,11 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 		id, data, flag, err := q.RecvMessage(queue, group)
 		if err != nil {
-			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+			if errors.Cause(err) == kafka.ErrTimeout {
+				w.WriteString(END)
+			} else {
+				fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+			}
 			return nil
 		}
 		// eset data : idlen id data
