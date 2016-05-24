@@ -25,6 +25,7 @@ import (
 	"github.com/juju/errors"
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/log"
+	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/service"
 )
 
@@ -83,6 +84,11 @@ func main() {
 	server, err := service.NewServer(conf)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
+	}
+
+	err = metrics.Init()
+	if err != nil {
+		log.Fatalf("init metrics err: %v", err)
 	}
 
 	err = server.Start()
