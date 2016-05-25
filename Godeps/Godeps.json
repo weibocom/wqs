@@ -36,6 +36,11 @@
 			"Rev": "b2c7a7da5b2995941048f60146e67702a292e468"
 		},
 		{
+			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Comment": "v1.1-29-g77366a4",
+			"Rev": "77366a47451a56bb3ba682481eed85b64fea14e8"
+		},
+		{
 			"ImportPath": "github.com/klauspost/crc32",
 			"Comment": "v1.0",
 			"Rev": "19b0b332c9e4516a6370a0456e6182c3b5036720"
@@ -44,6 +49,10 @@
 			"ImportPath": "github.com/magiconair/properties",
 			"Comment": "v1.7.0",
 			"Rev": "c265cfa48dda6474e208715ca93e987829f572f8"
+		},
+		{
+			"ImportPath": "github.com/rcrowley/go-metrics",
+			"Rev": "eeba7bd0dd01ace6e690fa833b3f22aaec29af43"
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",

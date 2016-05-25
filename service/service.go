@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -56,25 +57,28 @@ func NewServer(conf *config.Config) (*Server, error) {
 
 func (s *Server) Start() error {
 
-	var err error
-	mux := http.NewServeMux()
-	mux.HandleFunc("/queue", s.queueHandler)
-	mux.HandleFunc("/group", s.groupHandler)
-	mux.HandleFunc("/monitor", s.monitorHandler)
-	mux.HandleFunc("/alarm", s.alarmHandler)
-	mux.HandleFunc("/msg", s.msgHandler)
-
+	router := NewRouter()
 	if s.config.UiDir != "" {
-		// Static file serving done from /ui/
-		mux.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(s.config.UiDir))))
+		if assets, err := filepath.Abs(s.config.UiDir); err == nil {
+			router.NotFound(http.FileServer(http.Dir(assets)))
+		}
 	}
 
+	router.GET("/queue", CompatibleWarp(s.queueHandler))
+	router.POST("/queue", CompatibleWarp(s.queueHandler))
+	router.GET("/group", CompatibleWarp(s.groupHandler))
+	router.POST("/group", CompatibleWarp(s.groupHandler))
+	router.GET("/monitor", CompatibleWarp(s.monitorHandler))
+	router.GET("/msg", CompatibleWarp(s.msgHandler))
+	router.POST("/msg", CompatibleWarp(s.msgHandler))
+
+	var err error
 	s.listener, err = utils.Listen("tcp", fmt.Sprintf(":%s", s.config.HttpPort))
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	server := &http.Server{Handler: mux}
+	server := &http.Server{Handler: router}
 	server.SetKeepAlivesEnabled(true)
 
 	s.mc = mc.NewMcServer(s.queue, s.config)
@@ -387,8 +391,4 @@ func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {
 		result = "error, param type=" + monitorType + " not support!"
 	}
 	fmt.Fprintf(w, result)
-}
-
-func (this *Server) alarmHandler(w http.ResponseWriter, r *http.Request) {
-
 }
