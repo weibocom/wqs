@@ -36,6 +36,8 @@ const (
 const (
 	defaultChSize   = 1024 * 10
 	defaultPrintTTL = time.Second * 30
+
+	defaultReportURI = "http://127.0.0.1:10001/metrics/wqs"
 )
 
 var defaultClient *MetricsClient
@@ -48,11 +50,14 @@ func Init() (err error) {
 	}
 	defaultClient = &MetricsClient{
 		r:           metrics.NewRegistry(),
+		d:           metrics.NewRegistry(),
 		in:          make(chan *Packet, defaultChSize),
 		serviceName: "wqs",
 		endpoint:    hn,
 		printTTL:    defaultPrintTTL,
 		stop:        make(chan struct{}),
+		// transport:   newRedisClient("127.0.0.1:6379", "", 2),
+		transport: newHTTPClient(),
 	}
 	go defaultClient.run()
 	return
@@ -67,21 +72,22 @@ type Packet struct {
 type MetricsClient struct {
 	in          chan *Packet
 	r           metrics.Registry
+	d           metrics.Registry
 	printTTL    time.Duration
 	serviceName string
 	endpoint    string
 	wg          *sync.WaitGroup
 	stop        chan struct{}
 
-	// TODO Report interface
-	// TODO QPS stat
-	// send stat_info to remote server
-	// count_err instead of writing
+	transport Transport
 }
 
 func (m *MetricsClient) run() {
 	tk := time.NewTicker(m.printTTL)
 	defer tk.Stop()
+
+	reportTk := time.NewTicker(time.Second * 1)
+	defer reportTk.Stop()
 	var p *Packet
 
 	for {
@@ -90,6 +96,8 @@ func (m *MetricsClient) run() {
 			m.do(p)
 		case <-tk.C:
 			m.print()
+		case <-reportTk.C:
+			m.report()
 		case <-m.stop:
 			return
 		}
@@ -113,14 +121,27 @@ func (m *MetricsClient) print() {
 		"data":     m.r,
 	}
 	json.NewEncoder(bf).Encode(shot)
-	log.Info("[metrics] " + bf.String())
+	log.Info("[metrics] COUNTER: " + bf.String())
+}
 
-	// TODO print qps
+func (m *MetricsClient) report() {
+	var bf = &bytes.Buffer{}
+	shot := map[string]interface{}{
+		"endpoint": m.endpoint,
+		"service":  m.serviceName,
+		"data":     m.d,
+	}
+	json.NewEncoder(bf).Encode(shot)
+	m.d.UnregisterAll()
+	log.Info("[metrics] QPS: " + bf.String())
+	// m.transport.Send(defaultReportURI, bf.Bytes())
 }
 
 func (m *MetricsClient) incr(k string, v int64) {
 	c := metrics.GetOrRegisterCounter(k, m.r)
 	c.Inc(v)
+	d := metrics.GetOrRegisterCounter(k, m.d)
+	d.Inc(v)
 }
 
 func (m *MetricsClient) decr(k string, v int64) {
@@ -131,7 +152,7 @@ func Add(key string, val int64) {
 	pkt := &Packet{INCR, key, val}
 	select {
 	case defaultClient.in <- pkt:
-	case <-time.After(time.Millisecond * 100):
+	default:
 		println("metrics chan is full")
 	}
 }
