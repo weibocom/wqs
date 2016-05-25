@@ -17,13 +17,68 @@ limitations under the License.
 package service
 
 import (
+	"encoding/base64"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
+
+const basicAuthPrefix string = "Basic "
 
 func CompatibleWarp(handle http.HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 		handle(w, req)
 	}
+}
+
+func BasicAuthWarp(h httprouter.Handle, userAndPws []string) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+		// Get the Basic Authentication credentials
+		auth := r.Header.Get("Authorization")
+		if strings.HasPrefix(auth, basicAuthPrefix) {
+			// Check credentials
+			payload, err := base64.StdEncoding.DecodeString(auth[len(basicAuthPrefix):])
+			if err == nil {
+				token := string(payload)
+				fmt.Println("xxx", token)
+				for _, userAndPw := range userAndPws {
+					if userAndPw == token {
+						// Delegate request to the given handle
+						h(w, r, ps)
+						return
+					}
+				}
+			}
+		}
+
+		// Request Basic Authentication otherwise
+		w.Header().Set("WWW-Authenticate", "Basic realm=WQS")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+	}
+}
+
+//e.g. router.NotFound(BasicAuthWarp2(http.FileServer(http.Dir(assets)), []string{"admin:admin"}))
+func BasicAuthWarp2(h http.Handler, userAndPws []string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		auth := r.Header.Get("Authorization")
+		if strings.HasPrefix(auth, basicAuthPrefix) {
+			payload, err := base64.StdEncoding.DecodeString(auth[len(basicAuthPrefix):])
+			if err == nil {
+				token := string(payload)
+				for _, userAndPw := range userAndPws {
+					if userAndPw == token {
+						h.ServeHTTP(w, r)
+						return
+					}
+				}
+			}
+		}
+
+		w.Header().Set("WWW-Authenticate", "Basic realm=WQS")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+	})
 }
