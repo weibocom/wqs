@@ -41,6 +41,7 @@ type Config struct {
 	LogInfo            string
 	LogDebug           string
 	LogProfile         string
+	LogExpire          string
 }
 
 func NewConfigFromFile(file string) (*Config, error) {
@@ -123,6 +124,11 @@ func NewConfigFromFile(file string) (*Config, error) {
 		return nil, errors.NotFoundf("log.profile")
 	}
 
+	logExpire, exist := p.Get("log.expire")
+	if !exist {
+		logExpire = "72h"
+	}
+
 	return &Config{
 		KafkaZKAddr:        kafkaZKAddr,
 		KafkaZKRoot:        kafkaZKRoot,
@@ -141,5 +147,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 		LogInfo:            logInfo,
 		LogDebug:           logDebug,
 		LogProfile:         logProfile,
+		LogExpire:          logExpire,
 	}, nil
 }

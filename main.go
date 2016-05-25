@@ -65,6 +65,7 @@ func initLogger(conf *config.Config) error {
 	loggerProfile.SetRolling(log.RollingByHour)
 	log.RestProfileLogger(loggerProfile)
 
+	log.NewCleaner(conf.LogExpire, conf.LogInfo, conf.LogDebug, conf.LogProfile).Start()
 	return nil
 }
 
