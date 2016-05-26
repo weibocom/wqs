@@ -155,12 +155,13 @@ func (m *MetricsClient) report() {
 		"data":     m.d,
 	}
 	json.NewEncoder(bf).Encode(shot)
+	//snapShotMetricsSts(m.d)
 	m.d.UnregisterAll()
 	m.d.Each(func(k string, _ interface{}) {
 		c := metrics.GetOrRegisterCounter(k, m.d)
 		c.Clear()
 	})
-	log.Info("[metrics] " + bf.String())
+	log.Info("[metrics] QPS" + bf.String())
 
 	// TODO async ?
 	// bf.Reset()

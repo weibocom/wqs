@@ -19,6 +19,8 @@ package metrics
 import (
 	"strings"
 
+	"github.com/weibocom/wqs/log"
+
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -62,8 +64,6 @@ func snapShotMetricsSts(r metrics.Registry) []*MetricsStat {
 				st.Sent.Total = c.Count()
 			case COST:
 				st.Sent.Cost = float64(c.Count())
-			case LATENCY:
-				st.Sent.Latency = float64(c.Count())
 			}
 		} else if ks[2] == RECV {
 			switch ks[3] {
@@ -81,6 +81,14 @@ func snapShotMetricsSts(r metrics.Registry) []*MetricsStat {
 	var list []*MetricsStat
 	for k := range retMap {
 		list = append(list, retMap[k])
+		retMap[k].Accum = uint64(retMap[k].Sent.Total) - uint64(retMap[k].Recv.Total)
+		retMap[k].Sent.Cost = retMap[k].Sent.Cost / float64(retMap[k].Sent.Total)
+		retMap[k].Recv.Cost = retMap[k].Recv.Cost / float64(retMap[k].Recv.Total)
+		retMap[k].Recv.Latency = retMap[k].Recv.Latency / float64(retMap[k].Recv.Total)
+
+		log.Infof("%s %s %d sent:%+v recv:%+v",
+			retMap[k].Queue, retMap[k].Group, retMap[k].Accum,
+			retMap[k].Sent, retMap[k].Recv)
 	}
 	return list
 }
