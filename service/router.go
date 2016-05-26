@@ -29,13 +29,13 @@ import (
 
 type Router struct {
 	accessLog int32
-	r         *httprouter.Router
+	*httprouter.Router
 }
 
 func NewRouter() *Router {
 	return &Router{
 		accessLog: 1,
-		r:         httprouter.New(),
+		Router:    httprouter.New(),
 	}
 }
 
@@ -61,10 +61,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if strings.Contains(req.Header.Get(HeaderAcceptEncoding), "gzip") {
 		grp := newGzipResponseWriter(w)
-		r.r.ServeHTTP(grp, req)
+		r.Router.ServeHTTP(grp, req)
 		grp.Close()
 	} else {
-		r.r.ServeHTTP(w, req)
+		r.Router.ServeHTTP(w, req)
 	}
 
 	if accessLog {
@@ -73,41 +73,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-//For assets
-func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	r.r.ServeFiles(path, root)
-}
-
-// GET is a shortcut for router.Handle("GET", path, handle)
-func (r *Router) GET(path string, handle httprouter.Handle) {
-	r.r.Handle("GET", path, handle)
-}
-
-// HEAD is a shortcut for router.Handle("HEAD", path, handle)
-func (r *Router) HEAD(path string, handle httprouter.Handle) {
-	r.r.Handle("HEAD", path, handle)
-}
-
-// OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
-func (r *Router) OPTIONS(path string, handle httprouter.Handle) {
-	r.r.Handle("OPTIONS", path, handle)
-}
-
-// POST is a shortcut for router.Handle("POST", path, handle)
-func (r *Router) POST(path string, handle httprouter.Handle) {
-	r.r.Handle("POST", path, handle)
-}
-
-// PUT is a shortcut for router.Handle("PUT", path, handle)
-func (r *Router) PUT(path string, handle httprouter.Handle) {
-	r.r.Handle("PUT", path, handle)
-}
-
-// PATCH is a shortcut for router.Handle("PATCH", path, handle)
-func (r *Router) PATCH(path string, handle httprouter.Handle) {
-	r.r.Handle("PATCH", path, handle)
-}
-
 func (r *Router) NotFound(handle http.Handler) {
-	r.r.NotFound = handle
+	r.Router.NotFound = handle
 }
