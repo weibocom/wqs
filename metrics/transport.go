@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -28,7 +29,7 @@ import (
 )
 
 const (
-	DEFAULT_RW_TIMEOUT = time.Second * 4
+	DEFAULT_RW_TIMEOUT = time.Second * 1
 )
 
 type Transport interface {
@@ -95,5 +96,43 @@ func (r *redisClient) Send(key string, data []byte) (err error) {
 		log.Error(err)
 	}
 	// Lpush to q
+	return
+}
+
+type RomaSt struct {
+	Type    string  `json:"type"`
+	Queue   string  `json:"queue"`
+	Group   string  `json:"group"`
+	Action  string  `json:"action"`
+	Total   int64   `json:"total_count"`
+	AvgTime float64 `json:"avg_time"`
+}
+
+type RoamClient struct {
+}
+
+func newRoamClient() *RoamClient {
+	return &RoamClient{}
+}
+
+func (r *RoamClient) Send(key string, data []byte) (err error) {
+	st, err := transToRoamSt(data)
+	if err != nil {
+		log.Warnf("store profile log err : %v", err)
+		return
+	}
+	log.Profile("%s", st)
+	return
+}
+
+func transToRoamSt(data []byte) (jsonStr string, err error) {
+	// TODO trans metrics to roam
+	st := &RomaSt{}
+	stData, err := json.Marshal(st)
+	if err != nil {
+		log.Warnf("transToRoamSt err : %v", err)
+		return
+	}
+	jsonStr = string(stData)
 	return
 }

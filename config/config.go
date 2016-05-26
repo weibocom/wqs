@@ -42,7 +42,13 @@ type Config struct {
 	LogDebug           string
 	LogProfile         string
 	LogExpire          string
+
+	// Config maybe can be Ext
+	p   *properties.Properties
+	Ext map[string]Section
 }
+
+type Section map[string]interface{}
 
 func NewConfigFromFile(file string) (*Config, error) {
 
@@ -148,5 +154,18 @@ func NewConfigFromFile(file string) (*Config, error) {
 		LogDebug:           logDebug,
 		LogProfile:         logProfile,
 		LogExpire:          logExpire,
+		p:                  p,
 	}, nil
+}
+
+func (c *Config) GetSettingIntVal(key string, defaultVal int64) (val int64) {
+	// TODO sec->attrName : val
+	val = c.p.GetInt64(key, defaultVal)
+	return
+}
+
+func (c *Config) GetSettingVal(key string, defaultVal string) (val string) {
+	// TODO sec->attrName : val
+	val = c.p.GetString(key, defaultVal)
+	return
 }

@@ -87,7 +87,7 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	err = metrics.Init()
+	err = metrics.Init(conf)
 	if err != nil {
 		log.Fatalf("init metrics err: %v", err)
 	}

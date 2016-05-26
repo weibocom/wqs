@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/log"
 
 	"github.com/rcrowley/go-metrics"
@@ -30,20 +31,41 @@ import (
 
 const (
 	INCR = iota
+	INCR_EX
 	DECR
 )
 
 const (
-	defaultChSize   = 1024 * 10
-	defaultPrintTTL = time.Second * 30
-
-	defaultReportURI = "http://127.0.0.1:10001/metrics/wqs"
+	defaultChSize    = 1024 * 10
+	defaultPrintTTL  = 30
+	defaultReportURI = "http://127.0.0.1:10001/v1/metrics"
 )
+
+type Packet struct {
+	Op   uint8
+	Key  string
+	Val  int64
+	Cost int64
+}
+
+type MetricsClient struct {
+	in       chan *Packet
+	r        metrics.Registry
+	d        metrics.Registry
+	printTTL time.Duration
+
+	centerAddr  string
+	serviceName string
+	endpoint    string
+	wg          *sync.WaitGroup
+	stop        chan struct{}
+
+	transport Transport
+}
 
 var defaultClient *MetricsClient
 
-func Init() (err error) {
-	// TODO init with config
+func Init(cfg *config.Config) (err error) {
 	hn, err := os.Hostname()
 	if err != nil {
 		hn = "unknown"
@@ -54,32 +76,19 @@ func Init() (err error) {
 		in:          make(chan *Packet, defaultChSize),
 		serviceName: "wqs",
 		endpoint:    hn,
-		printTTL:    defaultPrintTTL,
 		stop:        make(chan struct{}),
-		// transport:   newRedisClient("127.0.0.1:6379", "", 2),
-		transport: newHTTPClient(),
+		transport:   newHTTPClient(),
 	}
+
+	uri := cfg.GetSettingVal("metrics.center", defaultReportURI)
+	uri = uri + "/" + defaultClient.serviceName
+	defaultClient.centerAddr = uri
+
+	ttl := cfg.GetSettingIntVal("metrics.print_ttl", defaultPrintTTL)
+	defaultClient.printTTL = time.Second * time.Duration(ttl)
+
 	go defaultClient.run()
 	return
-}
-
-type Packet struct {
-	Op  uint8
-	Key string
-	Val int64
-}
-
-type MetricsClient struct {
-	in          chan *Packet
-	r           metrics.Registry
-	d           metrics.Registry
-	printTTL    time.Duration
-	serviceName string
-	endpoint    string
-	wg          *sync.WaitGroup
-	stop        chan struct{}
-
-	transport Transport
 }
 
 func (m *MetricsClient) run() {
@@ -108,6 +117,8 @@ func (m *MetricsClient) do(p *Packet) {
 	switch p.Op {
 	case INCR:
 		m.incr(p.Key, p.Val)
+	case INCR_EX:
+		m.incrEx(p.Key, p.Val, p.Cost)
 	case DECR:
 		m.decr(p.Key, p.Val)
 	}
@@ -134,7 +145,9 @@ func (m *MetricsClient) report() {
 	json.NewEncoder(bf).Encode(shot)
 	m.d.UnregisterAll()
 	log.Info("[metrics] QPS: " + bf.String())
-	// m.transport.Send(defaultReportURI, bf.Bytes())
+
+	// TODO async ?
+	m.transport.Send(m.centerAddr, bf.Bytes())
 }
 
 func (m *MetricsClient) incr(k string, v int64) {
@@ -144,12 +157,40 @@ func (m *MetricsClient) incr(k string, v int64) {
 	d.Inc(v)
 }
 
+func (m *MetricsClient) incrEx(k string, v, cost int64) {
+	c := metrics.GetOrRegisterCounter(k, m.r)
+	c.Inc(v)
+	d := metrics.GetOrRegisterCounter(k, m.d)
+	d.Inc(v)
+	switch {
+	case cost < 10:
+		k = k + "-[0-10ms]"
+	case cost < 50:
+		k = k + "-[10-50ms]"
+	case cost < 100:
+		k = k + "-[50-100ms]"
+	case cost < 500:
+		k = k + "-[100-500ms]"
+	case cost < 1000:
+		k = k + "-[500ms-1s]"
+	default:
+		k = k + "-[1s,+]"
+	}
+	d = metrics.GetOrRegisterCounter(k, m.d)
+	d.Inc(v)
+}
+
 func (m *MetricsClient) decr(k string, v int64) {
 	// TODO
 }
 
-func Add(key string, val int64) {
-	pkt := &Packet{INCR, key, val}
+func Add(key string, args ...int64) {
+	var pkt *Packet
+	if len(args) == 1 {
+		pkt = &Packet{INCR, key, args[0], 0}
+	} else if len(args) == 2 {
+		pkt = &Packet{INCR_EX, key, args[0], args[1]}
+	}
 	select {
 	case defaultClient.in <- pkt:
 	default:

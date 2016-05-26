@@ -118,7 +118,7 @@ func (ms *McServer) connLoop(conn net.Conn) {
 
 		tokens := strings.Split(strings.TrimSpace(data), " ")
 		cmd := tokens[0]
-		command, exists := commands[tokens[0]]
+		command, exists := commands[cmd]
 		if !exists {
 			command = commandUnkown
 			cmd = "unsupported"
