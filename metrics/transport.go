@@ -30,10 +30,14 @@ import (
 
 const (
 	DEFAULT_RW_TIMEOUT = time.Second * 1
+
+	ALL_MASK = "*"
 )
 
 type Transport interface {
 	Send(uri string, data []byte) error
+	Overview(start, end, step int64, host string) (ret string, err error)
+	GroupMetrics(start, end, step int64, group, queue string) (ret string, err error)
 }
 
 type httpClient struct {
@@ -69,6 +73,16 @@ func (c *httpClient) Send(uri string, data []byte) (err error) {
 	return
 }
 
+func (c *httpClient) Overview(start, end, step int64, host string) (ret string, err error) {
+	// TODO
+	return
+}
+
+func (c *httpClient) GroupMetrics(start, end, step int64, group, queue string) (ret string, err error) {
+	// TODO
+	return
+}
+
 type redisClient struct {
 	poolSize int
 	addr     string
@@ -99,6 +113,16 @@ func (r *redisClient) Send(key string, data []byte) (err error) {
 	return
 }
 
+func (r *redisClient) Overview(start, end, step int64, host string) (ret string, err error) {
+	// TODO
+	return
+}
+
+func (c *redisClient) GroupMetrics(start, end, step int64, group, queue string) (ret string, err error) {
+	// TODO
+	return
+}
+
 type RomaSt struct {
 	Type    string  `json:"type"`
 	Queue   string  `json:"queue"`
@@ -109,19 +133,40 @@ type RomaSt struct {
 }
 
 type RoamClient struct {
+	cli *http.Client
 }
 
 func newRoamClient() *RoamClient {
-	return &RoamClient{}
+	return &RoamClient{
+		cli: &http.Client{},
+	}
 }
 
-func (r *RoamClient) Send(key string, data []byte) (err error) {
+func (m *RoamClient) Send(key string, data []byte) (err error) {
 	st, err := transToRoamSt(data)
 	if err != nil {
 		log.Warnf("store profile log err : %v", err)
 		return
 	}
 	log.Profile("%s", st)
+	return
+}
+
+func (m *RoamClient) Overview(start, end, step int64, host string) (ret string, err error) {
+	// TODO
+	req, err := http.NewRequest("GET", "http://127.0.0.1/dashboard/metrics/wqs", nil)
+	if err != nil {
+	}
+	m.cli.Do(req)
+	return
+}
+
+func (m *RoamClient) GroupMetrics(start, end, step int64, group, queue string) (ret string, err error) {
+	// TODO
+	req, err := http.NewRequest("GET", "http://127.0.0.1/detail/metrics/wqs", nil)
+	if err != nil {
+	}
+	m.cli.Do(req)
 	return
 }
 

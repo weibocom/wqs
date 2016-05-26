@@ -32,6 +32,7 @@ import (
 const (
 	INCR = iota
 	INCR_EX
+	INCR_EX2
 	DECR
 )
 
@@ -41,11 +42,20 @@ const (
 	defaultReportURI = "http://127.0.0.1:10001/v1/metrics"
 )
 
+const (
+	QPS     = "qps"
+	COST    = "cost"
+	LATENCY = "ltc"
+	SENT    = "sent"
+	RECV    = "recv"
+)
+
 type Packet struct {
-	Op   uint8
-	Key  string
-	Val  int64
-	Cost int64
+	Op      uint8
+	Key     string
+	Val     int64
+	Cost    int64
+	Latency int64
 }
 
 type MetricsClient struct {
@@ -119,6 +129,8 @@ func (m *MetricsClient) do(p *Packet) {
 		m.incr(p.Key, p.Val)
 	case INCR_EX:
 		m.incrEx(p.Key, p.Val, p.Cost)
+	case INCR_EX2:
+		m.incrEx2(p.Key, p.Val, p.Cost, p.Latency)
 	case DECR:
 		m.decr(p.Key, p.Val)
 	}
@@ -132,7 +144,7 @@ func (m *MetricsClient) print() {
 		"data":     m.r,
 	}
 	json.NewEncoder(bf).Encode(shot)
-	log.Info("[metrics] COUNTER: " + bf.String())
+	log.Info("[metrics] " + bf.String())
 }
 
 func (m *MetricsClient) report() {
@@ -144,40 +156,38 @@ func (m *MetricsClient) report() {
 	}
 	json.NewEncoder(bf).Encode(shot)
 	m.d.UnregisterAll()
-	log.Info("[metrics] QPS: " + bf.String())
+	m.d.Each(func(k string, _ interface{}) {
+		c := metrics.GetOrRegisterCounter(k, m.d)
+		c.Clear()
+	})
+	log.Info("[metrics] " + bf.String())
 
 	// TODO async ?
-	m.transport.Send(m.centerAddr, bf.Bytes())
+	// bf.Reset()
+	// json.NewEncoder(bf).Encode(m.d)
+
+	// m.transport.Send(m.centerAddr, bf.Bytes())
 }
 
 func (m *MetricsClient) incr(k string, v int64) {
-	c := metrics.GetOrRegisterCounter(k, m.r)
-	c.Inc(v)
 	d := metrics.GetOrRegisterCounter(k, m.d)
 	d.Inc(v)
 }
 
 func (m *MetricsClient) incrEx(k string, v, cost int64) {
-	c := metrics.GetOrRegisterCounter(k, m.r)
-	c.Inc(v)
-	d := metrics.GetOrRegisterCounter(k, m.d)
+	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
 	d.Inc(v)
-	switch {
-	case cost < 10:
-		k = k + "-[0-10ms]"
-	case cost < 50:
-		k = k + "-[10-50ms]"
-	case cost < 100:
-		k = k + "-[50-100ms]"
-	case cost < 500:
-		k = k + "-[100-500ms]"
-	case cost < 1000:
-		k = k + "-[500ms-1s]"
-	default:
-		k = k + "-[1s,+]"
-	}
-	d = metrics.GetOrRegisterCounter(k, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+COST, m.d)
+	d.Inc(cost)
+}
+
+func (m *MetricsClient) incrEx2(k string, v, cost, latency int64) {
+	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
 	d.Inc(v)
+	d = metrics.GetOrRegisterCounter(k+"#"+COST, m.d)
+	d.Inc(cost)
+	d = metrics.GetOrRegisterCounter(k+"#"+LATENCY, m.d)
+	d.Inc(latency)
 }
 
 func (m *MetricsClient) decr(k string, v int64) {
@@ -187,10 +197,13 @@ func (m *MetricsClient) decr(k string, v int64) {
 func Add(key string, args ...int64) {
 	var pkt *Packet
 	if len(args) == 1 {
-		pkt = &Packet{INCR, key, args[0], 0}
+		pkt = &Packet{INCR, key, args[0], 0, 0}
 	} else if len(args) == 2 {
-		pkt = &Packet{INCR_EX, key, args[0], args[1]}
+		pkt = &Packet{INCR_EX, key, args[0], args[1], 0}
+	} else if len(args) == 3 {
+		pkt = &Packet{INCR_EX2, key, args[0], args[1], args[2]}
 	}
+
 	select {
 	case defaultClient.in <- pkt:
 	default:

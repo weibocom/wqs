@@ -332,8 +332,11 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 	}
 	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, partition, offset)
 	cost := time.Now().Sub(start).Nanoseconds() / 1e6
+
 	metrics.StatisticSend(queue, group, cost)
 	q.monitor.StatisticSend(queue, group, 1)
+	//metrics.Add(queue+"#"+group+"#sent", 1, cost)
+
 	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
 	return messageID, nil
 }
@@ -376,8 +379,11 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	end := time.Now()
 	cost := end.Sub(start).Nanoseconds() / 1e6
 	delay := end.UnixNano()/1e6 - baseTime - int64((sequenceID>>24)&0xFFFFFFFFFF)
+
 	metrics.StatisticRecv(queue, group, cost)
 	q.monitor.StatisticReceive(queue, group, 1)
+	// metrics.Add(queue+"#"+group+"#recv", 1, cost, delay)
+
 	log.Debugf("recv %s:%s key %s id %s cost %d delay %d", queue, group, string(msg.Key), messageID, cost, delay)
 	return messageID, msg.Value, flag, nil
 }
