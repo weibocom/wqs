@@ -84,9 +84,9 @@ type Consumer struct {
 	mu             sync.Mutex
 }
 
-func NewConsumer(brokerAddrs []string, topic, group string) (*Consumer, error) {
+func NewConsumer(brokerAddrs []string, config *cluster.Config, topic, group string) (*Consumer, error) {
 	//FIXME: consumer的config是否需要支持配置
-	consumer, err := cluster.NewConsumer(brokerAddrs, group, []string{topic}, nil)
+	consumer, err := cluster.NewConsumer(brokerAddrs, group, []string{topic}, config)
 	if err != nil {
 		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", brokerAddrs, err)
 		return nil, err

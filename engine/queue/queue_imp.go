@@ -31,6 +31,7 @@ import (
 	"github.com/weibocom/wqs/metrics"
 
 	"github.com/Shopify/sarama"
+	"github.com/bsm/sarama-cluster"
 	"github.com/juju/errors"
 )
 
@@ -58,14 +59,15 @@ func init() {
 }
 
 type queueImp struct {
-	conf        *config.Config
-	metadata    *Metadata
-	producer    *kafka.Producer
-	monitor     *metrics.Monitor
-	idGenerator *idGenerator
-	consumerMap map[string]*kafka.Consumer
-	vaildName   *regexp.Regexp
-	mu          sync.Mutex
+	conf          *config.Config
+	clusterConfig *cluster.Config
+	metadata      *Metadata
+	producer      *kafka.Producer
+	monitor       *metrics.Monitor
+	idGenerator   *idGenerator
+	consumerMap   map[string]*kafka.Consumer
+	vaildName     *regexp.Regexp
+	mu            sync.Mutex
 }
 
 func newQueue(config *config.Config) (*queueImp, error) {
@@ -74,20 +76,35 @@ func newQueue(config *config.Config) (*queueImp, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	sConf := sarama.NewConfig()
-	sConf.Net.KeepAlive = 30 * time.Second
-	sConf.Metadata.Retry.Backoff = 100 * time.Millisecond
-	sConf.Metadata.Retry.Max = 5
-	sConf.Metadata.RefreshFrequency = 1 * time.Minute
-	sConf.Producer.RequiredAcks = sarama.WaitForLocal
+	clusterConfig := cluster.NewConfig()
+	// Network
+	clusterConfig.Config.Net.KeepAlive = 30 * time.Second
+	clusterConfig.Config.Net.MaxOpenRequests = 20
+	clusterConfig.Config.Net.DialTimeout = 10 * time.Second
+	clusterConfig.Config.Net.ReadTimeout = 10 * time.Second
+	clusterConfig.Config.Net.WriteTimeout = 10 * time.Second
+	// Metadata
+	clusterConfig.Config.Metadata.Retry.Backoff = 100 * time.Millisecond
+	clusterConfig.Config.Metadata.Retry.Max = 5
+	clusterConfig.Config.Metadata.RefreshFrequency = 1 * time.Minute
+	// Producer
+	clusterConfig.Config.Producer.RequiredAcks = sarama.WaitForLocal
 	//conf.Producer.RequiredAcks = sarama.NoResponse //this one high performance than WaitForLocal
-	sConf.Producer.Partitioner = sarama.NewRandomPartitioner
-	sConf.Producer.Flush.Frequency = time.Millisecond
-	sConf.Producer.Flush.MaxMessages = 200
-	sConf.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
-	sConf.ChannelBufferSize = 1024
+	clusterConfig.Config.Producer.Partitioner = sarama.NewRandomPartitioner
+	clusterConfig.Config.Producer.Flush.Frequency = time.Millisecond
+	clusterConfig.Config.Producer.Flush.MaxMessages = 200
+	clusterConfig.Config.ChannelBufferSize = 1024
+	// Common
+	clusterConfig.Config.ClientID = fmt.Sprintf("%d..%s", os.Getpid(), hostname)
+	clusterConfig.Group.Heartbeat.Interval = 50 * time.Millisecond
+	// Consumer
+	clusterConfig.Config.Consumer.Retry.Backoff = 500 * time.Millisecond
+	clusterConfig.Config.Consumer.Offsets.CommitInterval = 100 * time.Millisecond
+	//clusterConfig.Config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	clusterConfig.Group.Offsets.Retry.Max = 3
+	clusterConfig.Group.Session.Timeout = 10 * time.Second
 
-	metadata, err := NewMetadata(config, sConf)
+	metadata, err := NewMetadata(config, &clusterConfig.Config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -101,19 +118,20 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		metadata.Close()
 		return nil, errors.Trace(err)
 	}
-	producer, err := kafka.NewProducer(metadata.manager.BrokerAddrs(), sConf)
+	producer, err := kafka.NewProducer(metadata.manager.BrokerAddrs(), &clusterConfig.Config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	qs := &queueImp{
-		conf:        config,
-		metadata:    metadata,
-		producer:    producer,
-		monitor:     metrics.NewMonitor(config.RedisAddr),
-		idGenerator: newIDGenerator(uint64(config.ProxyId)),
-		vaildName:   regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
-		consumerMap: make(map[string]*kafka.Consumer),
+		conf:          config,
+		clusterConfig: clusterConfig,
+		metadata:      metadata,
+		producer:      producer,
+		monitor:       metrics.NewMonitor(config.RedisAddr),
+		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
+		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
+		consumerMap:   make(map[string]*kafka.Consumer),
 	}
 	return qs, nil
 }
@@ -332,7 +350,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	q.mu.Lock()
 	consumer, ok := q.consumerMap[owner]
 	if !ok {
-		consumer, err = kafka.NewConsumer(q.metadata.manager.BrokerAddrs(), queue, group)
+		consumer, err = kafka.NewConsumer(q.metadata.manager.BrokerAddrs(), q.clusterConfig, queue, group)
 		if err != nil {
 			q.mu.Unlock()
 			return "", nil, 0, errors.Trace(err)
