@@ -320,7 +320,7 @@ func (d *Dash) sum() *Stat {
 			for q := range d.stat[h] {
 				var (
 					tmp     string
-					uIntVal uint64
+					uIntVal int64
 					fltVal  float64
 				)
 				if _, ok := st.data["qps[sent/recv]"]; ok {
@@ -356,9 +356,9 @@ func (d *Dash) sum() *Stat {
 				st.data["latency"] = fltVal
 
 				if _, ok := st.data["accum"]; ok {
-					uIntVal = st.data["accum"].(uint64)
+					uIntVal = st.data["accum"].(int64)
 				}
-				uIntVal += d.stat[h][q].data["accum"].(uint64)
+				uIntVal += d.stat[h][q].data["accum"].(int64)
 				st.data["accum"] = uIntVal
 			}
 		}

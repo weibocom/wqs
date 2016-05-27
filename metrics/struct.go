@@ -39,7 +39,7 @@ type MetricsStat struct {
 	Group    string     `json:"group"`
 	Sent     *MetricsSt `json:"sent"`
 	Recv     *MetricsSt `json:"recv"`
-	Accum    uint64     `json:"accum"`
+	Accum    int64      `json:"accum"`
 	TS       int64      `json:"ts"`
 }
 
@@ -91,7 +91,7 @@ func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 	for k := range retMap {
 		list = append(list, retMap[k])
 		retMap[k].Endpoint = LOCAL
-		retMap[k].Accum = uint64(retMap[k].Sent.Total) - uint64(retMap[k].Recv.Total)
+		retMap[k].Accum = retMap[k].Sent.Total - retMap[k].Recv.Total
 		retMap[k].Sent.Elapsed = cutFloat64(retMap[k].Sent.Elapsed/float64(retMap[k].Sent.Total), 2)
 		retMap[k].Recv.Elapsed = cutFloat64(retMap[k].Recv.Elapsed/float64(retMap[k].Recv.Total), 2)
 		retMap[k].Recv.Latency = cutFloat64(retMap[k].Recv.Latency/float64(retMap[k].Recv.Total), 2)
