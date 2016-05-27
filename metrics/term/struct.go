@@ -23,22 +23,12 @@ import (
 
 type Stat struct {
 	ts   int64
-	data map[string]int64
-}
-
-type MetricsStat struct {
-	Service  string            `json:"service"`
-	Endpoint string            `json:"endpoint"`
-	Data     map[string]*Count `json:"data"`
-}
-
-type Count struct {
-	Cnt int64 `json:"count"`
+	data map[string]interface{}
 }
 
 func (s *Stat) List() (ls []string) {
 	for k, v := range s.data {
-		ls = append(ls, fmt.Sprintf("[%s] %s:%d", time.Unix(s.ts, 0).Format("20106-01-02 15:04:05"), k, v))
+		ls = append(ls, fmt.Sprintf("[%s](fg-blue) %s: [%v](fg-green)", time.Unix(s.ts, 0).Format("2006-01-02 15:04:05"), k, v))
 	}
 	sort.Strings(ls)
 	return

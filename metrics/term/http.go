@@ -21,17 +21,19 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/weibocom/wqs/metrics"
+
 	"github.com/julienschmidt/httprouter"
 )
 
 type httpServer struct {
 	serveAddr string
 
-	out chan *MetricsStat
+	out chan *metrics.MetricsStat
 	r   *httprouter.Router
 }
 
-func newHTTPServer(port int, out chan *MetricsStat) *httpServer {
+func newHTTPServer(port int, out chan *metrics.MetricsStat) *httpServer {
 	router := httprouter.New()
 	s := &httpServer{
 		serveAddr: fmt.Sprintf(":%d", port),
@@ -59,16 +61,18 @@ func (s *httpServer) do(w http.ResponseWriter, r *http.Request, params httproute
 		println(err.Error())
 		return
 	}
-	var ms MetricsStat
+	ms := make([]*metrics.MetricsStat, 0)
 	err = json.Unmarshal(data, &ms)
 	if err != nil {
 		return
 	}
 
-	select {
-	case s.out <- &ms:
-	default:
-		println("recv chan is full")
+	for _, m := range ms {
+		select {
+		case s.out <- m:
+		default:
+			println("recv chan is full")
+		}
 	}
 }
 

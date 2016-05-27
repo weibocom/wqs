@@ -19,27 +19,37 @@ package metrics
 import (
 	"strings"
 
-	"github.com/weibocom/wqs/log"
-
 	"github.com/rcrowley/go-metrics"
 )
 
+var LOCAL = "localhost"
+
+type MetricsOverview struct {
+	Endpoint string  `json:"endpoint"`
+	Ts       int64   `json:"ts"`
+	Sent     int64   `json:"sent"`
+	Recv     int64   `json:"recv"`
+	Accum    int64   `json:"accum"`
+	Elapsed  float64 `json:"elapsed"`
+}
+
 type MetricsStat struct {
-	Queue string
-	Group string
-	Sent  *MetricsSt
-	Recv  *MetricsSt
-	Accum uint64
-	TS    int64
+	Endpoint string     `json:"endpoint"`
+	Queue    string     `json:"queue"`
+	Group    string     `json:"group"`
+	Sent     *MetricsSt `json:"sent"`
+	Recv     *MetricsSt `json:"recv"`
+	Accum    uint64     `json:"accum"`
+	TS       int64      `json:"ts"`
 }
 
 type MetricsSt struct {
-	Total   int64
-	Cost    float64
-	Latency float64
+	Total   int64   `json:"total"`
+	Elapsed float64 `json:"cost"`
+	Latency float64 `json:"latency"`
 }
 
-func snapShotMetricsSts(r metrics.Registry) []*MetricsStat {
+func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 	retMap := make(map[string]*MetricsStat)
 	each := func(k string, _ interface{}) {
 		c := metrics.GetOrRegisterCounter(k, r)
@@ -62,15 +72,15 @@ func snapShotMetricsSts(r metrics.Registry) []*MetricsStat {
 			switch ks[3] {
 			case QPS:
 				st.Sent.Total = c.Count()
-			case COST:
-				st.Sent.Cost = float64(c.Count())
+			case ELAPSED:
+				st.Sent.Elapsed = float64(c.Count())
 			}
 		} else if ks[2] == RECV {
 			switch ks[3] {
 			case QPS:
 				st.Recv.Total = c.Count()
-			case COST:
-				st.Recv.Cost = float64(c.Count())
+			case ELAPSED:
+				st.Recv.Elapsed = float64(c.Count())
 			case LATENCY:
 				st.Recv.Latency = float64(c.Count())
 			}
@@ -78,17 +88,13 @@ func snapShotMetricsSts(r metrics.Registry) []*MetricsStat {
 	}
 	r.Each(each)
 
-	var list []*MetricsStat
 	for k := range retMap {
 		list = append(list, retMap[k])
+		retMap[k].Endpoint = LOCAL
 		retMap[k].Accum = uint64(retMap[k].Sent.Total) - uint64(retMap[k].Recv.Total)
-		retMap[k].Sent.Cost = retMap[k].Sent.Cost / float64(retMap[k].Sent.Total)
-		retMap[k].Recv.Cost = retMap[k].Recv.Cost / float64(retMap[k].Recv.Total)
-		retMap[k].Recv.Latency = retMap[k].Recv.Latency / float64(retMap[k].Recv.Total)
-
-		log.Infof("%s %s %d sent:%+v recv:%+v",
-			retMap[k].Queue, retMap[k].Group, retMap[k].Accum,
-			retMap[k].Sent, retMap[k].Recv)
+		retMap[k].Sent.Elapsed = cutFloat64(retMap[k].Sent.Elapsed/float64(retMap[k].Sent.Total), 2)
+		retMap[k].Recv.Elapsed = cutFloat64(retMap[k].Recv.Elapsed/float64(retMap[k].Recv.Total), 2)
+		retMap[k].Recv.Latency = cutFloat64(retMap[k].Recv.Latency/float64(retMap[k].Recv.Total), 2)
 	}
-	return list
+	return
 }

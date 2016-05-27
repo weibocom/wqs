@@ -43,8 +43,9 @@ const (
 )
 
 const (
+	WQS     = "WQS"
 	QPS     = "qps"
-	COST    = "cost"
+	ELAPSED = "elapsed"
 	LATENCY = "ltc"
 	SENT    = "sent"
 	RECV    = "recv"
@@ -54,7 +55,7 @@ type Packet struct {
 	Op      uint8
 	Key     string
 	Val     int64
-	Cost    int64
+	Elapsed int64
 	Latency int64
 }
 
@@ -87,7 +88,7 @@ func Init(cfg *config.Config) (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
-		transport:   newHTTPClient(),
+		transport:   newRoamClient(),
 	}
 
 	uri := cfg.GetSettingVal("metrics.center", defaultReportURI)
@@ -128,9 +129,9 @@ func (m *MetricsClient) do(p *Packet) {
 	case INCR:
 		m.incr(p.Key, p.Val)
 	case INCR_EX:
-		m.incrEx(p.Key, p.Val, p.Cost)
+		m.incrEx(p.Key, p.Val, p.Elapsed)
 	case INCR_EX2:
-		m.incrEx2(p.Key, p.Val, p.Cost, p.Latency)
+		m.incrEx2(p.Key, p.Val, p.Elapsed, p.Latency)
 	case DECR:
 		m.decr(p.Key, p.Val)
 	}
@@ -155,19 +156,20 @@ func (m *MetricsClient) report() {
 		"data":     m.d,
 	}
 	json.NewEncoder(bf).Encode(shot)
-	//snapShotMetricsSts(m.d)
-	m.d.UnregisterAll()
+	log.Info("[metrics] QPS " + bf.String())
+
+	results := snapShotMetricsSts(m.d)
 	m.d.Each(func(k string, _ interface{}) {
 		c := metrics.GetOrRegisterCounter(k, m.d)
 		c.Clear()
 	})
-	log.Info("[metrics] QPS" + bf.String())
 
-	// TODO async ?
-	// bf.Reset()
-	// json.NewEncoder(bf).Encode(m.d)
-
-	// m.transport.Send(m.centerAddr, bf.Bytes())
+	// TODO
+	// http should be async
+	// file should be async-write, log should be refact
+	bf.Reset()
+	json.NewEncoder(bf).Encode(results)
+	m.transport.Send(m.centerAddr, bf.Bytes())
 }
 
 func (m *MetricsClient) incr(k string, v int64) {
@@ -175,18 +177,18 @@ func (m *MetricsClient) incr(k string, v int64) {
 	d.Inc(v)
 }
 
-func (m *MetricsClient) incrEx(k string, v, cost int64) {
+func (m *MetricsClient) incrEx(k string, v, elapsed int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+COST, m.d)
-	d.Inc(cost)
+	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
+	d.Inc(elapsed)
 }
 
-func (m *MetricsClient) incrEx2(k string, v, cost, latency int64) {
+func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+COST, m.d)
-	d.Inc(cost)
+	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
+	d.Inc(elapsed)
 	d = metrics.GetOrRegisterCounter(k+"#"+LATENCY, m.d)
 	d.Inc(latency)
 }

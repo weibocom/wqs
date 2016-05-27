@@ -19,8 +19,10 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/weibocom/wqs/log"
@@ -51,6 +53,7 @@ func newHTTPClient() *httpClient {
 }
 
 func (c *httpClient) Send(uri string, data []byte) (err error) {
+	log.Info(string(data))
 	req, err := http.NewRequest("POST", uri, bytes.NewReader(data))
 	if err != nil {
 		log.Warnf("new http request err: %v", err)
@@ -123,7 +126,7 @@ func (c *redisClient) GroupMetrics(start, end, step int64, group, queue string) 
 	return
 }
 
-type RomaSt struct {
+type RoamSt struct {
 	Type    string  `json:"type"`
 	Queue   string  `json:"queue"`
 	Group   string  `json:"group"`
@@ -143,12 +146,14 @@ func newRoamClient() *RoamClient {
 }
 
 func (m *RoamClient) Send(key string, data []byte) (err error) {
-	st, err := transToRoamSt(data)
+	sts, err := transToRoamSt(data)
 	if err != nil {
 		log.Warnf("store profile log err : %v", err)
 		return
 	}
-	log.Profile("%s", st)
+	for i := range sts {
+		log.Profile("%s", sts[i])
+	}
 	return
 }
 
@@ -170,14 +175,55 @@ func (m *RoamClient) GroupMetrics(start, end, step int64, group, queue string) (
 	return
 }
 
-func transToRoamSt(data []byte) (jsonStr string, err error) {
-	// TODO trans metrics to roam
-	st := &RomaSt{}
-	stData, err := json.Marshal(st)
+func transToRoamSt(data []byte) (jsonStrs []string, err error) {
+	var results []*MetricsStat
+	err = json.Unmarshal(data, &results)
 	if err != nil {
-		log.Warnf("transToRoamSt err : %v", err)
 		return
 	}
-	jsonStr = string(stData)
+
+	action := func(st *MetricsStat) []*RoamSt {
+		ret := make([]*RoamSt, 0, 2)
+		actions := []string{SENT, RECV}
+		for _, act := range actions {
+			rst := &RoamSt{
+				Type:   WQS,
+				Queue:  st.Queue,
+				Group:  st.Group,
+				Action: act,
+			}
+			switch act {
+			case SENT:
+				rst.Total = st.Sent.Total
+				rst.AvgTime = st.Sent.Elapsed
+			case RECV:
+				rst.Total = st.Recv.Total
+				rst.AvgTime = st.Recv.Elapsed
+			}
+			ret = append(ret, rst)
+		}
+		return ret
+	}
+
+	for _, st := range results {
+		rsts := action(st)
+		for _, rst := range rsts {
+			stData, err := json.Marshal(rst)
+			if err != nil {
+				log.Warnf("transToRoamSt err : %v", err)
+				continue
+			}
+			jsonStrs = append(jsonStrs, string(stData))
+		}
+	}
+	return
+}
+
+func cutFloat64(src float64, bit int) (ret float64) {
+	ret, err := strconv.ParseFloat(fmt.Sprintf("%.2f", src), 64)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
 	return
 }
