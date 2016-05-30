@@ -34,16 +34,16 @@ type MetricsOverview struct {
 }
 
 type MetricsStat struct {
-	Endpoint string     `json:"endpoint"`
-	Queue    string     `json:"queue"`
-	Group    string     `json:"group"`
-	Sent     *MetricsSt `json:"sent"`
-	Recv     *MetricsSt `json:"recv"`
-	Accum    int64      `json:"accum"`
-	TS       int64      `json:"ts"`
+	Endpoint string         `json:"endpoint"`
+	Queue    string         `json:"queue"`
+	Group    string         `json:"group"`
+	Sent     *MetricsStruct `json:"sent"`
+	Recv     *MetricsStruct `json:"recv"`
+	Accum    int64          `json:"accum"`
+	TS       int64          `json:"ts"`
 }
 
-type MetricsSt struct {
+type MetricsStruct struct {
 	Total   int64   `json:"total"`
 	Elapsed float64 `json:"cost"`
 	Latency float64 `json:"latency"`
@@ -60,8 +60,8 @@ func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 		k = strings.Join(ks[:2], "#")
 		if _, ok := retMap[k]; !ok {
 			retMap[k] = &MetricsStat{
-				Sent: &MetricsSt{},
-				Recv: &MetricsSt{},
+				Sent: &MetricsStruct{},
+				Recv: &MetricsStruct{},
 			}
 		}
 		st := retMap[k]

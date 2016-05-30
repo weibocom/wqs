@@ -17,7 +17,7 @@ func main() {
 	)
 	flag.IntVar(&port, "p", 10001, "bind port")
 	flag.IntVar(&page, "g", 10, "per page")
-	flag.IntVar(&height, "h", 5, "height")
+	flag.IntVar(&height, "h", 6, "height")
 	flag.IntVar(&width, "w", 60, "width")
 	flag.StringVar(&hosts, "e", "", "endpoints, sep by #,such as bj.01#bj.02")
 	flag.Parse()

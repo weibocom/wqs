@@ -88,14 +88,19 @@ func Init(cfg *config.Config) (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
-		transport:   newRoamClient(),
+		//transport:   newRoamClient(),
+		transport: newHTTPClient(),
 	}
 
-	uri := cfg.GetSettingVal("metrics.center", defaultReportURI)
+	sec, err := cfg.GetSection("metrics")
+	if err != nil {
+		return
+	}
+	uri := sec.GetStringMust("metrics.center", defaultReportURI)
 	uri = uri + "/" + defaultClient.serviceName
 	defaultClient.centerAddr = uri
 
-	ttl := cfg.GetSettingIntVal("metrics.print_ttl", defaultPrintTTL)
+	ttl := sec.GetInt64Must("metrics.print_ttl", defaultPrintTTL)
 	defaultClient.printTTL = time.Second * time.Duration(ttl)
 
 	go defaultClient.run()

@@ -18,11 +18,15 @@ limitations under the License.
 package config
 
 import (
+	"time"
+
+	"github.com/weibocom/wqs/config/ext"
+
 	"github.com/juju/errors"
-	"github.com/magiconair/properties"
 )
 
 type Config struct {
+	*ext.Config
 	KafkaZKAddr       string
 	KafkaZKRoot       string
 	KafkaPartitions   int
@@ -42,96 +46,119 @@ type Config struct {
 	LogDebug           string
 	LogProfile         string
 	LogExpire          string
-
-	// Config maybe can be Ext
-	p   *properties.Properties
-	Ext map[string]Section
 }
 
-type Section map[string]interface{}
-
 func NewConfigFromFile(file string) (*Config, error) {
-
-	p, err := properties.LoadFile(file, properties.UTF8)
+	cfg, err := ext.NewConfig(file, time.Second*0)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 
 	// kafka cluster config
-	kafkaZKAddr, exist := p.Get("kafka.zookeeper.connect")
-	if !exist {
+	kafkaSec, err := cfg.GetSection("kafka")
+	if err != nil {
+		return nil, err
+	}
+	kafkaZKAddr, err := kafkaSec.GetString("zookeeper.connect")
+	if err != nil {
 		return nil, errors.NotFoundf("kafka.zookeeper.connect")
 	}
-	kafkaZKRoot, exist := p.Get("kafka.zookeeper.root")
-	if !exist {
+	kafkaZKRoot, err := kafkaSec.GetString("zookeeper.root")
+	if err != nil {
 		return nil, errors.NotFoundf("kafka.zookeeper.root")
 	}
 
-	kafkaPartitions := int(p.GetInt64("kafka.topic.partitions", 0))
+	kafkaPartitions := int(kafkaSec.GetInt64Must("topic.partitions", 0))
 	if kafkaPartitions == 0 {
 		return nil, errors.NotValidf("kafka.topic.partitions")
 	}
-	kafkaReplications := int(p.GetInt64("kafka.topic.replications", 0))
+	kafkaReplications := int(kafkaSec.GetInt64Must("topic.replications", 0))
 	if kafkaReplications == 0 {
 		return nil, errors.NotValidf("kafka.topic.replications")
 	}
 
 	// proxy config
-	proxyId := int(p.GetInt64("proxy.id", -1))
+	proxySec, err := cfg.GetSection("proxy")
+	if err != nil {
+		return nil, err
+	}
+	proxyId := int(proxySec.GetInt64Must("id", -1))
 	if proxyId == -1 {
 		return nil, errors.NotValidf("proxy.id")
 	}
-	uiDir, exist := p.Get("ui.dir")
-	if !exist {
+
+	uiSec, err := cfg.GetSection("ui")
+	if err != nil {
+		return nil, err
+	}
+	uiDir, err := uiSec.GetString("dir")
+	if err != nil {
 		return nil, errors.NotFoundf("ui.dir")
 	}
-	httpPort, exist := p.Get("protocol.http.port")
-	if !exist {
+
+	pSec, err := cfg.GetSection("protocol")
+	if err != nil {
+		return nil, err
+	}
+
+	httpPort, err := pSec.GetString("http.port")
+	if err != nil {
 		return nil, errors.NotFoundf("protocol.http.port")
 	}
 
-	mcPort, exist := p.Get("protocol.mc.port")
-	if !exist {
+	mcPort, err := pSec.GetString("mc.port")
+	if err != nil {
 		return nil, errors.NotFoundf("protocol.mc.port")
 	}
-	mcSocketRecvBuffer := int(p.GetInt64("protocol.mc.socket.buffer.recv", 4096))
-	mcSocketSendBuffer := int(p.GetInt64("protocol.mc.socket.buffer.send", 4096))
+	mcSocketRecvBuffer := int(pSec.GetInt64Must("mc.socket.buffer.recv", 4096))
+	mcSocketSendBuffer := int(pSec.GetInt64Must("mc.socket.buffer.send", 4096))
 
-	motanPort, exist := p.Get("protocol.motan.port")
-	if !exist {
+	motanPort, err := pSec.GetString("motan.port")
+	if err != nil {
 		return nil, errors.NotFoundf("protocol.motan.port")
 	}
 
-	metaDataZKAddr, exist := p.Get("metadata.zookeeper.connect")
-	if !exist {
+	metaSec, err := cfg.GetSection("metadata")
+	if err != nil {
+		return nil, errors.NotFoundf("metadata sec")
+	}
+
+	metaDataZKAddr, err := metaSec.GetString("zookeeper.connect")
+	if err != nil {
 		return nil, errors.NotFoundf("metadata.zookeeper.connect")
 	}
-	metaDataZKRoot, exist := p.Get("metadata.zookeeper.root")
-	if !exist {
+	metaDataZKRoot, err := metaSec.GetString("zookeeper.root")
+	if err != nil {
 		return nil, errors.NotFoundf("metadata.zookeeper.root")
 	}
-	redisAddr, exist := p.Get("redis.connect")
-	if !exist {
-		return nil, errors.NotFoundf("redis.connect")
+
+	sec, err := cfg.GetSection("redis")
+	if err != nil {
+		return nil, errors.NotFoundf("redis sec")
+	}
+	redisAddr, err := sec.GetString("connect")
+	if err != nil {
+		return nil, errors.NotFoundf("redis")
 	}
 
-	logInfo, exist := p.Get("log.info")
-	if !exist {
+	logSec, err := cfg.GetSection("log")
+	if err != nil {
+		return nil, errors.NotFoundf("log sec")
+	}
+	logInfo, err := logSec.GetString("info")
+	if err != nil {
 		return nil, errors.NotFoundf("log.info")
 	}
-
-	logDebug, exist := p.Get("log.debug")
-	if !exist {
+	logDebug, err := logSec.GetString("debug")
+	if err != nil {
 		return nil, errors.NotFoundf("log.debug")
 	}
-
-	logProfile, exist := p.Get("log.profile")
-	if !exist {
+	logProfile, err := logSec.GetString("profile")
+	if err != nil {
 		return nil, errors.NotFoundf("log.profile")
 	}
-
-	logExpire, exist := p.Get("log.expire")
-	if !exist {
+	logExpire, err := logSec.GetString("expire")
+	if err != nil {
 		logExpire = "72h"
 	}
 
@@ -154,18 +181,6 @@ func NewConfigFromFile(file string) (*Config, error) {
 		LogDebug:           logDebug,
 		LogProfile:         logProfile,
 		LogExpire:          logExpire,
-		p:                  p,
+		Config:             cfg,
 	}, nil
-}
-
-func (c *Config) GetSettingIntVal(key string, defaultVal int64) (val int64) {
-	// TODO sec->attrName : val
-	val = c.p.GetInt64(key, defaultVal)
-	return
-}
-
-func (c *Config) GetSettingVal(key string, defaultVal string) (val string) {
-	// TODO sec->attrName : val
-	val = c.p.GetString(key, defaultVal)
-	return
 }
