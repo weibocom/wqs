@@ -79,7 +79,7 @@ func cutFloat64(src float64, bit int) (ret float64) {
 	ret, err := strconv.ParseFloat(fmt.Sprintf("%.2f", src), 64)
 	if err != nil {
 		log.Warn(err)
-		return
+		return 0.0
 	}
 	return
 }

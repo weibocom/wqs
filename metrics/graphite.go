@@ -29,7 +29,7 @@ const (
 	_GROUP_URI_TPL    = "http://%s/render?from=%d&until=%d&target=%s&group=%s&queue=%s&action=%s&format=json"
 )
 
-type RoamSt struct {
+type RoamStruct struct {
 	Type    string  `json:"type"`
 	Queue   string  `json:"queue"`
 	Group   string  `json:"group"`
@@ -50,10 +50,10 @@ func newRoamClient(root string) *RoamClient {
 }
 
 func (m *RoamClient) Send(key string, data []byte) (err error) {
-	sts, err := transToRoamSt(data)
+	sts, err := transToRoamStruct(data)
 	if err != nil {
 		log.Warnf("store profile log err : %v", err)
-		return
+		return err
 	}
 	for i := range sts {
 		log.Profile("%s", sts[i])
@@ -78,38 +78,38 @@ func (m *RoamClient) GroupMetrics(start, end, step int64, group, queue string) (
 func (m *RoamClient) doRequest(reqURL string) (ret string, err error) {
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
-		return
+		return "", err
 	}
 	resp, err := m.cli.Do(req)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return
+		return "", err
 	}
 	res, err := parseGraphiteResponse(data)
 	if err != nil {
-		return
+		return "", err
 	}
 	_ = res
 	return
 }
 
-func transToRoamSt(data []byte) (jsonStrs []string, err error) {
+func transToRoamStruct(data []byte) (jsonStrs []string, err error) {
 	var results []*MetricsStat
 	err = json.Unmarshal(data, &results)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	action := func(st *MetricsStat) []*RoamSt {
-		ret := make([]*RoamSt, 0, 2)
+	action := func(st *MetricsStat) []*RoamStruct {
+		ret := make([]*RoamStruct, 0, 2)
 		actions := []string{SENT, RECV}
 		for _, act := range actions {
-			rst := &RoamSt{
+			rst := &RoamStruct{
 				Type:   WQS,
 				Queue:  st.Queue,
 				Group:  st.Group,
@@ -133,7 +133,7 @@ func transToRoamSt(data []byte) (jsonStrs []string, err error) {
 		for _, rst := range rsts {
 			stData, err := json.Marshal(rst)
 			if err != nil {
-				log.Warnf("transToRoamSt err : %v", err)
+				log.Warnf("transToRoamStruct err : %v", err)
 				continue
 			}
 			jsonStrs = append(jsonStrs, string(stData))

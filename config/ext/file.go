@@ -29,7 +29,7 @@ type fileConfig struct {
 func (f *fileConfig) Load() (ret map[string]Section, err error) {
 	f.fd, err = os.Open(f.dir)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	ret = make(map[string]Section)

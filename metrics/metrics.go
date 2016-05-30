@@ -94,7 +94,7 @@ func Init(cfg *config.Config) (err error) {
 
 	sec, err := cfg.GetSection("metrics")
 	if err != nil {
-		return
+		return err
 	}
 	uri := sec.GetStringMust("metrics.center", defaultReportURI)
 	uri = uri + "/" + defaultClient.serviceName

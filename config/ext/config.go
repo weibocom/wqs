@@ -44,7 +44,7 @@ func NewConfig(file string, refresh time.Duration) (cfg *Config, err error) {
 	icfg := &fileConfig{dir: file}
 	m, err := icfg.Load()
 	if err != nil {
-		return
+		return nil, err
 	}
 	cfg = &Config{
 		icfg: icfg,
@@ -133,8 +133,7 @@ func (s Section) GetString(key string) (val string, err error) {
 func (s Section) GetInt64(key string) (val int64, err error) {
 	str, ok := s[key]
 	if !ok {
-		err = fmt.Errorf("Cannot find key[%s]", key)
-		return
+		return 0, fmt.Errorf("Cannot find key[%s]", key)
 	}
 	val, err = strconv.ParseInt(str, 10, 64)
 	return
@@ -143,8 +142,7 @@ func (s Section) GetInt64(key string) (val int64, err error) {
 func (s Section) GetFloat64(key string) (val float64, err error) {
 	str, ok := s[key]
 	if !ok {
-		err = fmt.Errorf("Cannot find key[%s]", key)
-		return
+		return 0.0, fmt.Errorf("Cannot find key[%s]", key)
 	}
 	val, err = strconv.ParseFloat(str, 64)
 	return
@@ -153,8 +151,7 @@ func (s Section) GetFloat64(key string) (val float64, err error) {
 func (s Section) GetBool(key string) (val bool, err error) {
 	str, ok := s[key]
 	if !ok {
-		err = fmt.Errorf("Cannot find key[%s]", key)
-		return
+		return false, fmt.Errorf("Cannot find key[%s]", key)
 	}
 	switch strings.ToUpper(str) {
 	case "TRUE":

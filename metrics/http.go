@@ -44,19 +44,19 @@ func (c *httpClient) Send(uri string, data []byte) (err error) {
 	req, err := http.NewRequest("POST", uri, bytes.NewReader(data))
 	if err != nil {
 		log.Warnf("new http request err: %v", err)
-		return
+		return err
 	}
 	resp, err := c.cli.Do(req)
 	if err != nil {
 		log.Warnf("do http request err: %v", err)
-		return
+		return err
 	}
 	defer resp.Body.Close()
 
 	respData, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Warnf("do http request err: %v", err)
-		return
+		return err
 	}
 	// TODO check
 	_ = respData
