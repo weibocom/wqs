@@ -39,12 +39,12 @@ const (
 )
 
 type Dash struct {
-	dashboard bool
 	stat      map[string]map[string]*Stat
 	lock      *sync.RWMutex
 	s         *httpServer
 	in        chan *metrics.MetricsStat
 	view      *termui.List
+	dashboard bool
 
 	gList   []termui.Bufferer
 	hosts   []string
@@ -182,7 +182,6 @@ func (d *Dash) Start() {
 				ls.BorderLabel = fmt.Sprintf("%s@%s", s, h)
 				ls.Height = d.height
 				ls.Width = d.width
-				//	fmt.Printf("index=%d PL=%d d.width=%d d.height=%d row=%d\n", index, PL, d.width, d.height, row)
 				ls.X = (index % PL) * d.width
 				if index >= PL && index%PL == 0 {
 					newRow = true
@@ -191,7 +190,6 @@ func (d *Dash) Start() {
 					row++
 				}
 				ls.Y = d.height * row
-				//	fmt.Printf("%+v\n", ls)
 				newRow = false
 				d.gList = append(d.gList, ls)
 				index++

@@ -111,8 +111,7 @@ func Init(cfg *config.Config) (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
-		//transport:   newRoamClient(),
-		transport: newHTTPClient(),
+		transport:   newRoamClient("127.0.0.1"),
 	}
 
 	sec, err := cfg.GetSection("metrics")

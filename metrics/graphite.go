@@ -50,6 +50,9 @@ func newRoamClient(root string) *RoamClient {
 }
 
 func (m *RoamClient) Send(key string, data []byte) (err error) {
+	if len(data) == 0 || string(data) == "[]" {
+		return
+	}
 	sts, err := transToRoamStruct(data)
 	if err != nil {
 		log.Warnf("store profile log err : %v", err)
