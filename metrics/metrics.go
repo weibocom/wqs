@@ -19,6 +19,7 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -35,6 +36,13 @@ const (
 	INCR_EX2
 	DECR
 )
+
+var opMap = map[uint8]string{
+	INCR:     "incr",
+	INCR_EX:  "incr_ex",
+	INCR_EX2: "incr_ex2",
+	DECR:     "decr",
+}
 
 const (
 	defaultChSize    = 1024 * 10
@@ -57,6 +65,21 @@ type Packet struct {
 	Val     int64
 	Elapsed int64
 	Latency int64
+}
+
+func (p *Packet) String() string {
+	bf := &bytes.Buffer{}
+	bf.WriteString("packet: ")
+	if _, ok := opMap[p.Op]; !ok {
+		bf.WriteString("unknown")
+	} else {
+		bf.WriteString(opMap[p.Op])
+	}
+	bf.WriteString("/" + p.Key)
+	bf.WriteString("/" + fmt.Sprint(p.Val))
+	bf.WriteString("/" + fmt.Sprint(p.Elapsed))
+	bf.WriteString("/" + fmt.Sprint(p.Latency))
+	return bf.String()
 }
 
 type MetricsClient struct {
@@ -114,7 +137,6 @@ func (m *MetricsClient) run() {
 	reportTk := time.NewTicker(time.Second * 1)
 	defer reportTk.Stop()
 	var p *Packet
-
 	for {
 		select {
 		case p = <-m.in:
@@ -215,6 +237,6 @@ func Add(key string, args ...int64) {
 	select {
 	case defaultClient.in <- pkt:
 	default:
-		println("metrics chan is full")
+		log.Warnf("metrics chan is full: %s", pkt)
 	}
 }
