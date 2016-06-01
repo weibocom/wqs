@@ -101,10 +101,12 @@ type Node struct {
 	id string
 
 	// reader channel
+	// read from remote idc as a consumer
 	in     chan *Message
 	reader Reader
 
-	// broadcast channel
+	// broadcast channel is ready for broadcast
+	// write to local as a producer
 	out       chan *Message
 	broadcast *Broadcast
 
@@ -116,10 +118,8 @@ type Reader interface {
 }
 
 type Broadcast struct {
-	peers map[uint32]*Peer
-
-	// send msg to peers
-	syncFunc func(*Peer, *Message)
+	peers   map[uint32]*Peer
+	storeCh chan *Message
 }
 
 type Peer struct {
@@ -129,25 +129,39 @@ type Peer struct {
 
 func newBroadcast(addrs []string) *Broadcast {
 	broadcast := &Broadcast{
-		peers:    make(map[uint32]*Peer),
-		syncFunc: syncIDC,
+		peers:   make(map[uint32]*Peer),
+		storeCh: make(chan *Message, 1024),
 	}
 	for i := 0; i < len(addrs); i++ {
 		broadcast.peers[uint32(i)] = &Peer{
 			Addr: addrs[i],
 		}
 	}
+	go broadcast.broadcast()
 	return broadcast
 }
 
-type SyncWriter struct{}
+func (b *Broadcast) sync(msg *Message) {
+	// local msg bus
+	b.storeCh <- msg
+}
 
-func syncIDC(p *Peer, msg *Message) {
-	c := http.Client{}
-	bf := &bytes.Buffer{}
-	json.NewEncoder(bf).Encode(msg)
-	req, _ := http.NewRequest("POST", p.Addr, bf)
-	c.Do(req)
+func (b *Broadcast) broadcast() {
+	for {
+		select {
+		case msg := <-b.storeCh:
+			c := http.Client{}
+
+			// should be replace by kafka_consumer_broadcast
+			for _, p := range b.peers {
+				bf := &bytes.Buffer{}
+				json.NewEncoder(bf).Encode(msg)
+				println("broadcast to", p.Addr, msg.Key, msg.Val)
+				req, _ := http.NewRequest("POST", p.Addr, bf)
+				c.Do(req)
+			}
+		}
+	}
 }
 
 func (n *Node) Run() {
@@ -189,10 +203,7 @@ func (n *Node) sendLoop() {
 	for {
 		select {
 		case msg := <-n.out:
-			for id := range n.broadcast.peers {
-				println("sent to", n.broadcast.peers[id].Addr, msg.Key, msg.Val)
-				n.broadcast.syncFunc(n.broadcast.peers[id], msg)
-			}
+			n.broadcast.sync(msg)
 		}
 	}
 }
