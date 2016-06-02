@@ -38,6 +38,8 @@ type RoamStruct struct {
 	AvgTime float64 `json:"avg_time"`
 	Latency float64 `json:"latency"`
 	Accum   int64   `json:"accum"`
+
+	Scale map[string]int64 `json:"scale"`
 }
 
 type RoamClient struct {
@@ -126,11 +128,13 @@ func transToRoamStruct(data []byte) (jsonStrs []string, err error) {
 				rst.AvgTime = st.Sent.Elapsed
 				rst.Accum = st.Accum
 				rst.Latency = st.Sent.Latency
+				rst.Scale = st.Sent.Scale
 			case RECV:
 				rst.Total = st.Recv.Total
 				rst.AvgTime = st.Recv.Elapsed
 				rst.Accum = st.Accum
 				rst.Latency = st.Recv.Latency
+				rst.Scale = st.Recv.Scale
 			}
 			ret = append(ret, rst)
 		}
