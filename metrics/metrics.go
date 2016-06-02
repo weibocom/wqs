@@ -208,6 +208,8 @@ func (m *MetricsClient) incrEx(k string, v, elapsed int64) {
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
 	d.Inc(elapsed)
+	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
+	d.Inc(v)
 }
 
 func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
@@ -215,6 +217,8 @@ func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
 	d.Inc(elapsed)
+	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
+	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+LATENCY, m.d)
 	d.Inc(latency)
 }
@@ -237,5 +241,24 @@ func Add(key string, args ...int64) {
 	case defaultClient.in <- pkt:
 	default:
 		log.Warnf("metrics chan is full: %s", pkt)
+	}
+}
+
+func scaleTime(elapsed int64) string {
+	switch {
+	case elapsed < 10:
+		return "less_10ms"
+	case elapsed < 50:
+		return "less_50ms"
+	case elapsed < 100:
+		return "less_100ms"
+	case elapsed < 500:
+		return "less_500ms"
+	case elapsed < 1000:
+		return "less_1s"
+	case elapsed < 5000:
+		return "less_5s"
+	default:
+		return "more_5s"
 	}
 }

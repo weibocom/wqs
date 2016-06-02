@@ -47,6 +47,8 @@ type MetricsStruct struct {
 	Total   int64   `json:"total"`
 	Elapsed float64 `json:"cost"`
 	Latency float64 `json:"latency"`
+
+	Scale map[string]int64 `json:"scale"`
 }
 
 func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
@@ -60,8 +62,12 @@ func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 		k = strings.Join(ks[:2], "#")
 		if _, ok := retMap[k]; !ok {
 			retMap[k] = &MetricsStat{
-				Sent: &MetricsStruct{},
-				Recv: &MetricsStruct{},
+				Sent: &MetricsStruct{
+					Scale: make(map[string]int64),
+				},
+				Recv: &MetricsStruct{
+					Scale: make(map[string]int64),
+				},
 			}
 		}
 		st := retMap[k]
@@ -74,6 +80,8 @@ func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 				st.Sent.Total = c.Count()
 			case ELAPSED:
 				st.Sent.Elapsed = float64(c.Count())
+			default:
+				st.Sent.Scale[ks[3]] = c.Count()
 			}
 		} else if ks[2] == RECV {
 			switch ks[3] {
@@ -83,6 +91,8 @@ func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
 				st.Recv.Elapsed = float64(c.Count())
 			case LATENCY:
 				st.Recv.Latency = float64(c.Count())
+			default:
+				st.Recv.Scale[ks[3]] = c.Count()
 			}
 		}
 	}
