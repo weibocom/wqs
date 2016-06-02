@@ -18,15 +18,18 @@ limitations under the License.
 package config
 
 import (
-	"time"
-
-	"github.com/weibocom/wqs/config/ext"
+	"bufio"
+	"bytes"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"strings"
 
 	"github.com/juju/errors"
 )
 
+//all data is read only
 type Config struct {
-	*ext.Config
 	KafkaZKAddr       string
 	KafkaZKRoot       string
 	KafkaPartitions   int
@@ -46,141 +49,191 @@ type Config struct {
 	LogDebug           string
 	LogProfile         string
 	LogExpire          string
+
+	sections map[string]Section `json:"-"`
 }
 
-func NewConfigFromFile(file string) (*Config, error) {
-	cfg, err := ext.NewConfig(file, time.Second*0)
-	if err != nil {
-		return nil, err
+func NewConfigFromBytes(data []byte) (*Config, error) {
+
+	sections := make(map[string]Section)
+	reader := bufio.NewReader(bytes.NewReader(data))
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Trace(err)
+		}
+
+		line = strings.Replace(strings.TrimSpace(line), " ", "", -1)
+		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		slices := strings.SplitN(line, "=", 2)
+		if len(slices) != 2 {
+			continue
+		}
+
+		tokens := strings.SplitN(slices[0], ".", 2)
+		if len(tokens) != 2 {
+			continue
+		}
+
+		section := tokens[0]
+		key := tokens[1]
+		value := slices[1]
+
+		if _, ok := sections[section]; !ok {
+			sections[section] = make(Section)
+		}
+
+		sections[section][key] = value
 	}
 
-	// kafka cluster config
-	kafkaSec, err := cfg.GetSection("kafka")
-	if err != nil {
-		return nil, err
+	return (&Config{sections: sections}).validate()
+}
+
+func (c *Config) String() string {
+
+	buffer := &bytes.Buffer{}
+	for name, section := range c.sections {
+		for key, value := range section {
+			fmt.Fprintf(buffer, "%s.%s=%s\n", name, key, value)
+		}
 	}
-	kafkaZKAddr, err := kafkaSec.GetString("zookeeper.connect")
+	return buffer.String()
+}
+
+func (c *Config) GetSection(name string) (Section, error) {
+	if section, ok := c.sections[name]; ok {
+		return section, nil
+	}
+	return nil, errors.NotFoundf("section:%q", name)
+}
+
+func (c *Config) GetSections() map[string]Section {
+	return c.sections
+}
+
+func (c *Config) validate() (*Config, error) {
+	// kafka cluster config
+	kafka, err := c.GetSection("kafka")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	c.KafkaZKAddr, err = kafka.GetString("zookeeper.connect")
 	if err != nil {
 		return nil, errors.NotFoundf("kafka.zookeeper.connect")
 	}
-	kafkaZKRoot, err := kafkaSec.GetString("zookeeper.root")
+	c.KafkaZKRoot, err = kafka.GetString("zookeeper.root")
 	if err != nil {
 		return nil, errors.NotFoundf("kafka.zookeeper.root")
 	}
-
-	kafkaPartitions := int(kafkaSec.GetInt64Must("topic.partitions", 0))
-	if kafkaPartitions == 0 {
+	c.KafkaPartitions = int(kafka.GetInt64Must("topic.partitions", 0))
+	if c.KafkaPartitions == 0 {
 		return nil, errors.NotValidf("kafka.topic.partitions")
 	}
-	kafkaReplications := int(kafkaSec.GetInt64Must("topic.replications", 0))
-	if kafkaReplications == 0 {
+	c.KafkaReplications = int(kafka.GetInt64Must("topic.replications", 0))
+	if c.KafkaReplications == 0 {
 		return nil, errors.NotValidf("kafka.topic.replications")
 	}
 
 	// proxy config
-	proxySec, err := cfg.GetSection("proxy")
+	proxy, err := c.GetSection("proxy")
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
-	proxyId := int(proxySec.GetInt64Must("id", -1))
-	if proxyId == -1 {
+	c.ProxyId = int(proxy.GetInt64Must("id", -1))
+	if c.ProxyId == -1 {
 		return nil, errors.NotValidf("proxy.id")
 	}
 
-	uiSec, err := cfg.GetSection("ui")
+	ui, err := c.GetSection("ui")
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
-	uiDir, err := uiSec.GetString("dir")
+	c.UiDir, err = ui.GetString("dir")
 	if err != nil {
 		return nil, errors.NotFoundf("ui.dir")
 	}
 
-	pSec, err := cfg.GetSection("protocol")
+	protocol, err := c.GetSection("protocol")
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
-
-	httpPort, err := pSec.GetString("http.port")
+	c.HttpPort, err = protocol.GetString("http.port")
 	if err != nil {
 		return nil, errors.NotFoundf("protocol.http.port")
 	}
-
-	mcPort, err := pSec.GetString("mc.port")
+	c.McPort, err = protocol.GetString("mc.port")
 	if err != nil {
 		return nil, errors.NotFoundf("protocol.mc.port")
 	}
-	mcSocketRecvBuffer := int(pSec.GetInt64Must("mc.socket.buffer.recv", 4096))
-	mcSocketSendBuffer := int(pSec.GetInt64Must("mc.socket.buffer.send", 4096))
 
-	motanPort, err := pSec.GetString("motan.port")
+	c.McSocketRecvBuffer = int(protocol.GetInt64Must("mc.socket.buffer.recv", 4096))
+	c.McSocketSendBuffer = int(protocol.GetInt64Must("mc.socket.buffer.send", 4096))
+
+	c.MotanPort, err = protocol.GetString("motan.port")
 	if err != nil {
 		return nil, errors.NotFoundf("protocol.motan.port")
 	}
 
-	metaSec, err := cfg.GetSection("metadata")
+	meta, err := c.GetSection("metadata")
 	if err != nil {
-		return nil, errors.NotFoundf("metadata sec")
+		return nil, errors.Trace(err)
 	}
 
-	metaDataZKAddr, err := metaSec.GetString("zookeeper.connect")
+	c.MetaDataZKAddr, err = meta.GetString("zookeeper.connect")
 	if err != nil {
 		return nil, errors.NotFoundf("metadata.zookeeper.connect")
 	}
-	metaDataZKRoot, err := metaSec.GetString("zookeeper.root")
+	c.MetaDataZKRoot, err = meta.GetString("zookeeper.root")
 	if err != nil {
 		return nil, errors.NotFoundf("metadata.zookeeper.root")
 	}
 
-	sec, err := cfg.GetSection("redis")
+	redis, err := c.GetSection("redis")
 	if err != nil {
-		return nil, errors.NotFoundf("redis sec")
+		return nil, errors.Trace(err)
 	}
-	redisAddr, err := sec.GetString("connect")
+	c.RedisAddr, err = redis.GetString("connect")
 	if err != nil {
-		return nil, errors.NotFoundf("redis")
+		return nil, errors.NotFoundf("redis.connect")
 	}
 
-	logSec, err := cfg.GetSection("log")
+	log, err := c.GetSection("log")
 	if err != nil {
-		return nil, errors.NotFoundf("log sec")
+		return nil, errors.Trace(err)
 	}
-	logInfo, err := logSec.GetString("info")
+	c.LogInfo, err = log.GetString("info")
 	if err != nil {
 		return nil, errors.NotFoundf("log.info")
 	}
-	logDebug, err := logSec.GetString("debug")
+	c.LogDebug, err = log.GetString("debug")
 	if err != nil {
 		return nil, errors.NotFoundf("log.debug")
 	}
-	logProfile, err := logSec.GetString("profile")
+	c.LogProfile, err = log.GetString("profile")
 	if err != nil {
 		return nil, errors.NotFoundf("log.profile")
 	}
-	logExpire, err := logSec.GetString("expire")
+	c.LogExpire, err = log.GetString("expire")
 	if err != nil {
-		logExpire = "72h"
+		c.LogExpire = "72h"
 	}
 
-	return &Config{
-		KafkaZKAddr:        kafkaZKAddr,
-		KafkaZKRoot:        kafkaZKRoot,
-		KafkaPartitions:    kafkaPartitions,
-		KafkaReplications:  kafkaReplications,
-		ProxyId:            proxyId,
-		UiDir:              uiDir,
-		HttpPort:           httpPort,
-		McPort:             mcPort,
-		McSocketRecvBuffer: mcSocketRecvBuffer,
-		McSocketSendBuffer: mcSocketSendBuffer,
-		MotanPort:          motanPort,
-		MetaDataZKAddr:     metaDataZKAddr,
-		MetaDataZKRoot:     metaDataZKRoot,
-		RedisAddr:          redisAddr,
-		LogInfo:            logInfo,
-		LogDebug:           logDebug,
-		LogProfile:         logProfile,
-		LogExpire:          logExpire,
-		Config:             cfg,
-	}, nil
+	return c, nil
+}
+
+func NewConfigFromFile(file string) (*Config, error) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return NewConfigFromBytes(data)
 }

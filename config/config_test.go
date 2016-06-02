@@ -18,7 +18,6 @@ package config
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -30,14 +29,14 @@ func TestConfig(t *testing.T) {
 	if config == nil {
 		t.Fatalf("get nil config")
 	}
+	fmt.Println(config.String())
+	//	v := reflect.ValueOf(config).Elem()
+	//	if v.Kind() != reflect.Struct {
+	//		t.Fatalf("get config with invaild type")
+	//	}
 
-	v := reflect.ValueOf(config).Elem()
-	if v.Kind() != reflect.Struct {
-		t.Fatalf("get config with invaild type")
-	}
-
-	for i := 0; i < v.NumField(); i++ {
-		fmt.Printf("%s: %v\n", v.Type().Field(i).Name, v.Field(i).Interface())
-	}
+	//	for i := 0; i < v.NumField(); i++ {
+	//		fmt.Printf("%s: %v\n", v.Type().Field(i).Name, v.Field(i).Interface())
+	//	}
 
 }
