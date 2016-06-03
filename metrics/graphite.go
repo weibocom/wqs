@@ -207,7 +207,7 @@ func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
 			items = append(items, &graphiteItem{
 				key:   strings.Join([]string{state.Queue, state.Group, SENT, k}, "."),
 				value: v,
-				typ:   TIMER,
+				typ:   COUNTER,
 			})
 		}
 
@@ -231,7 +231,7 @@ func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
 			items = append(items, &graphiteItem{
 				key:   strings.Join([]string{state.Queue, state.Group, RECV, k}, "."),
 				value: v,
-				typ:   TIMER,
+				typ:   COUNTER,
 			})
 		}
 	}
