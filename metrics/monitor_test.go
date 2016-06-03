@@ -25,19 +25,11 @@ import (
 func TestMonitor(t *testing.T) {
 	monitor := NewMonitor("localhost:6379")
 
-	for {
+	for i := 0; i < 10; i++ {
 		monitor.StatisticSend("test_queue", "test_group1", 10)
 		time.Sleep(time.Millisecond * 1000)
 		end := time.Now().Unix()
 		start := end - 60 //1min
 		fmt.Println(monitor.GetSendMetrics("test_queue", "test_group1", start, end, 1))
 	}
-	// rm := monitor.GetReceiveMetrics("test", "test", 1000, 1100, 2)
-	// sm := monitor.GetSendMetrics("test", "test", 1000, 1100, 2)
-	// result1, _ := json.Marshal(rm)
-	// result2, _ := json.Marshal(sm)
-	// fmt.Println(string(result1))
-	// fmt.Println(string(result2))
-	a := make(chan int)
-	<-a
 }

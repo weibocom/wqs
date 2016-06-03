@@ -3,3 +3,13 @@
 
 #编译说明：
 make
+
+## Running tests
+
+You need to install Ginkgo & Gomega to run tests. Please see
+[http://onsi.github.io/ginkgo](http://onsi.github.io/ginkgo) for more details.
+
+To run tests, call:
+```
+    $ make test
+```
