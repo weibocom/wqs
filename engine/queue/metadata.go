@@ -168,7 +168,7 @@ func (m *Metadata) RefreshMetadata() error {
 			return errors.Trace(err)
 		}
 		if !exist {
-			log.Errorf("queue : %q has metadata, but has no topic")
+			log.Errorf("queue : %q has metadata, but has no topic", queue)
 			continue
 		}
 

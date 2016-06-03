@@ -23,12 +23,9 @@ import (
 
 func TestProfile(t *testing.T) {
 	var i int64 = 1
-	for {
+	for j := 0; j < 10; i++ {
 		StatisticSend("queue1", "group1", i)
 		StatisticRecv("queue1", "group1", i)
 		time.Sleep(500 * time.Millisecond)
 	}
-
-	var a chan int
-	<-a
 }

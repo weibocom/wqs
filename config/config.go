@@ -50,7 +50,7 @@ type Config struct {
 	LogProfile         string
 	LogExpire          string
 
-	sections map[string]Section `json:"-"`
+	sections map[string]Section
 }
 
 func NewConfigFromBytes(data []byte) (*Config, error) {

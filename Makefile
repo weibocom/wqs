@@ -6,7 +6,7 @@ KAFKA_SRC= http://www.mirrorservice.org/sites/ftp.apache.org/kafka/$(KAFKA_VERSI
 KAFKA_ROOT= testdata/$(KAFKA_DIR)
 WORKDIR=`pwd`
 
-default: build
+default: vet build
 
 dep:
 	$(GO) get ./...
@@ -19,7 +19,7 @@ dep:
 	$(GO) get ./...
 
 vet:
-	go vet ./...
+	$(GO) vet ./...
 
 $(KAFKA_ROOT):
 	@mkdir -p $(dir $@)
