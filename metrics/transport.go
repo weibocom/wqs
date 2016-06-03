@@ -30,7 +30,7 @@ const (
 )
 
 type Transport interface {
-	Send(uri string, data []byte) error
+	Send(uri string, data []*MetricsStat) error
 	Overview(start, end, step int64, host string) (ret string, err error)
 	GroupMetrics(start, end, step int64, group, queue string) (ret string, err error)
 }

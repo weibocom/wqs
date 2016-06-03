@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/weibocom/wqs/log"
 )
@@ -53,17 +54,21 @@ func newRoamClient(root string) *RoamClient {
 	}
 }
 
-func (m *RoamClient) Send(key string, data []byte) (err error) {
-	if len(data) == 0 || string(data) == "[]" {
+func (m *RoamClient) Send(key string, results []*MetricsStat) (err error) {
+	if len(results) == 0 {
 		return
 	}
-	sts, err := transToRoamStruct(data)
-	if err != nil {
-		log.Warnf("store profile log err : %v", err)
-		return err
-	}
-	for i := range sts {
-		log.Profile("%s", sts[i])
+	kvs := transToKV(results)
+
+	/*
+		sts, err := transToRoamStruct(results)
+		if err != nil {
+			log.Warnf("store profile log err : %v", err)
+			return err
+		}
+	*/
+	for _, kv := range kvs {
+		log.Infof("%s:%v", kv.Key, kv.Val)
 	}
 	return
 }
@@ -105,13 +110,7 @@ func (m *RoamClient) doRequest(reqURL string) (ret string, err error) {
 	return
 }
 
-func transToRoamStruct(data []byte) (jsonStrs []string, err error) {
-	var results []*MetricsStat
-	err = json.Unmarshal(data, &results)
-	if err != nil {
-		return nil, err
-	}
-
+func transToRoamStruct(results []*MetricsStat) (jsonStrs []string, err error) {
 	action := func(st *MetricsStat) []*RoamStruct {
 		ret := make([]*RoamStruct, 0, 2)
 		actions := []string{SENT, RECV}
@@ -153,6 +152,51 @@ func transToRoamStruct(data []byte) (jsonStrs []string, err error) {
 		}
 	}
 	return
+}
+
+type KV struct {
+	Key string
+	Val interface{}
+}
+
+func transToKV(results []*MetricsStat) []*KV {
+	var ret []*KV
+	for _, ms := range results {
+		ret = append(ret, &KV{
+			Key: strings.Join([]string{ms.Queue, ms.Group, SENT, QPS}, "."),
+			Val: ms.Sent.Total,
+		})
+		ret = append(ret, &KV{
+			Key: strings.Join([]string{ms.Queue, ms.Group, SENT, ELAPSED}, "."),
+			Val: ms.Sent.Elapsed,
+		})
+		for k, v := range ms.Sent.Scale {
+			ret = append(ret, &KV{
+				Key: strings.Join([]string{ms.Queue, ms.Group, SENT, k}, "."),
+				Val: v,
+			})
+		}
+
+		ret = append(ret, &KV{
+			Key: strings.Join([]string{ms.Queue, ms.Group, RECV, QPS}, "."),
+			Val: ms.Recv.Total,
+		})
+		ret = append(ret, &KV{
+			Key: strings.Join([]string{ms.Queue, ms.Group, RECV, ELAPSED}, "."),
+			Val: ms.Recv.Elapsed,
+		})
+		ret = append(ret, &KV{
+			Key: strings.Join([]string{ms.Queue, ms.Group, RECV, LATENCY}, "."),
+			Val: ms.Recv.Latency,
+		})
+		for k, v := range ms.Recv.Scale {
+			ret = append(ret, &KV{
+				Key: strings.Join([]string{ms.Queue, ms.Group, RECV, k}, "."),
+				Val: v,
+			})
+		}
+	}
+	return ret
 }
 
 type Cell [2]interface{}

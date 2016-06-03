@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -39,8 +40,12 @@ func newHTTPClient() *httpClient {
 	}
 }
 
-func (c *httpClient) Send(uri string, data []byte) (err error) {
-	log.Info(string(data))
+func (c *httpClient) Send(uri string, results []*MetricsStat) (err error) {
+	data, err := json.Marshal(results)
+	if err != nil {
+		log.Warnf("Encode results err: %v", err)
+		return
+	}
 	req, err := http.NewRequest("POST", uri, bytes.NewReader(data))
 	if err != nil {
 		log.Warnf("new http request err: %v", err)

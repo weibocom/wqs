@@ -193,9 +193,7 @@ func (m *MetricsClient) report() {
 	// TODO
 	// http should be async
 	// file should be async-write, log should be refact
-	bf.Reset()
-	json.NewEncoder(bf).Encode(results)
-	m.transport.Send(m.centerAddr, bf.Bytes())
+	m.transport.Send(m.centerAddr, results)
 }
 
 func (m *MetricsClient) incr(k string, v int64) {
