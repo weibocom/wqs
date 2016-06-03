@@ -104,6 +104,22 @@ func Init(cfg *config.Config) (err error) {
 	if err != nil {
 		hn = "unknown"
 	}
+
+	sec, err := cfg.GetSection("metrics")
+	if err != nil {
+		return err
+	}
+
+	graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
+	if err != nil {
+		return err
+	}
+
+	graphiteServicePool, err := sec.GetString("graphite.service.pool")
+	if err != nil {
+		return err
+	}
+
 	defaultClient = &MetricsClient{
 		r:           metrics.NewRegistry(),
 		d:           metrics.NewRegistry(),
@@ -111,13 +127,9 @@ func Init(cfg *config.Config) (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
-		transport:   newRoamClient("127.0.0.1"),
+		transport:   newGraphiteClient("127.0.0.1", graphiteAddr, graphiteServicePool),
 	}
 
-	sec, err := cfg.GetSection("metrics")
-	if err != nil {
-		return err
-	}
 	uri := sec.GetStringMust("metrics.center", defaultReportURI)
 	uri = uri + "/" + defaultClient.serviceName
 	defaultClient.centerAddr = uri
@@ -184,7 +196,7 @@ func (m *MetricsClient) report() {
 	json.NewEncoder(bf).Encode(shot)
 	log.Info("[metrics] QPS " + bf.String())
 
-	results := snapShotMetricsSts(m.d)
+	snapshot := snapshotMetricsStats(m.d)
 	m.d.Each(func(k string, _ interface{}) {
 		c := metrics.GetOrRegisterCounter(k, m.d)
 		c.Clear()
@@ -192,8 +204,10 @@ func (m *MetricsClient) report() {
 
 	// TODO
 	// http should be async
-	// file should be async-write, log should be refact
-	m.transport.Send(m.centerAddr, results)
+	err := m.transport.Send(m.centerAddr, snapshot)
+	if err != nil {
+		log.Errorf("metrics transport send error: %v", err)
+	}
 }
 
 func (m *MetricsClient) incr(k string, v int64) {

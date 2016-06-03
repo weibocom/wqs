@@ -51,9 +51,10 @@ type MetricsStruct struct {
 	Scale map[string]int64 `json:"scale"`
 }
 
-func snapShotMetricsSts(r metrics.Registry) (list []*MetricsStat) {
+func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 	retMap := make(map[string]*MetricsStat)
 	each := func(k string, _ interface{}) {
+
 		c := metrics.GetOrRegisterCounter(k, r)
 		ks := strings.Split(k, "#")
 		if len(ks) != 4 {
