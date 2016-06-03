@@ -17,6 +17,8 @@ limitations under the License.
 package metrics
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/rcrowley/go-metrics"
@@ -104,20 +106,25 @@ func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 		retMap[k].Endpoint = LOCAL
 		retMap[k].Accum = retMap[k].Sent.Total - retMap[k].Recv.Total
 		if retMap[k].Sent.Total > 0 {
-			retMap[k].Sent.Elapsed = cutFloat64(retMap[k].Sent.Elapsed/float64(retMap[k].Sent.Total), 2)
+			retMap[k].Sent.Elapsed = truncateFloat64(retMap[k].Sent.Elapsed/float64(retMap[k].Sent.Total), 2)
 		} else {
 			retMap[k].Sent.Elapsed = 0.0
 		}
 		if retMap[k].Recv.Total > 0 {
-			retMap[k].Recv.Elapsed = cutFloat64(retMap[k].Recv.Elapsed/float64(retMap[k].Recv.Total), 2)
+			retMap[k].Recv.Elapsed = truncateFloat64(retMap[k].Recv.Elapsed/float64(retMap[k].Recv.Total), 2)
 		} else {
 			retMap[k].Recv.Elapsed = 0.0
 		}
 		if retMap[k].Recv.Total > 0 {
-			retMap[k].Recv.Latency = cutFloat64(retMap[k].Recv.Latency/float64(retMap[k].Recv.Total), 2)
+			retMap[k].Recv.Latency = truncateFloat64(retMap[k].Recv.Latency/float64(retMap[k].Recv.Total), 2)
 		} else {
 			retMap[k].Recv.Latency = 0.0
 		}
 	}
 	return
+}
+
+func truncateFloat64(num float64, bit int) float64 {
+	ret, _ := strconv.ParseFloat(fmt.Sprintf("%.[2]*[1]f", num, bit), 64)
+	return ret
 }
