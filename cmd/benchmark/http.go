@@ -65,7 +65,7 @@ func benchmarkHttpSet() error {
 
 	url := fmt.Sprintf("http://%s/msg", globalHost)
 	sendString := fmt.Sprintf("action=send&queue=%s&group=%s&msg=%s",
-		globalQueue, globalBiz, utils.GenTestMessage(globalMsgLength))
+		globalQueue, globalGroup, utils.GenTestMessage(globalMsgLength))
 	log.Printf("Test URL: %s, Data: %s", url, sendString)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
@@ -86,7 +86,7 @@ func benchmarkHttpSet() error {
 func benchmarkHttpGet() error {
 
 	url := fmt.Sprintf("http://%s/msg?action=receive&queue=%s&group=%s",
-		globalHost, globalQueue, globalBiz)
+		globalHost, globalQueue, globalGroup)
 	log.Printf("Test URL: %s", url)
 
 	bt := utils.NewBenchmarkTester(globalConcurrentLevel, globalDuration, func(bt *utils.BenchmarkTester, index int) error {
@@ -112,7 +112,7 @@ type message struct {
 func benchmarkHttpLatency() error {
 
 	getURL := fmt.Sprintf("http://%s/msg?action=receive&queue=%s&group=%s",
-		globalHost, globalQueue, globalBiz)
+		globalHost, globalQueue, globalGroup)
 	setURL := fmt.Sprintf("http://%s/msg", globalHost)
 
 	result := new([6]int64)
@@ -154,7 +154,7 @@ func benchmarkHttpLatency() error {
 			//producer
 			body := &bytes.Buffer{}
 			fmt.Fprintf(body, "action=send&queue=%s&group=%s&msg=%d",
-				globalQueue, globalBiz, time.Now().UnixNano())
+				globalQueue, globalGroup, time.Now().UnixNano())
 			resp, err := http.Post(setURL, "application/x-www-form-urlencoded", body)
 			if err != nil {
 				return err

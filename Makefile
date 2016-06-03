@@ -45,7 +45,7 @@ build-qservice:
 	$(GO) build -o qservice .
 
 
-benchmark:bin
+benchmark:bin vet
 	$(GO) build -o bin/benchmark ./cmd/benchmark/
 	$(GO) build -o bin/go_kafka_client_benchmark ./cmd/go_kafka_client_benchmark/
 

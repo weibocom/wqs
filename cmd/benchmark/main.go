@@ -29,7 +29,7 @@ var (
 	globalMsgLength       = 500
 	globalHost            = ""
 	globalQueue           = ""
-	globalBiz             = ""
+	globalGroup           = ""
 	globalConcurrentLevel = 500
 	globalDuration        = 60
 )
@@ -37,13 +37,13 @@ var (
 var usage = `usage: benchmark [options] <command> [<args>...]
 
 options:
-	--cpu=<NUM>              set 
-	--len=<LENGTH>           set message length (default 500)
-	--host=<qservice_addr>   set qservice host IP:PORT
-	--cc=<concurrent_level>  set concurrent goroutine number
-	--time=<time>			set benchmark duration(default 60 second)
-	--queue=<queue>          set test queue name
-	--biz=<biz>              set test biz name
+	--cpu=<NUM>                set number of cpu used
+	--len=<LENGTH>             set message length (default 500)
+	--host=<qservice_addr>     set qservice host IP:PORT
+	--cc=<concurrent_level>    set concurrent goroutine number
+	--time=<time>              set benchmark duration(default 60 second)
+	--queue=<queue>            set test queue name
+	--group=<group>            set test group name
 
 commands:
 	mc
@@ -81,8 +81,8 @@ func main() {
 		globalQueue = v.(string)
 	}
 
-	if v := args["--biz"]; v != nil {
-		globalBiz = v.(string)
+	if v := args["--group"]; v != nil {
+		globalGroup = v.(string)
 	}
 
 	globalMsgLength, err = utils.GetIntFromArgs(args, "--len", globalMsgLength)

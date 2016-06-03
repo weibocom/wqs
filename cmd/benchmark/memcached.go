@@ -51,7 +51,7 @@ options:
 
 func benchmarkMCSet() error {
 
-	key := fmt.Sprintf("%s.%s", globalQueue, globalBiz)
+	key := fmt.Sprintf("%s.%s", globalGroup, globalQueue)
 	sendString := utils.GenTestMessage(globalMsgLength)
 	log.Printf("Test Key: %s, Data: %s", key, sendString)
 
@@ -71,7 +71,7 @@ func benchmarkMCSet() error {
 
 func benchmarkMCGet() error {
 
-	key := fmt.Sprintf("%s.%s", globalQueue, globalBiz)
+	key := fmt.Sprintf("%s.%s", globalGroup, globalQueue)
 	log.Printf("Test Key: %s", key)
 
 	mc := memcache.New(globalHost)
