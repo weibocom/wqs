@@ -17,19 +17,19 @@ limitations under the License.
 package metrics
 
 import (
-	"fmt"
 	"testing"
-	"time"
 )
 
 func TestMonitor(t *testing.T) {
-	monitor := NewMonitor("localhost:6379")
+	/*
+		monitor := NewMonitor("localhost:6379")
 
-	for i := 0; i < 10; i++ {
-		monitor.StatisticSend("test_queue", "test_group1", 10)
-		time.Sleep(time.Millisecond * 1000)
-		end := time.Now().Unix()
-		start := end - 60 //1min
-		fmt.Println(monitor.GetSendMetrics("test_queue", "test_group1", start, end, 1))
-	}
+		for i := 0; i < 10; i++ {
+			monitor.StatisticSend("test_queue", "test_group1", 10)
+			time.Sleep(time.Millisecond * 1000)
+			end := time.Now().Unix()
+			start := end - 60 //1min
+			fmt.Println(monitor.GetSendMetrics("test_queue", "test_group1", start, end, 1))
+		}
+	*/
 }

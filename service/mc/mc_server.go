@@ -30,7 +30,6 @@ import (
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
-	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/utils"
 )
 
@@ -123,7 +122,6 @@ func (ms *McServer) connLoop(conn net.Conn) {
 			command = commandUnkown
 			cmd = "unsupported"
 		}
-		metrics.Add(cmd, 1)
 		err = command(ms.queue, tokens, br, bw)
 		bw.Flush()
 		if err != nil {

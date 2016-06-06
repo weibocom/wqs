@@ -44,19 +44,6 @@ func (t graphiteType) String() string {
 	return string(t)
 }
 
-type graphiteStruct struct {
-	Type    string  `json:"type"`
-	Queue   string  `json:"queue"`
-	Group   string  `json:"group"`
-	Action  string  `json:"action"`
-	Total   int64   `json:"total_count"`
-	AvgTime float64 `json:"avg_time"`
-	Latency float64 `json:"latency"`
-	Accum   int64   `json:"accum"`
-
-	Scale map[string]int64 `json:"scale"`
-}
-
 type graphiteClient struct {
 	root        string
 	addr        string
@@ -134,50 +121,6 @@ func (m *graphiteClient) doRequest(reqURL string) (ret string, err error) {
 		return "", err
 	}
 	_ = res
-	return
-}
-
-func transToGraphiteStruct(results []*MetricsStat) (jsonStrs []string, err error) {
-	action := func(st *MetricsStat) []*graphiteStruct {
-		ret := make([]*graphiteStruct, 0, 2)
-		actions := []string{SENT, RECV}
-		for _, act := range actions {
-			rst := &graphiteStruct{
-				Type:   WQS,
-				Queue:  st.Queue,
-				Group:  st.Group,
-				Action: act,
-			}
-			switch act {
-			case SENT:
-				rst.Total = st.Sent.Total
-				rst.AvgTime = st.Sent.Elapsed
-				rst.Accum = st.Accum
-				rst.Latency = st.Sent.Latency
-				rst.Scale = st.Sent.Scale
-			case RECV:
-				rst.Total = st.Recv.Total
-				rst.AvgTime = st.Recv.Elapsed
-				rst.Accum = st.Accum
-				rst.Latency = st.Recv.Latency
-				rst.Scale = st.Recv.Scale
-			}
-			ret = append(ret, rst)
-		}
-		return ret
-	}
-
-	for _, st := range results {
-		rsts := action(st)
-		for _, rst := range rsts {
-			stData, err := json.Marshal(rst)
-			if err != nil {
-				log.Warnf("transToGraphiteStruct err : %v", err)
-				continue
-			}
-			jsonStrs = append(jsonStrs, string(stData))
-		}
-	}
 	return
 }
 

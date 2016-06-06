@@ -18,11 +18,24 @@ package metrics
 
 import (
 	"testing"
+	"time"
 
 	"github.com/weibocom/wqs/config"
 )
 
 func TestAdd(t *testing.T) {
+	var testData = []struct {
+		k  string
+		el int64
+		lt int64
+	}{
+		{"queue#group#sent", 12, 0},
+		{"queue#group#sent", 1200, 0},
+		{"queue#group#sent", 120, 0},
+		{"queue#group#sent", 1, 0},
+		{"queue#group#recv", 59, 20},
+		{"queue#group#recv", 899, 2},
+	}
 	cfg, err := config.NewConfigFromFile("../config.properties")
 	if err != nil {
 		t.Fatal(err)
@@ -32,20 +45,15 @@ func TestAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Add("queue#group#sent", 1, 12)
-	Add("queue#group#sent", 1, 1200)
-	Add("queue#group#sent", 1, 120)
-	Add("queue#group#sent", 1, 1)
-	Add("queue#group#sent", 1, 122)
-	Add("queue#group#sent", 1, 122)
-	Add("queue#group#sent", 1, 122)
-	Add("queue#group#sent", 1, 122)
-	Add("queue#group#sent", 1, 700)
-
-	Add("queue#group#recv", 1, 12, 20)
-	Add("queue#group#recv", 1, 12, 2)
-	Add("queue#group#recv", 1, 120, 3)
-	Add("queue#group#recv", 1, 1, 4)
-	Add("queue#group#recv", 1, 122, 5)
-	Add("queue#group#recv", 1, 700, 30)
+	for i := range testData {
+		if testData[i].lt <= 0 {
+			Add(testData[i].k, 1, testData[i].el)
+		} else {
+			Add(testData[i].k, 1, testData[i].el, testData[i].lt)
+		}
+	}
+	tm := time.NewTimer(time.Second * 2)
+	<-tm.C
+	tm.Stop()
+	defaultClient.Close()
 }

@@ -17,11 +17,10 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
 	"testing"
 )
 
-func TestConfig(t *testing.T) {
+func TestGetSection(t *testing.T) {
 	config, err := NewConfigFromFile("../config.properties")
 	if err != nil {
 		t.Fatalf("NewConfigFromFile err : %s", err)
@@ -29,14 +28,8 @@ func TestConfig(t *testing.T) {
 	if config == nil {
 		t.Fatalf("get nil config")
 	}
-	fmt.Println(config.String())
-	//	v := reflect.ValueOf(config).Elem()
-	//	if v.Kind() != reflect.Struct {
-	//		t.Fatalf("get config with invaild type")
-	//	}
-
-	//	for i := 0; i < v.NumField(); i++ {
-	//		fmt.Printf("%s: %v\n", v.Type().Field(i).Name, v.Field(i).Interface())
-	//	}
-
+	sec, err := config.GetSection("metrics")
+	if err != nil || sec == nil {
+		t.FailNow()
+	}
 }

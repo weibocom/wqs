@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/weibocom/wqs/config"
@@ -91,10 +92,11 @@ type MetricsClient struct {
 	centerAddr  string
 	serviceName string
 	endpoint    string
-	wg          *sync.WaitGroup
-	stop        chan struct{}
+	transport   Transport
 
-	transport Transport
+	wg       *sync.WaitGroup
+	stop     chan struct{}
+	stopFlag uint32
 }
 
 var defaultClient *MetricsClient
@@ -127,6 +129,7 @@ func Init(cfg *config.Config) (err error) {
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
+		stopFlag:    0,
 		transport:   newGraphiteClient("127.0.0.1", graphiteAddr, graphiteServicePool),
 	}
 
@@ -142,6 +145,9 @@ func Init(cfg *config.Config) (err error) {
 }
 
 func (m *MetricsClient) run() {
+	if atomic.LoadUint32(&m.stopFlag) == 1 {
+		return
+	}
 	tk := time.NewTicker(m.printTTL)
 	defer tk.Stop()
 
@@ -157,6 +163,7 @@ func (m *MetricsClient) run() {
 		case <-reportTk.C:
 			m.report()
 		case <-m.stop:
+			println("stopped")
 			return
 		}
 	}
@@ -237,6 +244,12 @@ func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
 
 func (m *MetricsClient) decr(k string, v int64) {
 	// TODO
+}
+
+func (m *MetricsClient) Close() {
+	if atomic.SwapUint32(&m.stopFlag, 1) == 0 {
+		close(m.stop)
+	}
 }
 
 func Add(key string, args ...int64) {
