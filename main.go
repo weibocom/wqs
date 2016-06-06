@@ -98,9 +98,9 @@ func main() {
 	}
 
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill)
-	log.Debug("Process start")
+	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill, syscall.SIGSTOP)
+	log.Info("Process start")
 	<-c
 	server.Stop()
-	log.Debug("Process stop")
+	log.Info("Process stop")
 }
