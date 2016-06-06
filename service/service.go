@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
@@ -71,6 +73,8 @@ func (s *Server) Start() error {
 	router.GET("/monitor", CompatibleWarp(s.monitorHandler))
 	router.GET("/msg", CompatibleWarp(s.msgHandler))
 	router.POST("/msg", CompatibleWarp(s.msgHandler))
+	router.GET("/loggers", getLoggerHandler)
+	router.POST("/loggers/:name", changeLoggerHandler)
 
 	var err error
 	s.listener, err = utils.Listen("tcp", fmt.Sprintf(":%s", s.config.HttpPort))
@@ -391,4 +395,105 @@ func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {
 		result = "error, param type=" + monitorType + " not support!"
 	}
 	fmt.Fprintf(w, result)
+}
+
+func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+
+	loggers := make(map[string]string)
+	msg := &ResponseMessage{}
+
+	infoLevel := log.GetLogger(log.LogInfo).GetLevel()
+	loggers["info"] = log.LogLevel2String(infoLevel)
+
+	if log.GetLogger(log.LogDebug).GetLevel() < log.LogDebug {
+		loggers["debug"] = LoggerClose
+	} else {
+		loggers["debug"] = LoggerOpen
+	}
+
+	if log.ProfileGetLogger().GetLevel() < log.LogInfo {
+		loggers["profile"] = LoggerClose
+	} else {
+		loggers["profile"] = LoggerOpen
+	}
+
+	buffer := &bytes.Buffer{}
+	err := json.NewEncoder(buffer).Encode(loggers)
+	if err != nil {
+		msg.Code = 500
+		msg.Message = err.Error()
+	} else {
+		msg.Code = 200
+		msg.Message = buffer.String()
+	}
+	w.WriteHeader(msg.Code)
+	w.Write(msg.Bytes())
+}
+
+func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	type ReqMessage struct {
+		Level string `json:"level"`
+	}
+
+	name := ps.ByName("name")
+	msg := &ResponseMessage{Code: 200, Message: "OK"}
+	switch name {
+	case "info", "debug", "profile":
+	default:
+		msg.Code = 404
+		msg.Message = fmt.Sprintf("not found logger %s", name)
+		w.WriteHeader(msg.Code)
+		w.Write(msg.Bytes())
+		return
+	}
+
+	reqMessage := ReqMessage{}
+	err := json.NewDecoder(r.Body).Decode(&reqMessage)
+	if err != nil {
+		msg.Code = 400
+		msg.Message = err.Error()
+		w.WriteHeader(msg.Code)
+		w.Write(msg.Bytes())
+		return
+	}
+
+	// TODO more graceful
+	switch name {
+	case "info":
+		switch reqMessage.Level {
+		case log.LogInfoS:
+			log.GetLogger(log.LogInfo).SetLogLevel(log.LogInfo)
+		case log.LogWarningS:
+			log.GetLogger(log.LogInfo).SetLogLevel(log.LogWarning)
+		case log.LogErrorS:
+			log.GetLogger(log.LogInfo).SetLogLevel(log.LogError)
+		default:
+			msg.Code = 400
+			msg.Message = fmt.Sprintf("not support %q", reqMessage.Level)
+		}
+	case "debug":
+		switch reqMessage.Level {
+		case LoggerOpen:
+			log.GetLogger(log.LogDebug).SetLogLevel(log.LogDebug)
+		case LoggerClose:
+			log.GetLogger(log.LogDebug).SetLogLevel(log.LogError)
+		default:
+			msg.Code = 400
+			msg.Message = fmt.Sprintf("not support %q", reqMessage.Level)
+		}
+	case "profile":
+		switch reqMessage.Level {
+		case LoggerOpen:
+			log.ProfileGetLogger().SetLogLevel(log.LogInfo)
+		case LoggerClose:
+			log.ProfileGetLogger().SetLogLevel(log.LogError)
+		default:
+			msg.Code = 400
+			msg.Message = fmt.Sprintf("not support %q", reqMessage.Level)
+		}
+	}
+
+	w.WriteHeader(msg.Code)
+	w.Write(msg.Bytes())
 }

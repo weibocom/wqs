@@ -64,6 +64,12 @@ func RestLogger(logger *Logger, levels ...uint32) {
 	opsRWLock.Unlock()
 }
 
+func ProfileGetLogger() *Logger {
+	profRWLock.RLock()
+	defer profRWLock.RUnlock()
+	return profLogger
+}
+
 func GetLogger(level uint32) *Logger {
 	opsRWLock.RLock()
 	defer opsRWLock.RUnlock()

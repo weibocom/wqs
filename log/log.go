@@ -57,6 +57,14 @@ const (
 )
 
 const (
+	LogFatalS   = "fatal"
+	LogErrorS   = "error"
+	LogWarningS = "warning"
+	LogInfoS    = "info"
+	LogDebugS   = "debug"
+)
+
+const (
 	RollingDeny RollingType = iota
 	RollingByHour
 	RollingByDay
@@ -135,6 +143,10 @@ func genNextDay() (time.Time, time.Time) {
 		time.Date(year, month, day+1, 0, 0, 0, 0, time.Local)
 }
 
+func (l *Logger) GetLevel() uint32 {
+	return atomic.LoadUint32(&l.level)
+}
+
 func (l *Logger) SetRolling(t RollingType) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -207,6 +219,22 @@ func logLevel2String(t uint32) string {
 		return "[INFO]"
 	}
 	return "[UNKOWN]"
+}
+
+func LogLevel2String(level uint32) string {
+	switch level {
+	case LogFatal:
+		return "fatal"
+	case LogError:
+		return "error"
+	case LogDebug:
+		return "debug"
+	case LogWarning:
+		return "warning"
+	case LogInfo:
+		return "info"
+	}
+	return "unknow"
 }
 
 func (l *Logger) formatPrefix(buf *[]byte, flags uint32, t time.Time, file string, line int, level uint32) {
