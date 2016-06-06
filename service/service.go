@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -73,8 +73,17 @@ func (s *Server) Start() error {
 	router.GET("/monitor", CompatibleWarp(s.monitorHandler))
 	router.GET("/msg", CompatibleWarp(s.msgHandler))
 	router.POST("/msg", CompatibleWarp(s.msgHandler))
+
+	//loggers
 	router.GET("/loggers", getLoggerHandler)
 	router.POST("/loggers/:name", changeLoggerHandler)
+	//pprof
+	router.GET("/debug/pprof/", CompatibleWarp(pprof.Index))
+	router.GET("/debug/pprof/cmdline", CompatibleWarp(pprof.Cmdline))
+	router.GET("/debug/pprof/profile", CompatibleWarp(pprof.Profile))
+	router.GET("/debug/pprof/symbol", CompatibleWarp(pprof.Symbol))
+	router.POST("/debug/pprof/symbol", CompatibleWarp(pprof.Symbol))
+	router.GET("/debug/pprof/trace", CompatibleWarp(pprof.Trace))
 
 	var err error
 	s.listener, err = utils.Listen("tcp", fmt.Sprintf(":%s", s.config.HttpPort))
