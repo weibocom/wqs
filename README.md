@@ -5,11 +5,14 @@
 make
 
 ## Running tests
-
-You need to install Ginkgo & Gomega to run tests. Please see
-[http://onsi.github.io/ginkgo](http://onsi.github.io/ginkgo) for more details.
-
 To run tests, call:
 ```
     $ make test
+```
+It will download kafka's binary tarball during test cases running if you donot have kafka file in testdata.
+If you already have a running kafka in your enviroment, you can export KAFKA_ADDR and ZOOKEEPER_ADDR before 
+you exec `make test`.
+e.g.
+```
+	KAFKA_ADDR=localhost:9096 ZOOKEEPER_ADDR=localhost:2181 make test
 ```
