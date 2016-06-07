@@ -22,15 +22,20 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/weibocom/wqs/log"
 )
 
 const (
-	_OVERVIEW_URI_TPL = "http://%s/render?from=%d&until=%d&target=%s&format=json"
-	_GROUP_URI_TPL    = "http://%s/render?from=%d&until=%d&target=%s&group=%s&queue=%s&action=%s&format=json"
-	MESSAGE_MAX_LEN   = 65000
+	_GRAPHITE_REQ_TPL = "http://%s/render?from=%d&until=%d&target=%s&format=json"
+
+	_ALL_MASK    = "*"
+	_ALL_HOST    = _ALL_MASK
+	_ALL_METRICS = _ALL_MASK
+
+	MESSAGE_MAX_LEN = 65000
 )
 
 type graphiteType string
@@ -61,7 +66,6 @@ func newGraphiteClient(root, addr, servicePool string) *graphiteClient {
 }
 
 func (g *graphiteClient) Send(_ string, snapshot []*MetricsStat) error {
-
 	if len(snapshot) == 0 {
 		return nil
 	}
@@ -87,18 +91,23 @@ func (g *graphiteClient) Send(_ string, snapshot []*MetricsStat) error {
 	return conn.Close()
 }
 
-func (m *graphiteClient) Overview(start, end, step int64, host string) (ret string, err error) {
-	reqURL := fmt.Sprintf(_OVERVIEW_URI_TPL, m.root, start, end, host)
+func (m *graphiteClient) Overview(start, end, step int64, params url.Values) (ret string, err error) {
+	host := params.Get("host")
+	reqURL := fmt.Sprintf(_GRAPHITE_REQ_TPL, m.root, start, end, host)
 	res, err := m.doRequest(reqURL)
 	_ = res
 	return
 }
 
-func (m *graphiteClient) GroupMetrics(start, end, step int64, group, queue string) (ret string, err error) {
-	reqURL := fmt.Sprintf(_GROUP_URI_TPL, m.root, start, end, "*", group, queue, "*")
-	res, err := m.doRequest(reqURL)
-	_ = res
-	return
+func (m *graphiteClient) GroupMetrics(start, end, step int64, params url.Values) (ret string, err error) {
+	host := params.Get("host")
+	group := params.Get("group")
+	queue := params.Get("queue")
+	action := params.Get("action")
+	metricsName := params.Get("metrics")
+	target := m.factoryTarget(host, queue, group, action, metricsName)
+	reqURL := fmt.Sprintf(_GRAPHITE_REQ_TPL, m.root, start, end, target)
+	return m.doRequest(reqURL)
 }
 
 func (m *graphiteClient) doRequest(reqURL string) (ret string, err error) {
@@ -121,7 +130,18 @@ func (m *graphiteClient) doRequest(reqURL string) (ret string, err error) {
 		return "", err
 	}
 	_ = res
-	return
+	return string(data), nil
+}
+
+func (m *graphiteClient) factoryTarget(host, queue, group, action, metrics string) string {
+	return fmt.Sprintf("stats_byhost.openapi_profile.%s.byhost.%s.%s.%s.%s.%s",
+		m.servicePool,
+		host,
+		queue,
+		group,
+		action,
+		metrics,
+	)
 }
 
 type graphiteItem struct {
@@ -131,10 +151,8 @@ type graphiteItem struct {
 }
 
 func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
-
 	var items []*graphiteItem
 	for _, state := range states {
-
 		items = append(items, &graphiteItem{
 			key:   strings.Join([]string{state.Queue, state.Group, SENT, QPS}, "."),
 			value: state.Sent.Total,
@@ -182,7 +200,6 @@ func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
 }
 
 func transGraphiteItemsToMessages(localIP string, servicePool string, items []*graphiteItem) []string {
-
 	messages := make([]string, 0)
 	segments := make([]string, 0)
 	segmentsLength := 0
@@ -207,6 +224,18 @@ func transGraphiteItemsToMessages(localIP string, servicePool string, items []*g
 }
 
 type Cell [2]interface{}
+
+func (c Cell) GetTimestamp() int64 {
+	switch c[0].(type) {
+	case int64:
+		return c[0].(int64)
+	case float64:
+		return int64(c[0].(float64))
+	default:
+		return 0
+	}
+	return 0
+}
 
 type GraphiteSer struct {
 	Target string `json:"target"`

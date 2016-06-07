@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/weibocom/wqs/log"
@@ -68,12 +69,12 @@ func (c *httpClient) Send(uri string, results []*MetricsStat) (err error) {
 	return
 }
 
-func (c *httpClient) Overview(start, end, step int64, host string) (ret string, err error) {
+func (c *httpClient) Overview(start, end, step int64, params url.Values) (ret string, err error) {
 	// TODO
 	return
 }
 
-func (c *httpClient) GroupMetrics(start, end, step int64, group, queue string) (ret string, err error) {
+func (c *httpClient) GroupMetrics(start, end, step int64, params url.Values) (ret string, err error) {
 	// TODO
 	return
 }

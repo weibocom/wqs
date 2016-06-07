@@ -16,8 +16,12 @@ limitations under the License.
 
 package metrics
 
+import (
+	"net/url"
+)
+
 type Transport interface {
 	Send(uri string, snapshot []*MetricsStat) error
-	Overview(start, end, step int64, host string) (ret string, err error)
-	GroupMetrics(start, end, step int64, group, queue string) (ret string, err error)
+	Overview(start, end, step int64, args url.Values) (ret string, err error)
+	GroupMetrics(start, end, step int64, args url.Values) (ret string, err error)
 }
