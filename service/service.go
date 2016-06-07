@@ -77,6 +77,9 @@ func (s *Server) Start() error {
 	//loggers
 	router.GET("/loggers", getLoggerHandler)
 	router.POST("/loggers/:name", changeLoggerHandler)
+	//proxy
+	router.GET("/proxys/", s.getProxysHandler)
+	router.GET("/proxys/:id/config", s.getProxysConfigByIDHandler)
 	//pprof
 	router.GET("/debug/pprof/", CompatibleWarp(pprof.Index))
 	router.GET("/debug/pprof/cmdline", CompatibleWarp(pprof.Cmdline))
@@ -406,6 +409,51 @@ func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, result)
 }
 
+// Get all online proxys, return id and hostname
+func (s *Server) getProxysHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+
+	proxys, err := s.queue.GetProxys()
+	if err != nil {
+		response(w, 500, err.Error())
+		return
+	}
+
+	buff := &bytes.Buffer{}
+	err = json.NewEncoder(buff).Encode(proxys)
+	if err != nil {
+		response(w, 500, err.Error())
+		return
+	}
+	response(w, 200, buff.String())
+}
+
+// Get an online proxy's config
+func (s *Server) getProxysConfigByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	id := ps.ByName("id")
+	if id == "" {
+		response(w, 400, "invalid proxy id")
+		return
+	}
+
+	proxyID, err := strconv.Atoi(id)
+	if err != nil {
+		response(w, 400, err.Error())
+		return
+	}
+
+	config, err := s.queue.GetProxyConfigByID(proxyID)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			response(w, 404, err.Error())
+			return
+		}
+		response(w, 500, err.Error())
+		return
+	}
+	response(w, 200, config)
+}
+
 func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	loggers := make(map[string]string)
@@ -450,20 +498,14 @@ func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	switch name {
 	case "info", "debug", "profile":
 	default:
-		msg.Code = 404
-		msg.Message = fmt.Sprintf("not found logger %s", name)
-		w.WriteHeader(msg.Code)
-		w.Write(msg.Bytes())
+		response(w, 404, fmt.Sprintf("not found logger %s", name))
 		return
 	}
 
 	reqMessage := ReqMessage{}
 	err := json.NewDecoder(r.Body).Decode(&reqMessage)
 	if err != nil {
-		msg.Code = 400
-		msg.Message = err.Error()
-		w.WriteHeader(msg.Code)
-		w.Write(msg.Bytes())
+		response(w, 400, err.Error())
 		return
 	}
 
@@ -503,6 +545,12 @@ func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.P
 		}
 	}
 
+	w.WriteHeader(msg.Code)
+	w.Write(msg.Bytes())
+}
+
+func response(w http.ResponseWriter, code int, message string) {
+	msg := &ResponseMessage{Code: code, Message: message}
 	w.WriteHeader(msg.Code)
 	w.Write(msg.Bytes())
 }

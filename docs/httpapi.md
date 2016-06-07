@@ -2,7 +2,7 @@
 **http://ip:port/queue** <br>
 **参数列表：**<br>
 
-| 参数名 | 是否必填 | 说明 | 
+| 参数名 | 是否必填 | 说明 |
 | ---- | ---- | ----|
 | action | 必填 | 创建/删除/变更/查看队列，参数为create,remove,update,lookup |
 | queue | 必填 | 队列名称，查看队列时选填 |
@@ -28,7 +28,7 @@ curl "http://127.0.0.1:8080/queue?action=lookup&queue=menglong\_queue1&group=men
 **http://ip:port/group** <br>
 **参数列表：** <br>
 
-| 参数名 | 是否必填 | 说明 | 
+| 参数名 | 是否必填 | 说明 |
 | ---- | ---- | ----|
 | action | 必填 | 增加/删除/变更/查看业务方，参数为add,remove,update,lookup |
 | group | 必填 | 业务标识，查看业务方时选填 |
@@ -60,7 +60,7 @@ curl "http://127.0.0.1:8080/group?action=lookup&group=menglong\_group1"<br>
 **http://ip:port/message**
 **参数列表：** <br>
 
-| 参数名 | 是否必填 | 说明 | 
+| 参数名 | 是否必填 | 说明 |
 | ---- | ---- | ----|
 | action | 必填 | 取消息/发消息/确认消息，参数为receive,send,ack |
 | queue | 必填 | 队列名称 |
@@ -84,7 +84,7 @@ curl -d "action=ack&queue=remind&group=if&id=xxxx" "http://127.0.0.1:8080/msg" <
 **http://ip:port/monitor** <br>
 **参数列表：** <br>
 
-| 参数名 | 是否必填 | 说明 | 
+| 参数名 | 是否必填 | 说明 |
 | ---- | ---- | ----|
 | type | 必填 | send/receive 消息发送or接收 |
 | group | 必填 | 业务标识，查看业务方时选填 |
@@ -103,3 +103,21 @@ curl "http://127.0.0.1:8080/monitor?type=receive&queue=menglong\_queue1&group=me
 ## 报警接口(定义中)
 **http://ip:port/alarm** <br>
 type：heap，send.second，receive.second <br>
+
+# Proxy API
+**Get all online proxys:** <br>
+/proxys/ <br>
+curl "http://127.0.0.1:8080/proxys/" <br>
+
+**Get a online proxy's config:** <br>
+/proxys/:id/config <br>
+curl "http://127.0.0.1:8080/proxys/1/config" <br>
+
+
+# Debug API
+### pprof API
+/debug/pprof/ <br>
+/debug/pprof/cmdline <br>
+/debug/pprof/profile <br>
+/debug/pprof/symbol <br>
+/debug/pprof/trace <br>

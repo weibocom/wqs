@@ -37,6 +37,8 @@ type Queue interface {
 	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	AccumulationStatus() ([]AccumulationInfo, error)
+	GetProxys() (map[string]string, error)
+	GetProxyConfigByID(id int) (string, error)
 	Close()
 }
 

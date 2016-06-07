@@ -109,9 +109,9 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		return nil, errors.Trace(err)
 	}
 
-	srvInfo := &ServiceInfo{
+	srvInfo := &proxyInfo{
 		Host:   hostname,
-		Config: config,
+		config: config,
 	}
 	err = metadata.RegisterService(config.ProxyId, srvInfo.String())
 	if err != nil {
@@ -465,6 +465,14 @@ func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
 		}
 	}
 	return accumulationInfos, nil
+}
+
+func (q *queueImp) GetProxys() (map[string]string, error) {
+	return q.metadata.GetProxys()
+}
+
+func (q *queueImp) GetProxyConfigByID(id int) (string, error) {
+	return q.metadata.GetProxyConfigByID(id)
 }
 
 func (q *queueImp) Close() {
