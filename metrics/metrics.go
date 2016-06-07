@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,7 +93,7 @@ type MetricsClient struct {
 	centerAddr  string
 	serviceName string
 	endpoint    string
-	transport   Transport
+	transports  map[string]Transport
 
 	wg       *sync.WaitGroup
 	stop     chan struct{}
@@ -112,16 +113,6 @@ func Init(cfg *config.Config) (err error) {
 		return err
 	}
 
-	graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
-	if err != nil {
-		return err
-	}
-
-	graphiteServicePool, err := sec.GetString("graphite.service.pool")
-	if err != nil {
-		return err
-	}
-
 	defaultClient = &MetricsClient{
 		r:           metrics.NewRegistry(),
 		d:           metrics.NewRegistry(),
@@ -130,7 +121,14 @@ func Init(cfg *config.Config) (err error) {
 		endpoint:    hn,
 		stop:        make(chan struct{}),
 		stopFlag:    0,
-		transport:   newGraphiteClient("127.0.0.1", graphiteAddr, graphiteServicePool),
+		transports:  make(map[string]Transport),
+	}
+	modStr := sec.GetStringMust("transports", "graphite")
+	mods := strings.Split(modStr, ",")
+	for _, mod := range mods {
+		if err := defaultClient.installTransport(mod, sec); err != nil {
+			log.Warnf("install metrics transport %s failed, err: %v", mod, err)
+		}
 	}
 
 	uri := sec.GetStringMust("metrics.center", defaultReportURI)
@@ -142,6 +140,29 @@ func Init(cfg *config.Config) (err error) {
 
 	go defaultClient.run()
 	return
+}
+
+func (m *MetricsClient) installTransport(mod string, sec config.Section) error {
+	if m.transports == nil {
+		m.transports = make(map[string]Transport)
+	}
+	switch mod {
+	case "http":
+		m.transports[mod] = newHTTPClient()
+	case "graphite":
+		graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
+		if err != nil {
+			return err
+		}
+		graphiteServicePool, err := sec.GetString("graphite.service.pool")
+		if err != nil {
+			return err
+		}
+		m.transports[mod] = newGraphiteClient(LOCAL, graphiteAddr, graphiteServicePool)
+	default:
+		log.Warnf("unknown transport mod: %s", mod)
+	}
+	return nil
 }
 
 func (m *MetricsClient) run() {
@@ -163,7 +184,6 @@ func (m *MetricsClient) run() {
 		case <-reportTk.C:
 			m.report()
 		case <-m.stop:
-			println("stopped")
 			return
 		}
 	}
@@ -210,10 +230,11 @@ func (m *MetricsClient) report() {
 	})
 
 	// TODO
-	// http should be async
-	err := m.transport.Send(m.centerAddr, snapshot)
-	if err != nil {
-		log.Errorf("metrics transport send error: %v", err)
+	for mod := range m.transports {
+		err := m.transports[mod].Send(m.centerAddr, snapshot)
+		if err != nil {
+			log.Errorf("metrics transport send error: %v", err)
+		}
 	}
 }
 
