@@ -234,7 +234,6 @@ func (c Cell) GetTimestamp() int64 {
 	default:
 		return 0
 	}
-	return 0
 }
 
 type GraphiteSer struct {

@@ -20,8 +20,11 @@ import (
 	"net/url"
 )
 
-type Transport interface {
+type MetricsStatWriter interface {
 	Send(uri string, snapshot []*MetricsStat) error
+}
+
+type MetricsStatReader interface {
 	Overview(start, end, step int64, args url.Values) (ret string, err error)
 	GroupMetrics(start, end, step int64, args url.Values) (ret string, err error)
 }

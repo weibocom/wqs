@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +32,12 @@ import (
 	"github.com/weibocom/wqs/log"
 
 	"github.com/rcrowley/go-metrics"
+)
+
+var (
+	errInvalidParam       = fmt.Errorf("Invalid params")
+	errMetricsClientIsNil = fmt.Errorf("MetricsClient is nil")
+	errUnknownTransport   = fmt.Errorf("Unknown transport")
 )
 
 const (
@@ -59,6 +67,9 @@ const (
 	LATENCY = "ltc"
 	SENT    = "sent"
 	RECV    = "recv"
+
+	METRICS_GRAPHITE_T = "graphite"
+	METRICS_HTTP_T     = "http"
 )
 
 type Packet struct {
@@ -93,7 +104,8 @@ type MetricsClient struct {
 	centerAddr  string
 	serviceName string
 	endpoint    string
-	transports  map[string]Transport
+	writers     map[string]MetricsStatWriter
+	reader      MetricsStatReader
 
 	wg       *sync.WaitGroup
 	stop     chan struct{}
@@ -121,14 +133,11 @@ func Init(cfg *config.Config) (err error) {
 		endpoint:    hn,
 		stop:        make(chan struct{}),
 		stopFlag:    0,
-		transports:  make(map[string]Transport),
+		writers:     make(map[string]MetricsStatWriter),
 	}
-	modStr := sec.GetStringMust("transports", "graphite")
-	mods := strings.Split(modStr, ",")
-	for _, mod := range mods {
-		if err := defaultClient.installTransport(mod, sec); err != nil {
-			log.Warnf("install metrics transport %s failed, err: %v", mod, err)
-		}
+
+	if err := defaultClient.installTransport(sec); err != nil {
+		return err
 	}
 
 	uri := sec.GetStringMust("metrics.center", defaultReportURI)
@@ -142,27 +151,47 @@ func Init(cfg *config.Config) (err error) {
 	return
 }
 
-func (m *MetricsClient) installTransport(mod string, sec config.Section) error {
-	if m.transports == nil {
-		m.transports = make(map[string]Transport)
+func (m *MetricsClient) installTransport(sec config.Section) error {
+	if m.writers == nil {
+		m.writers = make(map[string]MetricsStatWriter)
 	}
-	switch mod {
-	case "http":
-		m.transports[mod] = newHTTPClient()
-	case "graphite":
-		graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
+	modStr := sec.GetStringMust("transport.writers", METRICS_GRAPHITE_T)
+	mods := strings.Split(modStr, ",")
+	for _, mod := range mods {
+		wr, err := defaultClient.factoryTransport(mod, sec)
 		if err != nil {
 			return err
+		}
+		m.writers[mod] = wr.(MetricsStatWriter)
+	}
+
+	modStr = sec.GetStringMust("transport.reader", METRICS_GRAPHITE_T)
+	reader, err := defaultClient.factoryTransport(modStr, sec)
+	if err != nil {
+		return err
+	}
+	defaultClient.reader = reader.(MetricsStatReader)
+	return nil
+}
+
+func (m *MetricsClient) factoryTransport(mod string, sec config.Section) (interface{}, error) {
+	switch mod {
+	case METRICS_HTTP_T:
+		return newHTTPClient(), nil
+	case METRICS_GRAPHITE_T:
+		graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
+		if err != nil {
+			return nil, err
 		}
 		graphiteServicePool, err := sec.GetString("graphite.service.pool")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		m.transports[mod] = newGraphiteClient(LOCAL, graphiteAddr, graphiteServicePool)
+		return newGraphiteClient(LOCAL, graphiteAddr, graphiteServicePool), nil
 	default:
 		log.Warnf("unknown transport mod: %s", mod)
 	}
-	return nil
+	return nil, errUnknownTransport
 }
 
 func (m *MetricsClient) run() {
@@ -230,10 +259,10 @@ func (m *MetricsClient) report() {
 	})
 
 	// TODO
-	for mod := range m.transports {
-		err := m.transports[mod].Send(m.centerAddr, snapshot)
+	for mod := range m.writers {
+		err := m.writers[mod].Send(m.centerAddr, snapshot)
 		if err != nil {
-			log.Errorf("metrics transport send error: %v", err)
+			log.Errorf("metrics writers send error: %v", err)
 		}
 	}
 }
@@ -274,6 +303,9 @@ func (m *MetricsClient) Close() {
 }
 
 func Add(key string, args ...int64) {
+	if defaultClient == nil {
+		return
+	}
 	var pkt *Packet
 	if len(args) == 1 {
 		pkt = &Packet{INCR, key, args[0], 0, 0}
@@ -288,6 +320,27 @@ func Add(key string, args ...int64) {
 	default:
 		log.Warnf("metrics chan is full: %s", pkt)
 	}
+}
+
+func GetMetrics(params url.Values) (stat string, err error) {
+	if defaultClient == nil || defaultClient.reader == nil {
+		return "", errMetricsClientIsNil
+	}
+
+	start, err := strconv.ParseInt(params.Get("start"), 10, 64)
+	if err != nil {
+		return "", errInvalidParam
+	}
+	end, err := strconv.ParseInt(params.Get("end"), 10, 64)
+	if err != nil {
+		return "", errInvalidParam
+	}
+	step, err := strconv.ParseInt(params.Get("step"), 10, 64)
+	if err != nil {
+		return "", errInvalidParam
+	}
+
+	return defaultClient.reader.GroupMetrics(start, end, step, params)
 }
 
 func scaleTime(elapsed int64) string {
