@@ -20,6 +20,14 @@ import (
 	"testing"
 )
 
+func TestConfigFromFile(t *testing.T) {
+	config, err := NewConfigFromFile("../config.properties")
+	if err != nil {
+		t.Fatalf("NewConfigFromFile err : %v", err)
+	}
+	t.Logf("config:\n%s\n", config.String())
+}
+
 func TestGetSection(t *testing.T) {
 	config, err := NewConfigFromFile("../config.properties")
 	if err != nil {

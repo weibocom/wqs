@@ -17,6 +17,7 @@ limitations under the License.
 package queue
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/weibocom/wqs/config"
@@ -72,12 +73,15 @@ func (groupConfig *GroupConfig) String() string {
 	return string(result)
 }
 
-type ServiceInfo struct {
-	Host   string         `json:"host"`
-	Config *config.Config `json:"config"`
+type proxyInfo struct {
+	Host   string `json:"host"`
+	Config string `json:"config"`
+	config *config.Config
 }
 
-func (s *ServiceInfo) String() string {
-	data, _ := json.Marshal(s)
-	return string(data)
+func (i *proxyInfo) String() string {
+	i.Config = i.config.String()
+	buff := &bytes.Buffer{}
+	json.NewEncoder(buff).Encode(i)
+	return buff.String()
 }

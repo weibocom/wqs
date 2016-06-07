@@ -98,6 +98,9 @@ func NewConfigFromBytes(data []byte) (*Config, error) {
 
 func (c *Config) String() string {
 
+	if c == nil {
+		return ""
+	}
 	buffer := &bytes.Buffer{}
 	for name, section := range c.sections {
 		for key, value := range section {

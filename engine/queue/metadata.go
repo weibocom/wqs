@@ -142,6 +142,50 @@ func (m *Metadata) RegisterService(id int, data string) error {
 	return nil
 }
 
+//Get a proxy's config
+func (m *Metadata) GetProxyConfigByID(id int) (string, error) {
+
+	data, _, err := m.zkClient.Get(fmt.Sprintf("%s/%d", m.servicePath, id))
+	if err != nil {
+		if err == zk.ErrNoNode {
+			return "", errors.NotFoundf("proxy %d", id)
+		}
+		return "", errors.Trace(err)
+	}
+
+	info := proxyInfo{}
+	err = json.Unmarshal(data, &info)
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	return info.Config, nil
+}
+
+func (m *Metadata) GetProxys() (map[string]string, error) {
+
+	proxys := make(map[string]string)
+	ids, _, err := m.zkClient.Children(m.servicePath)
+	if err != nil {
+		return proxys, errors.Trace(err)
+	}
+
+	for _, id := range ids {
+		data, _, err := m.zkClient.Get(fmt.Sprintf("%s/%s", m.servicePath, id))
+		if err != nil {
+			return proxys, errors.Trace(err)
+		}
+
+		info := proxyInfo{}
+		err = json.Unmarshal(data, &info)
+		if err != nil {
+			return proxys, errors.Trace(err)
+		}
+
+		proxys[id] = info.Host
+	}
+	return proxys, nil
+}
+
 func (m *Metadata) RefreshMetadata() error {
 	queueConfigs := make(map[string]QueueConfig)
 
