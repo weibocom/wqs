@@ -17,6 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -89,4 +93,35 @@ func (slice Int32Slice) Less(i, j int) bool {
 
 func (slice Int32Slice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func WritePid() error {
+	pid := os.Getpid()
+	procName := os.Args[0]
+	_, procName = filepath.Split(procName)
+	return ioutil.WriteFile(
+		fmt.Sprintf("/tmp/%s.pid", procName), []byte(fmt.Sprintf("%d", pid)), 0666)
+}
+
+func WritePidWithVal(pid int) error {
+	procName := os.Args[0]
+	_, procName = filepath.Split(procName)
+	return ioutil.WriteFile(
+		fmt.Sprintf("/tmp/%s.pid", procName), []byte(fmt.Sprintf("%d", pid)), 0666)
+}
+
+func ClearPidFile() error {
+	procName := os.Args[0]
+	_, procName = filepath.Split(procName)
+	return os.Remove(fmt.Sprintf("/tmp/%s.pid", procName))
+}
+
+func GetPid() (int, error) {
+	procName := os.Args[0]
+	_, procName = filepath.Split(procName)
+	data, err := ioutil.ReadFile(fmt.Sprintf("/tmp/%s.pid", procName))
+	if err != nil {
+		return -1, err
+	}
+	return strconv.Atoi(string(data))
 }
