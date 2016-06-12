@@ -19,58 +19,90 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/weibocom/wqs/log"
+	"github.com/weibocom/wqs/utils/list"
 )
 
 const (
 	timeout    = 10 * time.Millisecond
 	paddingMax = 1024
+	expiredMax = 10 * time.Second
 )
 
 var (
-	ErrTimeout = errors.New("Timeout")
+	ErrTimeout = errors.New("timeout")
 	ErrClosed  = errors.New("consumer closed")
 	ErrBadAck  = errors.New("bad ack")
 )
 
-type ackNode struct {
-	msg  *sarama.ConsumerMessage
-	prev *ackNode
-	next *ackNode
+type ackHead struct {
+	ackHead list.Node
+	getHead list.Node
 }
 
-func (head *ackNode) Empty() bool {
-	return head.next == head
+func (h *ackHead) Push(n *ackNode) {
+	n.ackList.InsertToTail(&h.ackHead)
+	n.getList.InsertToTail(&h.getHead)
 }
 
-func (head *ackNode) Front() *ackNode {
-	if head.next != head {
-		return head.next
+func (h *ackHead) Empty() bool {
+	return h.ackHead.Empty()
+}
+
+func (h *ackHead) Front() *ackNode {
+	var aNode *ackNode
+	node := h.ackHead.Next()
+	aNode = (*ackNode)(list.ContainerOf(unsafe.Pointer(node), unsafe.Offsetof(aNode.ackList)))
+	return aNode
+}
+
+func (h *ackHead) GetExpired(now time.Time) *ackNode {
+	var gNode *ackNode
+	if h.getHead.Empty() {
+		return nil
+	}
+
+	first := true
+	begin := h.getHead.Next()
+	for n := begin; first || n != begin; n = h.getHead.Next() {
+		first = false
+		gNode = (*ackNode)(list.ContainerOf(unsafe.Pointer(n), unsafe.Offsetof(gNode.getList)))
+		gNode.getList.MoveToTail(&h.getHead)
+		if now.Sub(gNode.expired) > expiredMax {
+			gNode.expired = now
+			return gNode
+		}
 	}
 	return nil
 }
 
-func (head *ackNode) RemoveSelf() {
-	head.prev.next = head.next
-	head.next.prev = head.prev
-	head.prev = nil
-	head.next = nil
+func newAckHead() *ackHead {
+	head := &ackHead{}
+	head.ackHead.Init()
+	head.getHead.Init()
+	return head
 }
 
-func (head *ackNode) Push(a *ackNode) {
-	head.prev.next = a
-	a.prev = head.prev
-	a.next = head
-	head.prev = a
+type ackNode struct {
+	msg     *sarama.ConsumerMessage
+	expired time.Time
+	ackList list.Node
+	getList list.Node
+}
+
+func (n *ackNode) RemoveBySelf() {
+	n.ackList.Remove()
+	n.getList.Remove()
 }
 
 func newAckNode(msg *sarama.ConsumerMessage) *ackNode {
-	node := &ackNode{msg: msg}
-	node.prev = node
-	node.next = node
+	node := &ackNode{msg: msg, expired: time.Now()}
+	node.ackList.Init()
+	node.getList.Init()
 	return node
 }
 
@@ -79,7 +111,7 @@ type Consumer struct {
 	group          string
 	consumer       *cluster.Consumer
 	padding        uint32
-	partitionHeads map[int32]*ackNode
+	partitionHeads map[int32]*ackHead
 	ackMessages    map[int32]map[int64]*ackNode
 	mu             sync.Mutex
 }
@@ -101,7 +133,7 @@ func NewConsumer(brokerAddrs []string, config *cluster.Config, topic, group stri
 		group:          group,
 		consumer:       consumer,
 		padding:        0,
-		partitionHeads: make(map[int32]*ackNode),
+		partitionHeads: make(map[int32]*ackHead),
 		ackMessages:    make(map[int32]map[int64]*ackNode),
 	}, nil
 }
@@ -122,11 +154,10 @@ func (c *Consumer) recv() (msg *sarama.ConsumerMessage, err error) {
 func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 	c.mu.Lock()
 	if c.padding < paddingMax {
-		msg, err = c.recv()
-		if err == nil {
+		if msg, err = c.recv(); err == nil {
 			head, ok := c.partitionHeads[msg.Partition]
 			if !ok {
-				head = newAckNode(nil)
+				head = newAckHead()
 				c.partitionHeads[msg.Partition] = head
 				c.ackMessages[msg.Partition] = make(map[int64]*ackNode)
 			}
@@ -134,12 +165,18 @@ func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 			head.Push(node)
 			c.ackMessages[msg.Partition][msg.Offset] = node
 			c.padding++
+			c.mu.Unlock()
+			return
 		}
-	} else {
+	}
+
+	if c.padding > 0 {
+		now := time.Now()
 	Found:
 		for _, head := range c.partitionHeads {
-			if !head.Empty() {
-				msg = head.Front().msg
+			if node := head.GetExpired(now); node != nil {
+				msg = node.msg
+				err = nil
 				break Found
 			}
 		}
@@ -168,8 +205,14 @@ func (c *Consumer) Ack(partition int32, offset int64) error {
 		return ErrBadAck
 	}
 
+	//internal error, should not be empty
+	if head.Empty() {
+		c.mu.Unlock()
+		return ErrBadAck
+	}
+
 	first := head.Front()
-	node.RemoveSelf()
+	node.RemoveBySelf()
 	delete(partitionMessages, offset)
 	c.padding--
 	if first == node {
