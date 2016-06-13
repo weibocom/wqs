@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/weibocom/wqs/log"
@@ -28,6 +27,8 @@ import (
 
 var (
 	ErrWaitTimeout = errors.New("wait timeout")
+
+	defaultHandle = mockHandleConn
 )
 
 const (
@@ -35,13 +36,14 @@ const (
 )
 
 type TCPServer struct {
-	l   *net.TCPListener
-	mgr *sync.WaitGroup
+	l      *net.TCPListener
+	mgr    *ConnectionManager
+	handle func(net.Conn) error
 }
 
 func NewTCPServer(port int) (*TCPServer, error) {
 	s := &TCPServer{
-		mgr: new(sync.WaitGroup),
+		mgr: newConnectionMgr(),
 	}
 	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -58,7 +60,7 @@ func NewTCPServer(port int) (*TCPServer, error) {
 
 func NewTCPServerFromFD(fd uintptr) (*TCPServer, error) {
 	s := &TCPServer{
-		mgr: new(sync.WaitGroup),
+		mgr: newConnectionMgr(),
 	}
 
 	file := os.NewFile(fd, _UNIX_SOCK)
@@ -107,6 +109,10 @@ func (s *TCPServer) WaitWithTimeout(duration time.Duration) error {
 }
 
 func (s *TCPServer) AcceptLoop() {
+	if s.handle == nil {
+		s.handle = defaultHandle
+	}
+
 	for {
 		conn, err := s.l.Accept()
 		if err != nil {
@@ -116,13 +122,13 @@ func (s *TCPServer) AcceptLoop() {
 		}
 		go func() {
 			s.mgr.Add(1)
-			s.handleConn(conn)
+			s.handle(conn)
 			s.mgr.Done()
 		}()
 	}
 }
 
-func (s *TCPServer) handleConn(conn net.Conn) {
+func mockHandleConn(conn net.Conn) error {
 	log.Info("handle new conn")
 	tick := time.NewTicker(time.Second)
 	buffer := make([]byte, 64)
@@ -132,13 +138,13 @@ func (s *TCPServer) handleConn(conn net.Conn) {
 			_, err := conn.Write([]byte("helo"))
 			if err != nil {
 				conn.Close()
-				return
+				return err
 			}
 
 			_, err = conn.Read(buffer)
 			if err != nil {
 				conn.Close()
-				return
+				return err
 			}
 		}
 	}

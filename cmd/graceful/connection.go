@@ -13,27 +13,30 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package utils
+package graceful
 
 import (
-	"unsafe"
+	"sync"
 )
 
-// USE AT YOUR OWN RISK
-
-// String force casts a []byte to a string.
-// Used as hack for string() when str is used as temp val
-func BytesToString(data []byte) string {
-	if len(data) == 0 {
-		return ""
-	}
-
-	return *(*string)(unsafe.Pointer(&data))
+type ConnectionManager struct {
+	wg *sync.WaitGroup
 }
 
-func StringToBytes(str string) []byte {
-	strHeader := (*[2]uintptr)(unsafe.Pointer(&str))
-	bytesHeader := [3]uintptr{strHeader[0], strHeader[1], strHeader[1]}
-	return *(*[]byte)(unsafe.Pointer(&bytesHeader))
+func newConnectionMgr() *ConnectionManager {
+	return &ConnectionManager{
+		wg: new(sync.WaitGroup),
+	}
+}
+
+func (cm *ConnectionManager) Wait() {
+	cm.wg.Wait()
+}
+
+func (cm *ConnectionManager) Add(delt int) {
+	cm.wg.Add(delt)
+}
+
+func (cm *ConnectionManager) Done() {
+	cm.wg.Done()
 }
