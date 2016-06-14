@@ -41,17 +41,17 @@ var (
 )
 
 const (
-	INCR = iota
-	INCR_EX
-	INCR_EX2
-	DECR
+	incrCmd = iota
+	incrExCmd
+	incrEx2Cmd
+	decrCmd
 )
 
 var opMap = map[uint8]string{
-	INCR:     "incr",
-	INCR_EX:  "incr_ex",
-	INCR_EX2: "incr_ex2",
-	DECR:     "decr",
+	incrCmd:    "incr",
+	incrExCmd:  "incr_ex",
+	incrEx2Cmd: "incr_ex2",
+	decrCmd:    "decr",
 }
 
 const (
@@ -61,15 +61,15 @@ const (
 )
 
 const (
-	WQS     = "WQS"
-	QPS     = "qps"
-	ELAPSED = "elapsed"
-	LATENCY = "ltc"
-	SENT    = "sent"
-	RECV    = "recv"
+	WQS        = "WQS"
+	qpsKey     = "qps"
+	elapsedKey = "elapsed"
+	latencyKey = "ltc"
+	sentKey    = "sent"
+	recvKey    = "recv"
 
-	METRICS_GRAPHITE_T = "graphite"
-	METRICS_HTTP_T     = "http"
+	metricsGraphiteType = "graphite"
+	metricsHTTPType     = "http"
 )
 
 type Packet struct {
@@ -155,7 +155,7 @@ func (m *MetricsClient) installTransport(sec config.Section) error {
 	if m.writers == nil {
 		m.writers = make(map[string]MetricsStatWriter)
 	}
-	modStr := sec.GetStringMust("transport.writers", METRICS_GRAPHITE_T)
+	modStr := sec.GetStringMust("transport.writers", metricsGraphiteType)
 	mods := strings.Split(modStr, ",")
 	for _, mod := range mods {
 		wr, err := defaultClient.factoryTransport(mod, sec)
@@ -165,7 +165,7 @@ func (m *MetricsClient) installTransport(sec config.Section) error {
 		m.writers[mod] = wr.(MetricsStatWriter)
 	}
 
-	modStr = sec.GetStringMust("transport.reader", METRICS_GRAPHITE_T)
+	modStr = sec.GetStringMust("transport.reader", metricsGraphiteType)
 	reader, err := defaultClient.factoryTransport(modStr, sec)
 	if err != nil {
 		return err
@@ -176,9 +176,9 @@ func (m *MetricsClient) installTransport(sec config.Section) error {
 
 func (m *MetricsClient) factoryTransport(mod string, sec config.Section) (interface{}, error) {
 	switch mod {
-	case METRICS_HTTP_T:
+	case metricsHTTPType:
 		return newHTTPClient(), nil
-	case METRICS_GRAPHITE_T:
+	case metricsGraphiteType:
 		graphiteAddr, err := sec.GetString("graphite.report.addr.udp")
 		if err != nil {
 			return nil, err
@@ -220,13 +220,13 @@ func (m *MetricsClient) run() {
 
 func (m *MetricsClient) do(p *Packet) {
 	switch p.Op {
-	case INCR:
+	case incrCmd:
 		m.incr(p.Key, p.Val)
-	case INCR_EX:
+	case incrExCmd:
 		m.incrEx(p.Key, p.Val, p.Elapsed)
-	case INCR_EX2:
+	case incrEx2Cmd:
 		m.incrEx2(p.Key, p.Val, p.Elapsed, p.Latency)
-	case DECR:
+	case decrCmd:
 		m.decr(p.Key, p.Val)
 	}
 }
@@ -273,22 +273,22 @@ func (m *MetricsClient) incr(k string, v int64) {
 }
 
 func (m *MetricsClient) incrEx(k string, v, elapsed int64) {
-	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
+	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
 	d.Inc(elapsed)
 	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
 	d.Inc(v)
 }
 
 func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
-	d := metrics.GetOrRegisterCounter(k+"#"+QPS, m.d)
+	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+ELAPSED, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
 	d.Inc(elapsed)
 	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+LATENCY, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+latencyKey, m.d)
 	d.Inc(latency)
 }
 
@@ -308,11 +308,11 @@ func Add(key string, args ...int64) {
 	}
 	var pkt *Packet
 	if len(args) == 1 {
-		pkt = &Packet{INCR, key, args[0], 0, 0}
+		pkt = &Packet{incrCmd, key, args[0], 0, 0}
 	} else if len(args) == 2 {
-		pkt = &Packet{INCR_EX, key, args[0], args[1], 0}
+		pkt = &Packet{incrExCmd, key, args[0], args[1], 0}
 	} else if len(args) == 3 {
-		pkt = &Packet{INCR_EX2, key, args[0], args[1], args[2]}
+		pkt = &Packet{incrEx2Cmd, key, args[0], args[1], args[2]}
 	}
 
 	select {

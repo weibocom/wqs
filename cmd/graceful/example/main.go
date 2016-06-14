@@ -12,13 +12,13 @@ import (
 )
 
 const (
-	_ENV_RESTART = "WQS_RESTART"
+	envRestart = "WQS_RESTART"
 )
 
 func main() {
 	var s *graceful.TCPServer
 	var err error
-	if os.Getenv(_ENV_RESTART) == "true" {
+	if os.Getenv(envRestart) == "true" {
 		s, err = graceful.NewTCPServerFromFD(3)
 	} else {
 		s, err = graceful.NewTCPServer(12345)
@@ -48,7 +48,7 @@ func main() {
 				log.Warnf("Get sockFD err:%v", err)
 				return
 			}
-			os.Setenv(_ENV_RESTART, "true")
+			os.Setenv(envRestart, "true")
 			execSpec := &syscall.ProcAttr{
 				Env:   os.Environ(),
 				Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), listenerFD},

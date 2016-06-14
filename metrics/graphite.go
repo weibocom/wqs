@@ -29,20 +29,20 @@ import (
 )
 
 const (
-	_GRAPHITE_REQ_TPL = "http://%s/render?from=%d&until=%d&target=%s&format=json"
+	graphiteRequestTpl = "http://%s/render?from=%d&until=%d&target=%s&format=json"
 
-	_ALL_MASK    = "*"
-	_ALL_HOST    = _ALL_MASK
-	_ALL_METRICS = _ALL_MASK
+	allMask    = "*"
+	allHost    = allMask
+	allMetrics = allMask
 
-	MESSAGE_MAX_LEN = 65000
+	messageMaxLen = 65000
 )
 
 type graphiteType string
 
 const (
-	COUNTER graphiteType = "c"
-	TIMER   graphiteType = "ms"
+	counterType graphiteType = "c"
+	timerType   graphiteType = "ms"
 )
 
 func (t graphiteType) String() string {
@@ -93,7 +93,7 @@ func (g *graphiteClient) Send(_ string, snapshot []*MetricsStat) error {
 
 func (m *graphiteClient) Overview(start, end, step int64, params url.Values) (ret string, err error) {
 	host := params.Get("host")
-	reqURL := fmt.Sprintf(_GRAPHITE_REQ_TPL, m.root, start, end, host)
+	reqURL := fmt.Sprintf(graphiteRequestTpl, m.root, start, end, host)
 	res, err := m.doRequest(reqURL)
 	_ = res
 	return
@@ -106,7 +106,7 @@ func (m *graphiteClient) GroupMetrics(start, end, step int64, params url.Values)
 	action := params.Get("action")
 	metricsName := params.Get("metrics")
 	target := m.factoryTarget(host, queue, group, action, metricsName)
-	reqURL := fmt.Sprintf(_GRAPHITE_REQ_TPL, m.root, start, end, target)
+	reqURL := fmt.Sprintf(graphiteRequestTpl, m.root, start, end, target)
 	return m.doRequest(reqURL)
 }
 
@@ -154,45 +154,45 @@ func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
 	var items []*graphiteItem
 	for _, state := range states {
 		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, SENT, QPS}, "."),
+			key:   strings.Join([]string{state.Queue, state.Group, sentKey, qpsKey}, "."),
 			value: state.Sent.Total,
-			typ:   COUNTER,
+			typ:   counterType,
 		})
 		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, SENT, ELAPSED}, "."),
+			key:   strings.Join([]string{state.Queue, state.Group, sentKey, elapsedKey}, "."),
 			value: state.Sent.Elapsed,
-			typ:   TIMER,
+			typ:   timerType,
 		})
 
 		for k, v := range state.Sent.Scale {
 			items = append(items, &graphiteItem{
-				key:   strings.Join([]string{state.Queue, state.Group, SENT, k}, "."),
+				key:   strings.Join([]string{state.Queue, state.Group, sentKey, k}, "."),
 				value: v,
-				typ:   COUNTER,
+				typ:   counterType,
 			})
 		}
 
 		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, RECV, QPS}, "."),
+			key:   strings.Join([]string{state.Queue, state.Group, recvKey, qpsKey}, "."),
 			value: state.Recv.Total,
-			typ:   COUNTER,
+			typ:   counterType,
 		})
 		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, RECV, ELAPSED}, "."),
+			key:   strings.Join([]string{state.Queue, state.Group, recvKey, elapsedKey}, "."),
 			value: state.Recv.Elapsed,
-			typ:   TIMER,
+			typ:   timerType,
 		})
 		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, RECV, LATENCY}, "."),
+			key:   strings.Join([]string{state.Queue, state.Group, recvKey, latencyKey}, "."),
 			value: state.Recv.Latency,
-			typ:   TIMER,
+			typ:   timerType,
 		})
 
 		for k, v := range state.Recv.Scale {
 			items = append(items, &graphiteItem{
-				key:   strings.Join([]string{state.Queue, state.Group, RECV, k}, "."),
+				key:   strings.Join([]string{state.Queue, state.Group, recvKey, k}, "."),
 				value: v,
-				typ:   COUNTER,
+				typ:   counterType,
 			})
 		}
 	}
@@ -208,7 +208,7 @@ func transGraphiteItemsToMessages(localIP string, servicePool string, items []*g
 		segment := fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%v|%s",
 			servicePool, localIP, item.key, item.value, item.typ)
 
-		if segmentsLength+len(segment) > MESSAGE_MAX_LEN {
+		if segmentsLength+len(segment) > messageMaxLen {
 			message := strings.Join(segments, "\n") + "\n"
 			messages = append(messages, message)
 			segments = make([]string, 0)

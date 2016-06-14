@@ -28,11 +28,12 @@ import (
 var (
 	ErrWaitTimeout = errors.New("wait timeout")
 
+	// Be happy for test
 	defaultHandle = mockHandleConn
 )
 
 const (
-	_UNIX_SOCK = "/tmp/wqs_unix_sock_restart.sock"
+	unixSock = "/tmp/wqs_unix_sock_restart.sock"
 )
 
 type TCPServer struct {
@@ -63,7 +64,7 @@ func NewTCPServerFromFD(fd uintptr) (*TCPServer, error) {
 		mgr: newConnectionMgr(),
 	}
 
-	file := os.NewFile(fd, _UNIX_SOCK)
+	file := os.NewFile(fd, unixSock)
 	listener, err := net.FileListener(file)
 	if err != nil {
 		return nil, errors.New("File to recover socket from file descriptor: " + err.Error())

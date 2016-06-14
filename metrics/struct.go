@@ -77,22 +77,22 @@ func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 		st.Queue = ks[0]
 		st.Group = ks[1]
 
-		if ks[2] == SENT {
+		if ks[2] == sentKey {
 			switch ks[3] {
-			case QPS:
+			case qpsKey:
 				st.Sent.Total = c.Count()
-			case ELAPSED:
+			case elapsedKey:
 				st.Sent.Elapsed = float64(c.Count())
 			default:
 				st.Sent.Scale[ks[3]] = c.Count()
 			}
-		} else if ks[2] == RECV {
+		} else if ks[2] == recvKey {
 			switch ks[3] {
-			case QPS:
+			case qpsKey:
 				st.Recv.Total = c.Count()
-			case ELAPSED:
+			case elapsedKey:
 				st.Recv.Elapsed = float64(c.Count())
-			case LATENCY:
+			case latencyKey:
 				st.Recv.Latency = float64(c.Count())
 			default:
 				st.Recv.Scale[ks[3]] = c.Count()
