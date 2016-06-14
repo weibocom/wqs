@@ -18,13 +18,57 @@ package metrics
 
 import (
 	"net/url"
+	"strings"
 )
+
+type MetricsQueryParam struct {
+	Host        string
+	Action      string
+	Group       string
+	Queue       string
+	MetricsName string
+	Merge       bool
+}
+
+func NewMetricsQueryParam(host, action, group, queue,
+	metricsName string, merge bool) *MetricsQueryParam {
+
+	return &MetricsQueryParam{
+		Host:        host,
+		Action:      action,
+		Group:       group,
+		Queue:       queue,
+		MetricsName: metricsName,
+		Merge:       merge,
+	}
+}
+
+func NewMetricsQueryParamFormURL(args url.Values) *MetricsQueryParam {
+	var merge bool
+	switch strings.ToUpper(args.Get("merge")) {
+	case "TRUE":
+		merge = true
+	case "FALSE":
+		merge = false
+	default:
+		merge = false
+	}
+
+	return &MetricsQueryParam{
+		Host:        args.Get("host"),
+		Action:      args.Get("action"),
+		Group:       args.Get("group"),
+		Queue:       args.Get("queue"),
+		MetricsName: args.Get("metrics_name"),
+		Merge:       merge,
+	}
+}
 
 type MetricsStatWriter interface {
 	Send(uri string, snapshot []*MetricsStat) error
 }
 
 type MetricsStatReader interface {
-	Overview(start, end, step int64, args url.Values) (ret string, err error)
-	GroupMetrics(start, end, step int64, args url.Values) (ret string, err error)
+	Overview(start, end, step int64, params *MetricsQueryParam) (ret string, err error)
+	GroupMetrics(start, end, step int64, params *MetricsQueryParam) (ret string, err error)
 }

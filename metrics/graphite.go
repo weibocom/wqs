@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/weibocom/wqs/log"
@@ -91,26 +90,20 @@ func (g *graphiteClient) Send(_ string, snapshot []*MetricsStat) error {
 	return conn.Close()
 }
 
-func (m *graphiteClient) Overview(start, end, step int64, params url.Values) (ret string, err error) {
-	host := params.Get("host")
-	reqURL := fmt.Sprintf(graphiteRequestTpl, m.root, start, end, host)
-	res, err := m.doRequest(reqURL)
+func (m *graphiteClient) Overview(start, end, step int64, params *MetricsQueryParam) (ret string, err error) {
+	reqURL := fmt.Sprintf(graphiteRequestTpl, m.root, start, end, params.Host)
+	res, err := m.doRequest(reqURL, false)
 	_ = res
 	return
 }
 
-func (m *graphiteClient) GroupMetrics(start, end, step int64, params url.Values) (ret string, err error) {
-	host := params.Get("host")
-	group := params.Get("group")
-	queue := params.Get("queue")
-	action := params.Get("action")
-	metricsName := params.Get("metrics")
-	target := m.factoryTarget(host, queue, group, action, metricsName)
+func (m *graphiteClient) GroupMetrics(start, end, step int64, params *MetricsQueryParam) (ret string, err error) {
+	target := m.factoryTarget(params.Host, params.Queue, params.Group, params.Action, params.MetricsName)
 	reqURL := fmt.Sprintf(graphiteRequestTpl, m.root, start, end, target)
-	return m.doRequest(reqURL)
+	return m.doRequest(reqURL, params.Merge)
 }
 
-func (m *graphiteClient) doRequest(reqURL string) (ret string, err error) {
+func (m *graphiteClient) doRequest(reqURL string, merge bool) (ret string, err error) {
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
 		return "", err
@@ -125,11 +118,17 @@ func (m *graphiteClient) doRequest(reqURL string) (ret string, err error) {
 	if err != nil {
 		return "", err
 	}
+
 	res, err := parseGraphiteResponse(data)
 	if err != nil {
 		return "", err
 	}
-	_ = res
+	if merge {
+		data, err = mergeMetrics(res)
+		if err != nil {
+			return "", err
+		}
+	}
 	return string(data), nil
 }
 
@@ -225,12 +224,33 @@ func transGraphiteItemsToMessages(localIP string, servicePool string, items []*g
 
 type Cell [2]interface{}
 
-func (c Cell) GetTimestamp() int64 {
+func AddCell(b, c Cell) Cell {
+	if c.GetTimestamp() != b.GetTimestamp() {
+		return b
+	}
+	d := Cell{}
+	d[0] = c.GetValue() + b.GetValue()
+	d[1] = b.GetTimestamp()
+	return d
+}
+
+func (c Cell) GetValue() float64 {
 	switch c[0].(type) {
 	case int64:
-		return c[0].(int64)
+		return float64(c[0].(int64))
 	case float64:
-		return int64(c[0].(float64))
+		return c[0].(float64)
+	default:
+		return 0.0
+	}
+}
+
+func (c Cell) GetTimestamp() int64 {
+	switch c[1].(type) {
+	case int64:
+		return c[1].(int64)
+	case float64:
+		return int64(c[1].(float64))
 	default:
 		return 0
 	}
@@ -241,9 +261,37 @@ type GraphiteSer struct {
 	Data   []Cell `json:"datapoints"`
 }
 
+func (gs *GraphiteSer) Add(b *GraphiteSer) {
+	if len(gs.Data) != len(b.Data) {
+		return
+	}
+	for i := range gs.Data {
+		gs.Data[i] = AddCell(gs.Data[i], b.Data[i])
+	}
+}
+
 type GraphiteResponse []*GraphiteSer
 
 func parseGraphiteResponse(data []byte) (resp GraphiteResponse, err error) {
 	err = json.Unmarshal(data, &resp)
+
+	// format
+	for i := range resp {
+		for j := range resp[i].Data {
+			resp[i].Data[j][1] = resp[i].Data[j].GetTimestamp()
+			resp[i].Data[j][0] = resp[i].Data[j].GetValue()
+		}
+	}
 	return
+}
+
+func mergeMetrics(resp GraphiteResponse) ([]byte, error) {
+	if len(resp) > 1 {
+		for i := 1; i < len(resp); i++ {
+			resp[0].Add(resp[i])
+		}
+		resp = resp[:1]
+	}
+
+	return json.Marshal(resp)
 }

@@ -187,7 +187,8 @@ func (m *Client) factoryTransport(mod string, sec config.Section) (interface{}, 
 		if err != nil {
 			return nil, err
 		}
-		return newGraphiteClient(LOCAL, graphiteAddr, graphiteServicePool), nil
+		graphiteRoot := sec.GetStringMust("graphite.root", LOCAL)
+		return newGraphiteClient(graphiteRoot, graphiteAddr, graphiteServicePool), nil
 	default:
 		log.Warnf("unknown transport mod: %s", mod)
 	}
@@ -340,7 +341,8 @@ func GetMetrics(params url.Values) (stat string, err error) {
 		return "", errInvalidParam
 	}
 
-	return defaultClient.reader.GroupMetrics(start, end, step, params)
+	opt := NewMetricsQueryParamFormURL(params)
+	return defaultClient.reader.GroupMetrics(start, end, step, opt)
 }
 
 func scaleTime(elapsed int64) string {

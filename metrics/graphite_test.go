@@ -3,7 +3,6 @@ package metrics
 import (
 	"bufio"
 	"net"
-	"net/url"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -120,12 +119,14 @@ func TestGraphiteGroupMetrics(t *testing.T) {
 	cli.Send("", data)
 	time.Sleep(time.Second * 2)
 
-	params := url.Values{}
-	params.Add("host", "*")
-	params.Add("queue", testQ)
-	params.Add("group", testG)
-	params.Add("action", "sent")
-	params.Add("metrics", "qps")
+	params := &MetricsQueryParam{
+		Host:        "*",
+		Queue:       testQ,
+		Group:       testG,
+		Action:      "sent",
+		MetricsName: "qps",
+		Merge:       true,
+	}
 	ret, err := cli.GroupMetrics(testData.start, testData.end, testData.step, params)
 	if err != nil {
 		t.Log(err)
