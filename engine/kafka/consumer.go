@@ -61,21 +61,17 @@ func (h *ackHead) Front() *ackNode {
 }
 
 func (h *ackHead) GetExpired(now time.Time) *ackNode {
-	var gNode *ackNode
+	var node *ackNode
 	if h.getHead.Empty() {
 		return nil
 	}
 
-	first := true
-	begin := h.getHead.Next()
-	for n := begin; first || n != begin; n = h.getHead.Next() {
-		first = false
-		gNode = (*ackNode)(list.ContainerOf(unsafe.Pointer(n), unsafe.Offsetof(gNode.getList)))
-		gNode.getList.MoveToTail(&h.getHead)
-		if now.Sub(gNode.expired) > expiredMax {
-			gNode.expired = now
-			return gNode
-		}
+	n := h.getHead.Next()
+	node = (*ackNode)(list.ContainerOf(unsafe.Pointer(n), unsafe.Offsetof(node.getList)))
+	if now.Sub(node.expired) > expiredMax {
+		node.getList.MoveToTail(&h.getHead)
+		node.expired = now
+		return node
 	}
 	return nil
 }

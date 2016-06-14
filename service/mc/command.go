@@ -28,8 +28,8 @@ type MemcacheCommand func(q queue.Queue, tokens []string, r *bufio.Reader, w *bu
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt
 	commands    = make(map[string]MemcacheCommand)
-	CMD_UNKNOWN = "$cmdUnkown$"
-	CMD_NOFIELD = "$cmdNoFields$"
+	cmdUnknown  = "$cmdUnkown$"
+	cmdNoFields = "$cmdNoFields$"
 )
 
 func registerCommand(name string, command MemcacheCommand) error {
