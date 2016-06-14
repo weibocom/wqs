@@ -95,7 +95,7 @@ func (p *Packet) String() string {
 	return bf.String()
 }
 
-type MetricsClient struct {
+type Client struct {
 	in       chan *Packet
 	r        metrics.Registry
 	d        metrics.Registry
@@ -112,7 +112,7 @@ type MetricsClient struct {
 	stopFlag uint32
 }
 
-var defaultClient *MetricsClient
+var defaultClient *Client
 
 func Init(cfg *config.Config) (err error) {
 	hn, err := os.Hostname()
@@ -125,7 +125,7 @@ func Init(cfg *config.Config) (err error) {
 		return err
 	}
 
-	defaultClient = &MetricsClient{
+	defaultClient = &Client{
 		r:           metrics.NewRegistry(),
 		d:           metrics.NewRegistry(),
 		in:          make(chan *Packet, defaultChSize),
@@ -151,7 +151,7 @@ func Init(cfg *config.Config) (err error) {
 	return
 }
 
-func (m *MetricsClient) installTransport(sec config.Section) error {
+func (m *Client) installTransport(sec config.Section) error {
 	if m.writers == nil {
 		m.writers = make(map[string]MetricsStatWriter)
 	}
@@ -174,7 +174,7 @@ func (m *MetricsClient) installTransport(sec config.Section) error {
 	return nil
 }
 
-func (m *MetricsClient) factoryTransport(mod string, sec config.Section) (interface{}, error) {
+func (m *Client) factoryTransport(mod string, sec config.Section) (interface{}, error) {
 	switch mod {
 	case metricsHTTPType:
 		return newHTTPClient(), nil
@@ -194,7 +194,7 @@ func (m *MetricsClient) factoryTransport(mod string, sec config.Section) (interf
 	return nil, errUnknownTransport
 }
 
-func (m *MetricsClient) run() {
+func (m *Client) run() {
 	if atomic.LoadUint32(&m.stopFlag) == 1 {
 		return
 	}
@@ -218,7 +218,7 @@ func (m *MetricsClient) run() {
 	}
 }
 
-func (m *MetricsClient) do(p *Packet) {
+func (m *Client) do(p *Packet) {
 	switch p.Op {
 	case incrCmd:
 		m.incr(p.Key, p.Val)
@@ -231,7 +231,7 @@ func (m *MetricsClient) do(p *Packet) {
 	}
 }
 
-func (m *MetricsClient) print() {
+func (m *Client) print() {
 	var bf = &bytes.Buffer{}
 	shot := map[string]interface{}{
 		"endpoint": m.endpoint,
@@ -242,7 +242,7 @@ func (m *MetricsClient) print() {
 	log.Info("[metrics] " + bf.String())
 }
 
-func (m *MetricsClient) report() {
+func (m *Client) report() {
 	var bf = &bytes.Buffer{}
 	shot := map[string]interface{}{
 		"endpoint": m.endpoint,
@@ -267,12 +267,12 @@ func (m *MetricsClient) report() {
 	}
 }
 
-func (m *MetricsClient) incr(k string, v int64) {
+func (m *Client) incr(k string, v int64) {
 	d := metrics.GetOrRegisterCounter(k, m.d)
 	d.Inc(v)
 }
 
-func (m *MetricsClient) incrEx(k string, v, elapsed int64) {
+func (m *Client) incrEx(k string, v, elapsed int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
@@ -281,7 +281,7 @@ func (m *MetricsClient) incrEx(k string, v, elapsed int64) {
 	d.Inc(v)
 }
 
-func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
+func (m *Client) incrEx2(k string, v, elapsed, latency int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
@@ -292,11 +292,11 @@ func (m *MetricsClient) incrEx2(k string, v, elapsed, latency int64) {
 	d.Inc(latency)
 }
 
-func (m *MetricsClient) decr(k string, v int64) {
+func (m *Client) decr(k string, v int64) {
 	// TODO
 }
 
-func (m *MetricsClient) Close() {
+func (m *Client) Close() {
 	if atomic.SwapUint32(&m.stopFlag, 1) == 0 {
 		close(m.stop)
 	}
