@@ -29,13 +29,13 @@ import (
 )
 
 const (
-	SET_NAME  = "set"
-	ESET_NAME = "eset"
+	cmdSet  = "set"
+	cmdEset = "eset"
 )
 
 func init() {
-	registerCommand(SET_NAME, commandSet)
-	registerCommand(ESET_NAME, commandSet)
+	registerCommand(cmdSet, commandSet)
+	registerCommand(cmdEset, commandSet)
 }
 
 func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
@@ -44,7 +44,7 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	fields := len(tokens)
 	if fields != 5 && fields != 6 {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 	cmd := tokens[0]
@@ -55,20 +55,20 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	flag, err := strconv.ParseUint(tokens[2], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.Trace(err)
 	}
 
 	length, err := strconv.ParseUint(tokens[4], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.Trace(err)
 	}
 
 	data := make([]byte, length)
 	_, err = io.ReadAtLeast(r, data, int(length))
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BAD_DATACHUNK)
+		fmt.Fprint(w, respClientErrorBadDatachunk)
 		return errors.Trace(err)
 	}
 	r.ReadString('\n')
@@ -83,19 +83,19 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	id, err := q.SendMessage(queue, group, data, flag)
 	if err != nil {
-		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+		fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
 		return nil
 	}
 
-	if NOREPLY == noreply {
+	if noReply == noreply {
 		return nil
 	}
 
 	// if eset command, return message id
-	if strings.EqualFold(cmd, ESET_NAME) {
-		fmt.Fprint(w, id+" "+STORED)
+	if strings.EqualFold(cmd, cmdEset) {
+		fmt.Fprint(w, id+" "+respStored)
 		return nil
 	}
-	fmt.Fprint(w, STORED)
+	fmt.Fprint(w, respStored)
 	return nil
 }

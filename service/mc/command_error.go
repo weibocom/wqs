@@ -25,18 +25,18 @@ import (
 )
 
 const (
-	VALUE                      = "VALUE"
-	END                        = "END\r\n"
-	ERROR                      = "ERROR\r\n"
-	NOREPLY                    = "noreply"
-	STORED                     = "STORED\r\n"
-	CLIENT_ERROR_BAD_DATACHUNK = "CLIENT_ERROR bad data chunk\r\n"
-	CLIENT_ERROR_BADCMD_FORMAT = "CLIENT_ERROR bad command line format\r\n"
-	ENGINE_ERROR_PREFIX        = "SERVER_ERROR engine error"
+	noReply                     = "noreply"
+	respValue                   = "VALUE"
+	respEnd                     = "END\r\n"
+	respError                   = "ERROR\r\n"
+	respStored                  = "STORED\r\n"
+	respClientErrorBadDatachunk = "CLIENT_ERROR bad data chunk\r\n"
+	respClientErrorBadCmdFormat = "CLIENT_ERROR bad command line format\r\n"
+	respEngineErrorPrefix       = "SERVER_ERROR engine error"
 )
 
 func init() {
-	registerCommand(CMD_UNKNOWN, commandUnkown)
+	registerCommand(cmdUnknown, commandUnkown)
 }
 
 func commandUnkown(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {

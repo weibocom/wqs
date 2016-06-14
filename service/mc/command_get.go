@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	GET_NAME  = "get"
-	EGET_NAME = "eget"
+	cmdGet  = "get"
+	cmdEget = "eget"
 )
 
 type pair struct {
@@ -41,15 +41,15 @@ type pair struct {
 }
 
 func init() {
-	registerCommand(GET_NAME, commandGet)
-	registerCommand(EGET_NAME, commandGet)
+	registerCommand(cmdGet, commandGet)
+	registerCommand(cmdEget, commandGet)
 }
 
 func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	fields := len(tokens)
 	if fields < 2 {
-		fmt.Fprint(w, ERROR)
+		fmt.Fprint(w, respError)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 	cmd := tokens[0]
@@ -66,14 +66,14 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		id, data, flag, err := q.RecvMessage(queue, group)
 		if err != nil {
 			if errors.Cause(err) == kafka.ErrTimeout {
-				w.WriteString(END)
+				w.WriteString(respEnd)
 			} else {
-				fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+				fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
 			}
 			return nil
 		}
 		// eset data : idlen id data
-		if strings.EqualFold(cmd, EGET_NAME) {
+		if strings.EqualFold(cmd, cmdEget) {
 			idLen := (byte)(len(id))
 			esetData := make([]byte, 0)
 			esetData = append(esetData, idLen)
@@ -92,13 +92,13 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 	}
 
 	for _, kv := range keyValues {
-		fmt.Fprintf(w, "%s %s %d %d\r\n", VALUE, kv.key, kv.flag, len(kv.value))
+		fmt.Fprintf(w, "%s %s %d %d\r\n", respValue, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
-		if strings.EqualFold(cmd, GET_NAME) {
+		if strings.EqualFold(cmd, cmdGet) {
 			q.AckMessage(kv.queue, kv.group, kv.id)
 		}
 	}
-	w.WriteString(END)
+	w.WriteString(respEnd)
 	return nil
 }

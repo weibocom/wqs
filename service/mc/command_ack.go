@@ -29,11 +29,11 @@ import (
 )
 
 const (
-	ACK_NAME = "ack"
+	cmdAck = "ack"
 )
 
 func init() {
-	registerCommand(ACK_NAME, commandACK)
+	registerCommand(cmdAck, commandACK)
 }
 
 func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
@@ -42,7 +42,7 @@ func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	fields := len(tokens)
 	if fields != 5 && fields != 6 {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 
@@ -54,20 +54,20 @@ func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 	// for ack command, flag is unused
 	_, err := strconv.ParseUint(tokens[2], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.Trace(err)
 	}
 
 	length, err := strconv.ParseUint(tokens[4], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.Trace(err)
 	}
 
 	id := make([]byte, length)
 	_, err = io.ReadAtLeast(r, id, int(length))
 	if err != nil {
-		fmt.Fprint(w, CLIENT_ERROR_BAD_DATACHUNK)
+		fmt.Fprint(w, respClientErrorBadDatachunk)
 		return errors.Trace(err)
 	}
 	r.ReadString('\n')
@@ -82,14 +82,14 @@ func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	err = q.AckMessage(queue, group, string(id))
 	if err != nil {
-		fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+		fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
 		return nil
 	}
 
-	if NOREPLY == noreply {
+	if noReply == noreply {
 		return nil
 	}
 
-	fmt.Fprint(w, STORED)
+	fmt.Fprint(w, respStored)
 	return nil
 }

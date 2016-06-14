@@ -26,8 +26,6 @@ const (
 	LF = '\n'
 )
 
-var CRLF = []byte{'\r', '\n'}
-
 type LineReader interface {
 	ReadLine() ([]byte, error)
 }

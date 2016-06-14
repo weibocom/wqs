@@ -27,28 +27,28 @@ import (
 )
 
 const (
-	STATS_NAME = "stats"
+	cmdStats = "stats"
 )
 
 func init() {
-	registerCommand(STATS_NAME, commandStats)
+	registerCommand(cmdStats, commandStats)
 }
 
 func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	fields := len(tokens)
 	if fields != 1 && fields != 2 {
-		fmt.Fprint(w, CLIENT_ERROR_BADCMD_FORMAT)
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
 
 	if fields == 1 {
 		// TODO: implement stats command
-		fmt.Fprint(w, END)
+		fmt.Fprint(w, respEnd)
 	} else if fields == 2 && strings.EqualFold(tokens[1], "queue") {
 		accumulationInfos, err := q.AccumulationStatus()
 		if err != nil {
-			fmt.Fprintf(w, "%s %s\r\n", ENGINE_ERROR_PREFIX, err)
+			fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
 			return nil
 		}
 		for _, accumulationInfo := range accumulationInfos {
@@ -58,9 +58,9 @@ func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writ
 				accumulationInfo.Total,
 				accumulationInfo.Consumed)
 		}
-		fmt.Fprint(w, END)
+		fmt.Fprint(w, respEnd)
 	} else {
-		fmt.Fprint(w, ERROR)
+		fmt.Fprint(w, respError)
 	}
 	return nil
 }
