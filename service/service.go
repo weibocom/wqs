@@ -31,6 +31,7 @@ import (
 	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
+	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/service/mc"
 	"github.com/weibocom/wqs/utils"
 
@@ -74,6 +75,8 @@ func (s *Server) Start() error {
 	router.GET("/msg", CompatibleWarp(s.msgHandler))
 	router.POST("/msg", CompatibleWarp(s.msgHandler))
 
+	//queue's api
+	router.GET("/queue/:queue/:group/metrics/:action/:type", s.getMetricsHandler)
 	//loggers
 	router.GET("/loggers", getLoggerHandler)
 	router.POST("/loggers/:name", changeLoggerHandler)
@@ -452,6 +455,88 @@ func (s *Server) getProxysConfigByIDHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	response(w, 200, config)
+}
+
+// Get a group's metrics
+// path "/queue/:queue/:group/metrics/:action/:type"
+func (s *Server) getMetricsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var start, end, step int64
+	var err error
+	queue := ps.ByName("queue")
+	group := ps.ByName("group")
+	action := ps.ByName("action")
+	typ := ps.ByName("type")
+
+	switch action {
+	case metrics.KeySent, metrics.KeyRecv:
+	default:
+		response(w, 400, fmt.Sprintf("not support action: %s", action))
+		return
+	}
+
+	switch typ {
+	case metrics.KeyQps, metrics.KeyElapsed, metrics.KeyLatency:
+	default:
+		response(w, 400, fmt.Sprintf("not support type: %s", typ))
+		return
+	}
+
+	if _, err = s.queue.GetSingleGroup(group, queue); err != nil {
+		response(w, 404, err.Error())
+		return
+	}
+
+	qStart := r.FormValue("start")
+	qEnd := r.FormValue("end")
+	qStep := r.FormValue("step")
+
+	if qStart == "" {
+		start = time.Now().Add(-4 * time.Hour).Unix()
+	} else {
+		start, err = strconv.ParseInt(qStart, 10, 64)
+		if err != nil {
+			response(w, 400, err.Error())
+			return
+		}
+	}
+
+	if qEnd == "" {
+		end = time.Now().Unix()
+	} else {
+		end, err = strconv.ParseInt(qEnd, 10, 64)
+		if err != nil {
+			response(w, 400, err.Error())
+			return
+		}
+	}
+
+	if qStep == "" {
+		step = 240
+	} else {
+		step, err = strconv.ParseInt(qStep, 10, 64)
+		if err != nil {
+			response(w, 400, err.Error())
+			return
+		}
+	}
+
+	queryParam := &metrics.MetricsQueryParam{
+		Host:       metrics.AllHost,
+		Queue:      queue,
+		Group:      group,
+		ActionKey:  action,
+		MetricsKey: typ,
+		StartTime:  start,
+		EndTime:    end,
+		Step:       step,
+	}
+
+	data, err := metrics.GetMetrics(queryParam)
+	if err != nil {
+		response(w, 500, err.Error())
+		return
+	}
+	response(w, 200, data)
 }
 
 func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {

@@ -120,19 +120,21 @@ func TestGraphiteGroupMetrics(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	params := &MetricsQueryParam{
-		Host:        "*",
-		Queue:       testQ,
-		Group:       testG,
-		Action:      "sent",
-		MetricsName: "qps",
-		Merge:       true,
+		Host:       AllHost,
+		Queue:      testQ,
+		Group:      testG,
+		ActionKey:  KeySent,
+		MetricsKey: KeyQps,
+		StartTime:  testData.start,
+		EndTime:    testData.end,
+		Step:       testData.step,
 	}
-	ret, err := cli.GroupMetrics(testData.start, testData.end, testData.step, params)
+	ret, err := cli.GroupMetrics(params)
 	if err != nil {
 		t.Log(err)
 		t.FailNow()
 	}
-	if ret == "" || ret == "[]" {
-		t.FailNow()
+	if ret == "" {
+		t.Fatalf("got nil return from GroupMetrics")
 	}
 }

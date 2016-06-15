@@ -21,13 +21,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/weibocom/wqs/log"
-)
-
-const (
-	DEFAULT_RW_TIMEOUT = time.Second * 1
 )
 
 type httpClient struct {
@@ -36,7 +31,7 @@ type httpClient struct {
 
 func newHTTPClient() *httpClient {
 	return &httpClient{
-		cli: &http.Client{Timeout: DEFAULT_RW_TIMEOUT},
+		cli: &http.Client{Timeout: defaultRWTimeout},
 	}
 }
 
@@ -68,12 +63,12 @@ func (c *httpClient) Send(uri string, results []*MetricsStat) (err error) {
 	return
 }
 
-func (c *httpClient) Overview(start, end, step int64, params *MetricsQueryParam) (ret string, err error) {
+func (c *httpClient) Overview(params *MetricsQueryParam) (data string, err error) {
 	// TODO
 	return
 }
 
-func (c *httpClient) GroupMetrics(start, end, step int64, params *MetricsQueryParam) (ret string, err error) {
+func (c *httpClient) GroupMetrics(params *MetricsQueryParam) (data string, err error) {
 	// TODO
 	return
 }

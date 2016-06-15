@@ -16,52 +16,24 @@ limitations under the License.
 
 package metrics
 
-import (
-	"net/url"
-	"strings"
+import "time"
+
+const (
+	AllHost    = "*"
+	AllMetrics = "*"
+
+	defaultRWTimeout = time.Second * 1
 )
 
 type MetricsQueryParam struct {
-	Host        string
-	Action      string
-	Group       string
-	Queue       string
-	MetricsName string
-	Merge       bool
-}
-
-func NewMetricsQueryParam(host, action, group, queue,
-	metricsName string, merge bool) *MetricsQueryParam {
-
-	return &MetricsQueryParam{
-		Host:        host,
-		Action:      action,
-		Group:       group,
-		Queue:       queue,
-		MetricsName: metricsName,
-		Merge:       merge,
-	}
-}
-
-func NewMetricsQueryParamFormURL(args url.Values) *MetricsQueryParam {
-	var merge bool
-	switch strings.ToUpper(args.Get("merge")) {
-	case "TRUE":
-		merge = true
-	case "FALSE":
-		merge = false
-	default:
-		merge = false
-	}
-
-	return &MetricsQueryParam{
-		Host:        args.Get("host"),
-		Action:      args.Get("action"),
-		Group:       args.Get("group"),
-		Queue:       args.Get("queue"),
-		MetricsName: args.Get("metrics_name"),
-		Merge:       merge,
-	}
+	Host       string
+	Group      string
+	Queue      string
+	ActionKey  string
+	MetricsKey string
+	StartTime  int64
+	EndTime    int64
+	Step       int64
 }
 
 type MetricsStatWriter interface {
@@ -69,6 +41,6 @@ type MetricsStatWriter interface {
 }
 
 type MetricsStatReader interface {
-	Overview(start, end, step int64, params *MetricsQueryParam) (ret string, err error)
-	GroupMetrics(start, end, step int64, params *MetricsQueryParam) (ret string, err error)
+	Overview(param *MetricsQueryParam) (data string, err error)
+	GroupMetrics(param *MetricsQueryParam) (data string, err error)
 }

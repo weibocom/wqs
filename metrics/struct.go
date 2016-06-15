@@ -17,6 +17,7 @@ limitations under the License.
 package metrics
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -77,22 +78,22 @@ func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 		st.Queue = ks[0]
 		st.Group = ks[1]
 
-		if ks[2] == sentKey {
+		if ks[2] == KeySent {
 			switch ks[3] {
-			case qpsKey:
+			case KeyQps:
 				st.Sent.Total = c.Count()
-			case elapsedKey:
+			case KeyElapsed:
 				st.Sent.Elapsed = float64(c.Count())
 			default:
 				st.Sent.Scale[ks[3]] = c.Count()
 			}
-		} else if ks[2] == recvKey {
+		} else if ks[2] == KeyRecv {
 			switch ks[3] {
-			case qpsKey:
+			case KeyQps:
 				st.Recv.Total = c.Count()
-			case elapsedKey:
+			case KeyElapsed:
 				st.Recv.Elapsed = float64(c.Count())
-			case latencyKey:
+			case KeyLatency:
 				st.Recv.Latency = float64(c.Count())
 			default:
 				st.Recv.Scale[ks[3]] = c.Count()
@@ -127,4 +128,30 @@ func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 func truncateFloat64(num float64, bit int) float64 {
 	ret, _ := strconv.ParseFloat(fmt.Sprintf("%.[2]*[1]f", num, bit), 64)
 	return ret
+}
+
+// metrics 模块对外输出数据时，序列化使用的数据结构
+type metricsDataPoint struct {
+	TimeStamp int64   `json:"t"`
+	Value     float64 `json:"v"`
+}
+
+type metricsData struct {
+	Points []metricsDataPoint `json:"points"`
+}
+
+func (m *metricsData) String() string {
+	data, _ := json.Marshal(m)
+	return string(data)
+}
+
+type metricsDataSet []*metricsData
+
+func (m metricsDataSet) String() string {
+	if m == nil {
+		return "[]"
+	}
+
+	data, _ := json.Marshal(m)
+	return string(data)
 }

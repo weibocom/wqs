@@ -20,9 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,18 +56,17 @@ const (
 	defaultChSize    = 1024 * 10
 	defaultPrintTTL  = 30
 	defaultReportURI = "http://127.0.0.1:10001/v1/metrics"
-)
-
-const (
-	WQS        = "WQS"
-	qpsKey     = "qps"
-	elapsedKey = "elapsed"
-	latencyKey = "ltc"
-	sentKey    = "sent"
-	recvKey    = "recv"
 
 	metricsGraphiteType = "graphite"
 	metricsHTTPType     = "http"
+)
+
+const (
+	KeyQps     = "qps"
+	KeyElapsed = "elapsed"
+	KeyLatency = "ltc"
+	KeySent    = "sent"
+	KeyRecv    = "recv"
 )
 
 type Packet struct {
@@ -274,22 +271,22 @@ func (m *Client) incr(k string, v int64) {
 }
 
 func (m *Client) incrEx(k string, v, elapsed int64) {
-	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
+	d := metrics.GetOrRegisterCounter(k+"#"+KeyQps, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+KeyElapsed, m.d)
 	d.Inc(elapsed)
 	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
 	d.Inc(v)
 }
 
 func (m *Client) incrEx2(k string, v, elapsed, latency int64) {
-	d := metrics.GetOrRegisterCounter(k+"#"+qpsKey, m.d)
+	d := metrics.GetOrRegisterCounter(k+"#"+KeyQps, m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+elapsedKey, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+KeyElapsed, m.d)
 	d.Inc(elapsed)
 	d = metrics.GetOrRegisterCounter(k+"#"+scaleTime(elapsed), m.d)
 	d.Inc(v)
-	d = metrics.GetOrRegisterCounter(k+"#"+latencyKey, m.d)
+	d = metrics.GetOrRegisterCounter(k+"#"+KeyLatency, m.d)
 	d.Inc(latency)
 }
 
@@ -323,26 +320,20 @@ func Add(key string, args ...int64) {
 	}
 }
 
-func GetMetrics(params url.Values) (stat string, err error) {
+func GetMetrics(param *MetricsQueryParam) (stat string, err error) {
+
 	if defaultClient == nil || defaultClient.reader == nil {
 		return "", errMetricsClientIsNil
 	}
 
-	start, err := strconv.ParseInt(params.Get("start"), 10, 64)
-	if err != nil {
-		return "", errInvalidParam
-	}
-	end, err := strconv.ParseInt(params.Get("end"), 10, 64)
-	if err != nil {
-		return "", errInvalidParam
-	}
-	step, err := strconv.ParseInt(params.Get("step"), 10, 64)
-	if err != nil {
+	if param.StartTime == 0 || param.EndTime == 0 ||
+		param.Step == 0 || param.Host == "" ||
+		param.Queue == "" || param.Group == "" ||
+		param.ActionKey == "" || param.MetricsKey == "" {
 		return "", errInvalidParam
 	}
 
-	opt := NewMetricsQueryParamFormURL(params)
-	return defaultClient.reader.GroupMetrics(start, end, step, opt)
+	return defaultClient.reader.GroupMetrics(param)
 }
 
 func scaleTime(elapsed int64) string {

@@ -34,8 +34,8 @@ func newRedisClient(addr string, auth string, poolSize int) (cli *redisClient) {
 		conns: redis.NewClient(&redis.Options{
 			Addr:         addr,
 			Password:     auth,
-			ReadTimeout:  DEFAULT_RW_TIMEOUT,
-			WriteTimeout: DEFAULT_RW_TIMEOUT,
+			ReadTimeout:  defaultRWTimeout,
+			WriteTimeout: defaultRWTimeout,
 		}),
 	}
 	return

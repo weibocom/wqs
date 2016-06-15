@@ -80,30 +80,36 @@ curl "http://127.0.0.1:8080/msg?action=receive&queue=remind&group=if" <br>
 curl -d "action=ack&queue=remind&group=if&id=xxxx" "http://127.0.0.1:8080/msg" <br>
 {"action":"ack","result":true} <br>
 
-## 监控接口
-**http://ip:port/monitor** <br>
+## 统计信息接口
+/queue/:queue/:group/metrics/:action/:type <br>
+
+| 名称 | 说明 |
+| ---- |---- |
+| :queue | 队列名称 |
+| :group | 分组名称 |
+| :action | 统计的动作(sent、recv) |
+| :type | 统计的分类(qps、elapsed、ltc) |
+
+
 **参数列表：** <br>
 
 | 参数名 | 是否必填 | 说明 |
 | ---- | ---- | ----|
-| type | 必填 | send/receive 消息发送or接收 |
-| group | 必填 | 业务标识，查看业务方时选填 |
-| queue | 必填 | 队列名称 |
-| start | 选填 | 开始时间，秒级时间戳 |
-| end | 选填 | 结束时间，秒级时间戳 |
-| interval | 选填 | 时间间隔，默认为1倍，1倍为10s，如果填2，即为20S |
+| start | 必填 | 起始时间(unix seconde) |
+| end | 必填 | 结束时间(unix seconde) |
+| step | 选填 | 未定义 |
 
 **示例：** <br>
-**消息发送量：** <br>
-curl "http://127.0.0.1:8080/monitor?type=send&queue=menglong_queue1&group=menglong\_group1" <br>
 
-**消息接收量：** <br>
-curl "http://127.0.0.1:8080/monitor?type=receive&queue=menglong\_queue1&group=menglong\_group1" <br>
+***消息发送QPS：*** <br>
+curl "http://127.0.0.1:8080/queue/T1/11/metrics/sent/qps?start=1465972528&end=1465986928" <br>
 
-## 报警接口(定义中)
+***消息接收QPS：*** <br>
+curl "http://127.0.0.1:8080/queue/T1/11/metrics/recv/qps?start=1465972528&end=1465986928" <br>
+
+<!-- ## 报警接口(定义中)
 **http://ip:port/alarm** <br>
-type：heap，send.second，receive.second <br>
-
+type：heap，send.second，receive.second <br> -->
 # Proxy API
 **Get all online proxys:** <br>
 /proxys/ <br>
