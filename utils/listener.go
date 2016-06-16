@@ -55,7 +55,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 
 	conn, err := l.Listener.Accept()
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
