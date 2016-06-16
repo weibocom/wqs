@@ -1,6 +1,11 @@
 GO=go
 WORKDIR=`pwd`
 
+Branch=`git rev-parse --abbrev-ref HEAD`
+SHA1=`git rev-parse --short HEAD`
+Date=`date +"%Y-%m-%d"`
+Version=$(Branch)@$(SHA1)@$(Date)
+
 default: vet build
 
 dep:
@@ -31,7 +36,7 @@ test-race:
 build: build-qservice
 
 build-qservice:
-	$(GO) build -o qservice .
+	$(GO) build -ldflags "-X main.version=$(Version)" -o qservice .
 
 benchmark:bin vet
 	$(GO) build -o bin/benchmark ./cmd/benchmark/

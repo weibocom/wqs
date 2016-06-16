@@ -40,12 +40,13 @@ import (
 
 type Server struct {
 	config   *config.Config
+	version  string
 	queue    queue.Queue
 	mc       *mc.McServer
 	listener *utils.Listener
 }
 
-func NewServer(conf *config.Config) (*Server, error) {
+func NewServer(conf *config.Config, version string) (*Server, error) {
 
 	queue, err := queue.NewQueue(conf)
 	if err != nil {
@@ -53,8 +54,9 @@ func NewServer(conf *config.Config) (*Server, error) {
 	}
 
 	return &Server{
-		config: conf,
-		queue:  queue,
+		config:  conf,
+		version: version,
+		queue:   queue,
 	}, nil
 }
 
@@ -83,6 +85,8 @@ func (s *Server) Start() error {
 	//proxy
 	router.GET("/proxys/", s.getProxysHandler)
 	router.GET("/proxys/:id/config", s.getProxysConfigByIDHandler)
+	//version
+	router.GET("/version", s.getVersion)
 	//pprof
 	router.GET("/debug/pprof/", CompatibleWarp(pprof.Index))
 	router.GET("/debug/pprof/cmdline", CompatibleWarp(pprof.Cmdline))
@@ -570,6 +574,12 @@ func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	}
 	w.WriteHeader(msg.Code)
 	w.Write(msg.Bytes())
+}
+
+// Get this server version information
+// path "/version"
+func (s *Server) getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	response(w, 200, s.version)
 }
 
 func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

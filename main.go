@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -30,7 +31,9 @@ import (
 )
 
 var (
-	configFile = flag.String("config", "config.properties", "qservice's configure file")
+	configFile  = flag.String("config", "config.properties", "qservice's configure file")
+	flagVersion = flag.Bool("version", false, "Show version information")
+	version     = "unknown"
 )
 
 func initLogger(conf *config.Config) error {
@@ -73,6 +76,11 @@ func main() {
 
 	flag.Parse()
 
+	if *flagVersion {
+		fmt.Printf("version : %s\n", version)
+		return
+	}
+
 	conf, err := config.NewConfigFromFile(*configFile)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
@@ -82,7 +90,7 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	server, err := service.NewServer(conf)
+	server, err := service.NewServer(conf, version)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
