@@ -31,9 +31,9 @@ clean_up()
 clean()
 {
 	alias grep='grep'
-	ps ax | grep -i 'kafka\.Kafka' | grep java | grep -v grep | awk '{print $1}' | xargs kill -SIGTERM
+	ps ax | grep -i 'kafka\.Kafka' | grep java | grep -v grep | awk '{print $1}' | xargs kill -SIGTERM >/dev/null 2>&1
 	sleep 1
-	ps ax | grep -i 'zookeeper' | grep -v grep | awk '{print $1}' | xargs kill
+	ps ax | grep -i 'zookeeper' | grep -v grep | awk '{print $1}' | xargs kill >/dev/null 2>&1
 }
 
 running()
