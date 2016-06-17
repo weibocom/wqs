@@ -362,7 +362,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 
 	msg, err := consumer.Recv()
 	if err != nil {
-		return "", nil, 0, errors.Trace(err)
+		return "", nil, 0, err
 	}
 
 	var sequenceID, flag uint64

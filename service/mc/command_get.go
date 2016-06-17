@@ -52,8 +52,9 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprint(w, respError)
 		return errors.NotValidf("mc tokens %v ", tokens)
 	}
+
 	cmd := tokens[0]
-	keyValues := make([]pair, 0)
+	keyValues := make([]pair, 0, 1)
 	for _, key := range tokens[1:] {
 		k := strings.Split(key, ".")
 		queue := k[0]
@@ -65,20 +66,20 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 		id, data, flag, err := q.RecvMessage(queue, group)
 		if err != nil {
-			if errors.Cause(err) == kafka.ErrTimeout {
+			if err == kafka.ErrTimeout {
 				w.WriteString(respEnd)
 			} else {
 				fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
 			}
 			return nil
 		}
-		// eset data : idlen id data
-		if strings.EqualFold(cmd, cmdEget) {
+		// eget data : idlen id data
+		if cmd == cmdEget {
 			idLen := (byte)(len(id))
-			esetData := make([]byte, 0)
-			esetData = append(esetData, idLen)
-			esetData = append(esetData, ([]byte)(id)...)
-			data = append(esetData, data...)
+			egetData := make([]byte, 0, 1024)
+			egetData = append(egetData, idLen)
+			egetData = append(egetData, id...)
+			data = append(egetData, data...)
 		}
 
 		keyValues = append(keyValues, pair{
@@ -95,7 +96,7 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprintf(w, "%s %s %d %d\r\n", respValue, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
-		if strings.EqualFold(cmd, cmdGet) {
+		if cmd == cmdEget {
 			q.AckMessage(kv.queue, kv.group, kv.id)
 		}
 	}

@@ -178,6 +178,9 @@ func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 		}
 	}
 	c.mu.Unlock()
+	if msg == nil && err == nil {
+		err = ErrTimeout
+	}
 	return
 }
 
