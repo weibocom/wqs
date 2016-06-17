@@ -32,10 +32,10 @@ import (
 )
 
 const (
-	HEIGHT    = 5
-	WIDTH     = 60
-	PERPAGE   = 10
-	MAX_WIDTH = 150
+	defaultHeight   = 5
+	defaultWidth    = 60
+	defaultPerPage  = 10
+	defaultMaxWidth = 150
 )
 
 type Dash struct {
@@ -56,15 +56,15 @@ type Dash struct {
 }
 
 func Init(port, page, width, height int, hosts []string) *Dash {
-	if page <= 0 || page > PERPAGE {
-		page = PERPAGE
+	if page <= 0 || page > defaultPerPage {
+		page = defaultPerPage
 	}
 
 	if width <= 0 {
-		width = WIDTH
+		width = defaultWidth
 	}
 	if height <= 0 {
-		height = HEIGHT
+		height = defaultHeight
 	}
 	in := make(chan *metrics.MetricsStat, 1024)
 	s := newHTTPServer(port, in)
@@ -147,7 +147,7 @@ func (d *Dash) Start() {
 	go d.run()
 	go mock()
 
-	PL := MAX_WIDTH / d.width
+	PL := defaultMaxWidth / d.width
 
 	err := termui.Init()
 	if err != nil {

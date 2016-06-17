@@ -29,28 +29,32 @@ var (
 	ErrWaitTimeout = errors.New("wait timeout")
 
 	// Be happy for test
-	defaultHandle = mockHandleConn
+	defaultHandle   = mockHandleConn
+	defaultUnixSock = "/tmp/wqs_unix_sock_restart.sock"
 )
 
-const (
-	unixSock = "/tmp/wqs_unix_sock_restart.sock"
-)
+type ServerOption func(opt *Option)
 
 type TCPServer struct {
-	l      *net.TCPListener
-	mgr    *ConnectionManager
+	l   *net.TCPListener
+	mgr *ConnectionManager
+	opt *Option
+
 	handle func(net.Conn) error
 }
 
-func NewTCPServer(port int) (*TCPServer, error) {
+func NewTCPServer(opts ...ServerOption) (*TCPServer, error) {
 	s := &TCPServer{
+		opt: new(Option),
 		mgr: newConnectionMgr(),
 	}
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return nil, fmt.Errorf("fail to resolve addr: %v", err)
+	for i := range opts {
+		opts[i](s.opt)
 	}
-	l, err := net.ListenTCP("tcp", addr)
+	if s.opt.Err != nil {
+		return nil, s.opt.Err
+	}
+	l, err := net.ListenTCP("tcp", s.opt.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("fail to listen tcp: %v", err)
 	}
@@ -64,7 +68,7 @@ func NewTCPServerFromFD(fd uintptr) (*TCPServer, error) {
 		mgr: newConnectionMgr(),
 	}
 
-	file := os.NewFile(fd, unixSock)
+	file := os.NewFile(fd, defaultUnixSock)
 	listener, err := net.FileListener(file)
 	if err != nil {
 		return nil, errors.New("File to recover socket from file descriptor: " + err.Error())
@@ -90,6 +94,7 @@ func (s *TCPServer) ListenerFD() (uintptr, error) {
 }
 
 func (s *TCPServer) Wait() {
+	// TODO
 	s.mgr.Wait()
 }
 

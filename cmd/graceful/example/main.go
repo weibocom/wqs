@@ -15,13 +15,18 @@ const (
 	envRestart = "WQS_RESTART"
 )
 
+// Avoid running with `go run main.go`
+// You should make bin with `go build` firstly.
 func main() {
 	var s *graceful.TCPServer
 	var err error
 	if os.Getenv(envRestart) == "true" {
 		s, err = graceful.NewTCPServerFromFD(3)
 	} else {
-		s, err = graceful.NewTCPServer(12345)
+		opts := []graceful.ServerOption{
+			graceful.SetAddr(":12345"),
+		}
+		s, err = graceful.NewTCPServer(opts...)
 	}
 	if err != nil {
 		log.Warnf("Init TCPServer err:%v", err)
