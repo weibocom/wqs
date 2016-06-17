@@ -96,7 +96,7 @@ func commandGet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		fmt.Fprintf(w, "%s %s %d %d\r\n", respValue, kv.key, kv.flag, len(kv.value))
 		w.Write(kv.value)
 		w.WriteString("\r\n")
-		if cmd == cmdEget {
+		if cmd == cmdGet {
 			q.AckMessage(kv.queue, kv.group, kv.id)
 		}
 	}
