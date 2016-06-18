@@ -18,6 +18,7 @@ package kafka
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -106,7 +107,7 @@ type Consumer struct {
 	topic          string
 	group          string
 	consumer       *cluster.Consumer
-	padding        uint32
+	padding        int32
 	partitionHeads map[int32]*ackHead
 	ackMessages    map[int32]map[int64]*ackNode
 	mu             sync.Mutex
@@ -139,7 +140,21 @@ func (c *Consumer) recv() (msg *sarama.ConsumerMessage, err error) {
 	case msg = <-c.consumer.Messages():
 		if msg == nil {
 			err = ErrClosed
+			return
 		}
+
+		node := newAckNode(msg)
+		c.mu.Lock()
+		head, ok := c.partitionHeads[msg.Partition]
+		if !ok {
+			head = newAckHead()
+			c.partitionHeads[msg.Partition] = head
+			c.ackMessages[msg.Partition] = make(map[int64]*ackNode)
+		}
+		head.Push(node)
+		c.ackMessages[msg.Partition][msg.Offset] = node
+		atomic.AddInt32(&c.padding, 1)
+		c.mu.Unlock()
 	case <-time.After(timeout):
 		err = ErrTimeout
 	}
@@ -148,26 +163,16 @@ func (c *Consumer) recv() (msg *sarama.ConsumerMessage, err error) {
 
 //Get a message
 func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
-	c.mu.Lock()
-	if c.padding < paddingMax {
+
+	if atomic.LoadInt32(&c.padding) < paddingMax {
 		if msg, err = c.recv(); err == nil {
-			head, ok := c.partitionHeads[msg.Partition]
-			if !ok {
-				head = newAckHead()
-				c.partitionHeads[msg.Partition] = head
-				c.ackMessages[msg.Partition] = make(map[int64]*ackNode)
-			}
-			node := newAckNode(msg)
-			head.Push(node)
-			c.ackMessages[msg.Partition][msg.Offset] = node
-			c.padding++
-			c.mu.Unlock()
-			return
+			return msg, nil
 		}
 	}
 
-	if c.padding > 0 {
+	if atomic.LoadInt32(&c.padding) > 0 {
 		now := time.Now()
+		c.mu.Lock()
 	Found:
 		for _, head := range c.partitionHeads {
 			if node := head.GetExpired(now); node != nil {
@@ -176,12 +181,13 @@ func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 				break Found
 			}
 		}
+		c.mu.Unlock()
 	}
-	c.mu.Unlock()
+
 	if msg == nil && err == nil {
 		err = ErrTimeout
 	}
-	return
+	return msg, err
 }
 
 func (c *Consumer) Ack(partition int32, offset int64) error {
@@ -213,7 +219,7 @@ func (c *Consumer) Ack(partition int32, offset int64) error {
 	first := head.Front()
 	node.RemoveBySelf()
 	delete(partitionMessages, offset)
-	c.padding--
+	atomic.AddInt32(&c.padding, -1)
 	if first == node {
 		c.consumer.MarkOffset(node.msg, "")
 		if !head.Empty() {
