@@ -111,13 +111,13 @@ curl "http://127.0.0.1:8080/queue/T1/11/metrics/recv/qps?start=1465972528&end=14
 **http://ip:port/alarm** <br>
 type：heap，send.second，receive.second <br> -->
 # Proxy API
-**Get all online proxys:** <br>
-/proxys/ <br>
-curl "http://127.0.0.1:8080/proxys/" <br>
+**Get all online proxies:** <br>
+/proxies/ <br>
+curl "http://127.0.0.1:8080/proxies/" <br>
 
 **Get a online proxy's config:** <br>
-/proxys/:id/config <br>
-curl "http://127.0.0.1:8080/proxys/1/config" <br>
+/proxies/:id/config <br>
+curl "http://127.0.0.1:8080/proxies/1/config" <br>
 
 
 # Debug API
