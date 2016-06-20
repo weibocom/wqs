@@ -1,5 +1,6 @@
 # QService
-***一个更快更可靠的消息系统.***<br>
+***一个更快更可靠的消息系统.***
+
 ## 特性
   - [x] [多协议支持](#多协议支持)
     - [x] [ASCII Memcached协议](#memcached-协议)
@@ -22,8 +23,13 @@
   - QService是采用[Golang](https://github.com/golang/go)实现的一款分布式消息队列系统。
   - 采用[Zookeeper](https://zookeeper.apache.org)来存储系统元数据。
   - 后端采用[Kafka0.9](https://kafka.apache.org)集群作为消息持久化引擎。
+  - 架构如图所示:
+  ![架构图](qservice.png)
 
 ## 角色 概念
+  - QService以queue为维度进行消息路由。每个proxy实例上看到的同一名称queue都是等价的。
+  - QService以group为维度区分消费者。会为每个group维护一份消费记录。每个group都能得到一份queue的全量消息。
+  - 简单来说，就是一个queue+group来唯一标识一个消费者。当你需要重复消费同一queue时，可以以不同的group来进行消费。
 
 ## 多协议支持
 ### Memcached 协议
@@ -54,7 +60,8 @@
   - ACK机制有不同的等级，用户可以调用对应的API。分为：在用户端ACK、proxy自动ACK等。
 
 ## 多IDC支持
-  - TODO
+  - QService多IDC支持采用`按需拉取`来实现。
+  - 当需要读取多个IDC机房里的同一queue的消息时，proxy同时批量拉取各个IDC内对应queue里的消息。
 
 ## 分布式
   - QService是分布式架构的，全部proxy完全对等，没有身份的区分。
