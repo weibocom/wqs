@@ -27,26 +27,26 @@ import (
 
 var LOCAL = "localhost"
 
-type MetricsOverview struct {
-	Endpoint string  `json:"endpoint"`
-	Ts       int64   `json:"ts"`
-	Sent     int64   `json:"sent"`
-	Recv     int64   `json:"recv"`
-	Accum    int64   `json:"accum"`
-	Elapsed  float64 `json:"elapsed"`
-}
+//type metricsOverview struct {
+//	Endpoint string  `json:"endpoint"`
+//	Ts       int64   `json:"ts"`
+//	Sent     int64   `json:"sent"`
+//	Recv     int64   `json:"recv"`
+//	Accum    int64   `json:"accum"`
+//	Elapsed  float64 `json:"elapsed"`
+//}
 
-type MetricsStat struct {
+type metricsStat struct {
 	Endpoint string         `json:"endpoint"`
 	Queue    string         `json:"queue"`
 	Group    string         `json:"group"`
-	Sent     *MetricsStruct `json:"sent"`
-	Recv     *MetricsStruct `json:"recv"`
+	Sent     *metricsStruct `json:"sent"`
+	Recv     *metricsStruct `json:"recv"`
 	Accum    int64          `json:"accum"`
 	TS       int64          `json:"ts"`
 }
 
-type MetricsStruct struct {
+type metricsStruct struct {
 	Total   int64   `json:"total"`
 	Elapsed float64 `json:"cost"`
 	Latency float64 `json:"latency"`
@@ -54,8 +54,8 @@ type MetricsStruct struct {
 	Scale map[string]int64 `json:"scale"`
 }
 
-func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
-	retMap := make(map[string]*MetricsStat)
+func snapshotMetricsStats(r metrics.Registry) (list []*metricsStat) {
+	retMap := make(map[string]*metricsStat)
 	each := func(k string, _ interface{}) {
 
 		c := metrics.GetOrRegisterCounter(k, r)
@@ -65,11 +65,11 @@ func snapshotMetricsStats(r metrics.Registry) (list []*MetricsStat) {
 		}
 		k = strings.Join(ks[:2], "#")
 		if _, ok := retMap[k]; !ok {
-			retMap[k] = &MetricsStat{
-				Sent: &MetricsStruct{
+			retMap[k] = &metricsStat{
+				Sent: &metricsStruct{
 					Scale: make(map[string]int64),
 				},
-				Recv: &MetricsStruct{
+				Recv: &metricsStruct{
 					Scale: make(map[string]int64),
 				},
 			}

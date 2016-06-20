@@ -42,7 +42,7 @@ type Dash struct {
 	stat      map[string]map[string]*Stat
 	lock      *sync.RWMutex
 	s         *httpServer
-	in        chan *metrics.MetricsStat
+	in        chan *metrics.metricsStat
 	view      *termui.List
 	dashboard bool
 
@@ -66,7 +66,7 @@ func Init(port, page, width, height int, hosts []string) *Dash {
 	if height <= 0 {
 		height = defaultHeight
 	}
-	in := make(chan *metrics.MetricsStat, 1024)
+	in := make(chan *metrics.metricsStat, 1024)
 	s := newHTTPServer(port, in)
 	return &Dash{
 		stat:   make(map[string]map[string]*Stat),
@@ -81,7 +81,7 @@ func Init(port, page, width, height int, hosts []string) *Dash {
 	}
 }
 
-func (d *Dash) update(ms *metrics.MetricsStat) {
+func (d *Dash) update(ms *metrics.metricsStat) {
 	d.lock.Lock()
 	if _, ok := d.stat[ms.Endpoint]; !ok {
 		d.stat[ms.Endpoint] = make(map[string]*Stat)
@@ -101,7 +101,7 @@ func (d *Dash) update(ms *metrics.MetricsStat) {
 
 func (d *Dash) run() {
 	go d.s.Start()
-	var ms *metrics.MetricsStat
+	var ms *metrics.metricsStat
 	for {
 		select {
 		case ms = <-d.in:

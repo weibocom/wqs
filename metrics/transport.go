@@ -36,11 +36,11 @@ type MetricsQueryParam struct {
 	Step       int64
 }
 
-type MetricsStatWriter interface {
-	Send(uri string, snapshot []*MetricsStat) error
+type metricsStatWriter interface {
+	Send(uri string, snapshot []*metricsStat) error
 }
 
-type MetricsStatReader interface {
+type metricsStatReader interface {
 	Overview(param *MetricsQueryParam) (data string, err error)
 	GroupMetrics(param *MetricsQueryParam) (data string, err error)
 }

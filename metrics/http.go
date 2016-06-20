@@ -35,7 +35,7 @@ func newHTTPClient() *httpClient {
 	}
 }
 
-func (c *httpClient) Send(uri string, results []*MetricsStat) (err error) {
+func (c *httpClient) Send(uri string, results []*metricsStat) (err error) {
 	data, err := json.Marshal(results)
 	if err != nil {
 		log.Warnf("Encode results err: %v", err)

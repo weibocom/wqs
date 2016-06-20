@@ -55,7 +55,7 @@ func newGraphiteClient(root, addr, servicePool string) *graphiteClient {
 	}
 }
 
-func (g *graphiteClient) Send(_ string, snapshot []*MetricsStat) error {
+func (g *graphiteClient) Send(_ string, snapshot []*metricsStat) error {
 	if len(snapshot) == 0 {
 		return nil
 	}
@@ -152,7 +152,7 @@ type graphiteItem struct {
 	typ   graphiteType
 }
 
-func transToGraphiteItems(states []*MetricsStat) []*graphiteItem {
+func transToGraphiteItems(states []*metricsStat) []*graphiteItem {
 	var items []*graphiteItem
 	for _, state := range states {
 		items = append(items, &graphiteItem{

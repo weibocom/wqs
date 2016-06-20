@@ -69,7 +69,7 @@ const (
 	KeyRecv    = "recv"
 )
 
-type Packet struct {
+type packet struct {
 	Op      uint8
 	Key     string
 	Val     int64
@@ -77,7 +77,7 @@ type Packet struct {
 	Latency int64
 }
 
-func (p *Packet) String() string {
+func (p *packet) String() string {
 	bf := &bytes.Buffer{}
 	bf.WriteString("packet: ")
 	if _, ok := opMap[p.Op]; !ok {
@@ -92,8 +92,8 @@ func (p *Packet) String() string {
 	return bf.String()
 }
 
-type Client struct {
-	in       chan *Packet
+type client struct {
+	in       chan *packet
 	r        metrics.Registry
 	d        metrics.Registry
 	printTTL time.Duration
@@ -101,15 +101,15 @@ type Client struct {
 	centerAddr  string
 	serviceName string
 	endpoint    string
-	writers     map[string]MetricsStatWriter
-	reader      MetricsStatReader
+	writers     map[string]metricsStatWriter
+	reader      metricsStatReader
 
 	wg       *sync.WaitGroup
 	stop     chan struct{}
 	stopFlag uint32
 }
 
-var defaultClient *Client
+var defaultClient *client
 
 func Init(cfg *config.Config) (err error) {
 	hn, err := os.Hostname()
@@ -122,15 +122,15 @@ func Init(cfg *config.Config) (err error) {
 		return err
 	}
 
-	defaultClient = &Client{
+	defaultClient = &client{
 		r:           metrics.NewRegistry(),
 		d:           metrics.NewRegistry(),
-		in:          make(chan *Packet, defaultChSize),
+		in:          make(chan *packet, defaultChSize),
 		serviceName: "wqs",
 		endpoint:    hn,
 		stop:        make(chan struct{}),
 		stopFlag:    0,
-		writers:     make(map[string]MetricsStatWriter),
+		writers:     make(map[string]metricsStatWriter),
 	}
 
 	if err := defaultClient.installTransport(sec); err != nil {
@@ -148,9 +148,9 @@ func Init(cfg *config.Config) (err error) {
 	return
 }
 
-func (m *Client) installTransport(sec config.Section) error {
+func (m *client) installTransport(sec config.Section) error {
 	if m.writers == nil {
-		m.writers = make(map[string]MetricsStatWriter)
+		m.writers = make(map[string]metricsStatWriter)
 	}
 	modStr := sec.GetStringMust("transport.writers", metricsGraphiteType)
 	mods := strings.Split(modStr, ",")
@@ -159,7 +159,7 @@ func (m *Client) installTransport(sec config.Section) error {
 		if err != nil {
 			return err
 		}
-		m.writers[mod] = wr.(MetricsStatWriter)
+		m.writers[mod] = wr.(metricsStatWriter)
 	}
 
 	modStr = sec.GetStringMust("transport.reader", metricsGraphiteType)
@@ -167,11 +167,11 @@ func (m *Client) installTransport(sec config.Section) error {
 	if err != nil {
 		return err
 	}
-	defaultClient.reader = reader.(MetricsStatReader)
+	defaultClient.reader = reader.(metricsStatReader)
 	return nil
 }
 
-func (m *Client) factoryTransport(mod string, sec config.Section) (interface{}, error) {
+func (m *client) factoryTransport(mod string, sec config.Section) (interface{}, error) {
 	switch mod {
 	case metricsHTTPType:
 		return newHTTPClient(), nil
@@ -192,7 +192,7 @@ func (m *Client) factoryTransport(mod string, sec config.Section) (interface{}, 
 	return nil, errUnknownTransport
 }
 
-func (m *Client) run() {
+func (m *client) run() {
 	if atomic.LoadUint32(&m.stopFlag) == 1 {
 		return
 	}
@@ -201,7 +201,7 @@ func (m *Client) run() {
 
 	reportTk := time.NewTicker(time.Second * 1)
 	defer reportTk.Stop()
-	var p *Packet
+	var p *packet
 	for {
 		select {
 		case p = <-m.in:
@@ -216,7 +216,7 @@ func (m *Client) run() {
 	}
 }
 
-func (m *Client) do(p *Packet) {
+func (m *client) do(p *packet) {
 	switch p.Op {
 	case incrCmd:
 		m.incr(p.Key, p.Val)
@@ -229,7 +229,7 @@ func (m *Client) do(p *Packet) {
 	}
 }
 
-func (m *Client) print() {
+func (m *client) print() {
 	var bf = &bytes.Buffer{}
 	shot := map[string]interface{}{
 		"endpoint": m.endpoint,
@@ -240,7 +240,7 @@ func (m *Client) print() {
 	log.Info("[metrics] " + bf.String())
 }
 
-func (m *Client) report() {
+func (m *client) report() {
 	var bf = &bytes.Buffer{}
 	shot := map[string]interface{}{
 		"endpoint": m.endpoint,
@@ -265,12 +265,12 @@ func (m *Client) report() {
 	}
 }
 
-func (m *Client) incr(k string, v int64) {
+func (m *client) incr(k string, v int64) {
 	d := metrics.GetOrRegisterCounter(k, m.d)
 	d.Inc(v)
 }
 
-func (m *Client) incrEx(k string, v, elapsed int64) {
+func (m *client) incrEx(k string, v, elapsed int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+KeyQps, m.d)
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+KeyElapsed, m.d)
@@ -279,7 +279,7 @@ func (m *Client) incrEx(k string, v, elapsed int64) {
 	d.Inc(v)
 }
 
-func (m *Client) incrEx2(k string, v, elapsed, latency int64) {
+func (m *client) incrEx2(k string, v, elapsed, latency int64) {
 	d := metrics.GetOrRegisterCounter(k+"#"+KeyQps, m.d)
 	d.Inc(v)
 	d = metrics.GetOrRegisterCounter(k+"#"+KeyElapsed, m.d)
@@ -290,11 +290,11 @@ func (m *Client) incrEx2(k string, v, elapsed, latency int64) {
 	d.Inc(latency)
 }
 
-func (m *Client) decr(k string, v int64) {
+func (m *client) decr(k string, v int64) {
 	// TODO
 }
 
-func (m *Client) Close() {
+func (m *client) Close() {
 	if atomic.SwapUint32(&m.stopFlag, 1) == 0 {
 		close(m.stop)
 	}
@@ -304,13 +304,13 @@ func Add(key string, args ...int64) {
 	if defaultClient == nil {
 		return
 	}
-	var pkt *Packet
+	var pkt *packet
 	if len(args) == 1 {
-		pkt = &Packet{incrCmd, key, args[0], 0, 0}
+		pkt = &packet{incrCmd, key, args[0], 0, 0}
 	} else if len(args) == 2 {
-		pkt = &Packet{incrExCmd, key, args[0], args[1], 0}
+		pkt = &packet{incrExCmd, key, args[0], args[1], 0}
 	} else if len(args) == 3 {
-		pkt = &Packet{incrEx2Cmd, key, args[0], args[1], args[2]}
+		pkt = &packet{incrEx2Cmd, key, args[0], args[1], args[2]}
 	}
 
 	select {

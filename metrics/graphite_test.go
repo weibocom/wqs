@@ -29,19 +29,19 @@ func readEnv() (udp, server string) {
 	return
 }
 
-func randData() []*MetricsStat {
+func randData() []*metricsStat {
 	var local = "localhost"
-	return []*MetricsStat{
-		&MetricsStat{
+	return []*metricsStat{
+		&metricsStat{
 			Endpoint: local,
 			Queue:    testQ,
 			Group:    testG,
-			Sent: &MetricsStruct{
+			Sent: &metricsStruct{
 				Total:   100,
 				Elapsed: 9.01,
 				Scale:   map[string]int64{"less_10ms": 100},
 			},
-			Recv: &MetricsStruct{
+			Recv: &metricsStruct{
 				Total:   100,
 				Elapsed: 11.02,
 				Latency: 100.92,

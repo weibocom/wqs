@@ -29,11 +29,11 @@ import (
 type httpServer struct {
 	serveAddr string
 
-	out chan *metrics.MetricsStat
+	out chan *metrics.metricsStat
 	r   *httprouter.Router
 }
 
-func newHTTPServer(port int, out chan *metrics.MetricsStat) *httpServer {
+func newHTTPServer(port int, out chan *metrics.metricsStat) *httpServer {
 	router := httprouter.New()
 	s := &httpServer{
 		serveAddr: fmt.Sprintf(":%d", port),
@@ -61,7 +61,7 @@ func (s *httpServer) do(w http.ResponseWriter, r *http.Request, params httproute
 		println(err.Error())
 		return
 	}
-	ms := make([]*metrics.MetricsStat, 0)
+	ms := make([]*metrics.metricsStat, 0)
 	err = json.Unmarshal(data, &ms)
 	if err != nil {
 		return
