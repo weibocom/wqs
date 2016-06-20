@@ -83,8 +83,8 @@ func (s *Server) Start() error {
 	router.GET("/loggers", getLoggerHandler)
 	router.POST("/loggers/:name", changeLoggerHandler)
 	//proxy
-	router.GET("/proxys/", s.getProxysHandler)
-	router.GET("/proxys/:id/config", s.getProxysConfigByIDHandler)
+	router.GET("/proxies/", s.getProxiesHandler)
+	router.GET("/proxies/:id/config", s.getProxyConfigByIDHandler)
 	//version
 	router.GET("/version", s.getVersion)
 	//pprof
@@ -416,8 +416,8 @@ func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, result)
 }
 
-// Get all online proxys, return id and hostname
-func (s *Server) getProxysHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// Get all online proxies, return id and hostname
+func (s *Server) getProxiesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	proxys, err := s.queue.GetProxys()
 	if err != nil {
@@ -435,7 +435,7 @@ func (s *Server) getProxysHandler(w http.ResponseWriter, r *http.Request, _ http
 }
 
 // Get an online proxy's config
-func (s *Server) getProxysConfigByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (s *Server) getProxyConfigByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	id := ps.ByName("id")
 	if id == "" {
