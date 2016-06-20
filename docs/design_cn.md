@@ -2,21 +2,21 @@
 ***一个更快更可靠的消息系统.***<br>
 ## 特性
   - [x] [多协议支持](#多协议支持)
-    - [x] [ASCII Memcached协议](#Memcached-协议)
-    - [x] [HTTP协议](HTTP-协议)
+    - [x] [ASCII Memcached协议](#memcached-协议)
+    - [x] [HTTP协议](#http-协议)
     - [ ] Redis协议
     - [ ] Motan协议
   - [x] [消息持久化](#持久化)
   - [x] [高可靠性](#可靠性)
   - [x] [多次消费](#多次消费)
   - [x] [至少投递一次](#至少投递一次)
-  - [x] [Ack机制](#Ack机制)
-  - [ ] [多IDC支持](#多IDC支持)
+  - [x] [Ack机制](#ack机制)
+  - [ ] [多IDC支持](#多idc支持)
   - [x] [分布式](#分布式)
   - [x] [运维友好](#运维友好)
     - [x] [支持横向扩展、纵向扩展](#轻松扩容)
-    - [x] [提供管理API、GUI](#提供管理GUI)
-    - [x] [提供监控API、GUI](#提供管理GUI)
+    - [x] [提供管理API、GUI](#提供管理gui)
+    - [x] [提供监控API、GUI](#提供管理gui)
 
 ## 设计
   - QService是采用[Golang](https://github.com/golang/go)实现的一款分布式消息队列系统。
@@ -27,10 +27,10 @@
 
 ## 多协议支持
 ### Memcached 协议
-  - 详见[Memcached API](docs/memcached_cn.md)
+  - 详见[Memcached API](memcached_cn.md)
 
 ### HTTP 协议
-  - 详见[HTTP API](docs/http_cn.md)
+  - 详见[HTTP API](http_cn.md)
 
 ## 持久化
   - QService采用Kafka作为消息持久化引擎。
