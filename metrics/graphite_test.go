@@ -85,7 +85,7 @@ func TestGraphiteSend(t *testing.T) {
 
 	stop := make(chan struct{})
 	go udpServe(stop)
-	cli := newGraphiteClient("localhost", "127.0.0.1:10086", "wqs")
+	cli := newGraphite("localhost", "127.0.0.1:10086", "wqs")
 	cli.Send("http://127.0.0.1:10086/upload", metricsStructs)
 	time.Sleep(time.Second * 2)
 	close(stop)
@@ -114,7 +114,7 @@ func TestGraphiteGroupMetrics(t *testing.T) {
 	}
 
 	udpAddr, reqAddr := readEnv()
-	cli := newGraphiteClient(reqAddr, udpAddr, "wqs_local_test")
+	cli := newGraphite(reqAddr, udpAddr, "wqs_local_test")
 	data := randData()
 	cli.Send("", data)
 	time.Sleep(time.Second * 2)
@@ -123,8 +123,8 @@ func TestGraphiteGroupMetrics(t *testing.T) {
 		Host:       AllHost,
 		Queue:      testQ,
 		Group:      testG,
-		ActionKey:  KeySent,
-		MetricsKey: KeyQps,
+		ActionKey:  CmdSet,
+		MetricsKey: Qps,
 		StartTime:  testData.start,
 		EndTime:    testData.end,
 		Step:       testData.step,

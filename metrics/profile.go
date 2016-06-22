@@ -17,101 +17,40 @@ limitations under the License.
 package metrics
 
 import (
-	"fmt"
-	"strconv"
-	"sync"
-	"time"
-
+	"github.com/rcrowley/go-metrics"
 	"github.com/weibocom/wqs/log"
 )
 
-var (
-	statisticMap map[string]*statisticItem //key=$queue.$group.$action eg:remind.if.s remind.if.r
-	stopChan     chan error
-	mu           sync.Mutex
+const (
+	profileWriter = "profile"
 )
 
-func init() {
-	statisticMap = make(map[string]*statisticItem)
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			select {
-			case <-stopChan:
-				ticker.Stop()
-				storeStatistic()
-			case <-ticker.C:
-				storeStatistic()
-			}
+type profile struct {
+}
+
+func newProfileWriter() metricsStatWriter {
+	return &profile{}
+}
+
+func (p *profile) Write(uri string, snap metrics.Registry) error {
+
+	snap.Each(func(key string, i interface{}) {
+		switch m := i.(type) {
+		case metrics.Counter:
+			log.Profile("%s: %d|Counter", key, m.Count())
+		case metrics.Meter:
+			log.Profile("%s: %.2f|Meter", key, m.Rate1())
+		case metrics.Timer:
+			log.Profile("%s: %.2f|Timer", key, m.Rate1())
+		case metrics.Gauge:
+			log.Profile("%s: %d|Gauge", key, m.Value())
+		case metrics.GaugeFloat64:
+			log.Profile("%s: %.2f|GaugeFloat64", key, m.Value())
+		case metrics.Histogram:
+			log.Profile("%s: %.2f|Histogram", key, m.Mean())
+		default:
+			return
 		}
-	}()
-}
-
-func storeStatistic() {
-	for _, v := range statisticMap {
-		log.Profile("%s", v.getStatistic())
-		v.clear()
-	}
-}
-
-func StatisticSend(queue, group string, cost int64) {
-	doStatistic(queue, group, "send", cost)
-}
-
-func StatisticRecv(queue, group string, cost int64) {
-	doStatistic(queue, group, "recv", cost)
-}
-
-func doStatistic(queue, group, action string, cost int64) {
-	key := fmt.Sprintf("%s.%s.%s", queue, group, action)
-	statisticItem, ok := statisticMap[key]
-	if ok {
-		statisticItem.statistic(cost)
-	} else {
-		mu.Lock()
-		statisticItem = newStatisticItem(queue, group, action)
-		statisticMap[key] = statisticItem
-		mu.Unlock()
-		statisticItem.statistic(cost)
-	}
-}
-
-type statisticItem struct {
-	queue  string
-	group  string
-	action string
-	count  int64
-	cost   int64
-}
-
-func newStatisticItem(queue, group, action string) *statisticItem {
-	return &statisticItem{
-		queue:  queue,
-		group:  group,
-		action: action,
-		count:  int64(0),
-		cost:   int64(0),
-	}
-}
-
-func (si *statisticItem) clear() {
-	si.count = 0
-	si.cost = 0
-}
-
-func (si *statisticItem) statistic(cost int64) {
-	mu.Lock()
-	si.count++
-	si.cost += cost
-	mu.Unlock()
-}
-
-func (si *statisticItem) getStatistic() string {
-	cost := si.cost
-	count := si.count
-	avg := float64(0)
-	if count != 0 {
-		avg = float64(cost) / float64(count)
-	}
-	return `{"type":"WQS","queue":"` + si.queue + `","group":"` + si.group + `","action":"` + si.action + `","total_count":` + strconv.FormatInt(count, 10) + `,"avg_time":` + strconv.FormatFloat(avg, 'f', 2, 64) + `}`
+	})
+	return nil
 }

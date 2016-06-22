@@ -68,9 +68,11 @@ type queueImp struct {
 	consumerMap   map[string]*kafka.Consumer
 	vaildName     *regexp.Regexp
 	mu            sync.Mutex
+	uptime        time.Time
+	version       string
 }
 
-func newQueue(config *config.Config) (*queueImp, error) {
+func newQueue(config *config.Config, version string) (*queueImp, error) {
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -132,6 +134,8 @@ func newQueue(config *config.Config) (*queueImp, error) {
 		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
 		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
 		consumerMap:   make(map[string]*kafka.Consumer),
+		uptime:        time.Now(),
+		version:       version,
 	}
 	return qs, nil
 }
@@ -333,7 +337,11 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, partition, offset)
 	cost := time.Now().Sub(start).Nanoseconds() / 1e6
 
-	metrics.Add(queue+"#"+group+"#sent", 1, cost)
+	prefix := queue + "." + group + "." + metrics.CmdSet + "."
+	metrics.AddCounter(metrics.CmdSet, 1)
+	metrics.AddCounter(prefix+metrics.Ops, 1)
+	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
+	metrics.AddMeter(prefix+metrics.Qps, 1)
 
 	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
 	return messageID, nil
@@ -378,7 +386,12 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	cost := end.Sub(start).Nanoseconds() / 1e6
 	delay := end.UnixNano()/1e6 - baseTime - int64((sequenceID>>24)&0xFFFFFFFFFF)
 
-	metrics.Add(queue+"#"+group+"#recv", 1, cost, delay)
+	prefix := queue + "." + group + "." + metrics.CmdGet + "."
+	metrics.AddCounter(metrics.CmdGet, 1)
+	metrics.AddCounter(prefix+metrics.Ops, 1)
+	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
+	metrics.AddMeter(prefix+metrics.Qps, 1)
+	metrics.AddTimer(prefix+metrics.Latency, delay)
 
 	log.Debugf("recv %s:%s key %s id %s cost %d delay %d", queue, group, string(msg.Key), messageID, cost, delay)
 	return messageID, msg.Value, flag, nil
@@ -419,6 +432,10 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	}
 
 	cost := time.Now().Sub(start).Nanoseconds() / 1e6
+	prefix := queue + "." + group + "." + metrics.CmdAck + "."
+	metrics.AddCounter(prefix+metrics.Ops, 1)
+	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
+	metrics.AddMeter(prefix+metrics.Qps, 1)
 	log.Debugf("ack %s:%s key nil id %s cost %d", queue, group, id, cost)
 	return nil
 }
@@ -473,6 +490,13 @@ func (q *queueImp) GetProxys() (map[string]string, error) {
 
 func (q *queueImp) GetProxyConfigByID(id int) (string, error) {
 	return q.metadata.GetProxyConfigByID(id)
+}
+
+func (q *queueImp) GetUpTime() int64 {
+	return time.Since(q.uptime).Nanoseconds() / 1e9
+}
+func (q *queueImp) GetVersion() string {
+	return q.version
 }
 
 func (q *queueImp) Close() {

@@ -17,7 +17,7 @@ limitations under the License.
 package metrics
 
 import (
-	"github.com/weibocom/wqs/log"
+	"github.com/rcrowley/go-metrics"
 	redis "gopkg.in/redis.v3"
 )
 
@@ -41,14 +41,14 @@ func newRedisClient(addr string, auth string, poolSize int) (cli *redisClient) {
 	return
 }
 
-func (r *redisClient) Send(key string, data []byte) (err error) {
-	res := r.conns.RPush(key, string(data))
-	err = res.Err()
-	if err != nil {
-		log.Error(err)
-	}
-	// Lpush to q
-	return
+func (r *redisClient) Write(_ string, snap metrics.Registry) error {
+	//	res := r.conns.RPush(key, string(data))
+	//	err = res.Err()
+	//	if err != nil {
+	//		log.Error(err)
+	//	}
+	//	// Lpush to q
+	return nil
 }
 
 func (r *redisClient) Overview(start, end, step int64, host string) (ret string, err error) {

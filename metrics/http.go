@@ -17,12 +17,9 @@ limitations under the License.
 package metrics
 
 import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
-	"github.com/weibocom/wqs/log"
+	"github.com/rcrowley/go-metrics"
 )
 
 type httpClient struct {
@@ -35,32 +32,32 @@ func newHTTPClient() *httpClient {
 	}
 }
 
-func (c *httpClient) Send(uri string, results []*metricsStat) (err error) {
-	data, err := json.Marshal(results)
-	if err != nil {
-		log.Warnf("Encode results err: %v", err)
-		return
-	}
-	req, err := http.NewRequest("POST", uri, bytes.NewReader(data))
-	if err != nil {
-		log.Warnf("new http request err: %v", err)
-		return err
-	}
-	resp, err := c.cli.Do(req)
-	if err != nil {
-		log.Warnf("do http request err: %v", err)
-		return err
-	}
-	defer resp.Body.Close()
+func (c *httpClient) Send(uri string, snap metrics.Registry) (err error) {
+	//	data, err := json.Marshal(results)
+	//	if err != nil {
+	//		log.Warnf("Encode results err: %v", err)
+	//		return
+	//	}
+	//	req, err := http.NewRequest("POST", uri, bytes.NewReader(data))
+	//	if err != nil {
+	//		log.Warnf("new http request err: %v", err)
+	//		return err
+	//	}
+	//	resp, err := c.cli.Do(req)
+	//	if err != nil {
+	//		log.Warnf("do http request err: %v", err)
+	//		return err
+	//	}
+	//	defer resp.Body.Close()
 
-	respData, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Warnf("do http request err: %v", err)
-		return err
-	}
-	// TODO check
-	_ = respData
-	return
+	//	respData, err := ioutil.ReadAll(resp.Body)
+	//	if err != nil {
+	//		log.Warnf("do http request err: %v", err)
+	//		return err
+	//	}
+	//	// TODO check
+	//	_ = respData
+	return nil
 }
 
 func (c *httpClient) Overview(params *MetricsQueryParam) (data string, err error) {

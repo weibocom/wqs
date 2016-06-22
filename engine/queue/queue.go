@@ -39,9 +39,11 @@ type Queue interface {
 	AccumulationStatus() ([]AccumulationInfo, error)
 	GetProxys() (map[string]string, error)
 	GetProxyConfigByID(id int) (string, error)
+	GetUpTime() int64
+	GetVersion() string
 	Close()
 }
 
-func NewQueue(config *config.Config) (Queue, error) {
-	return newQueue(config)
+func NewQueue(config *config.Config, version string) (Queue, error) {
+	return newQueue(config, version)
 }

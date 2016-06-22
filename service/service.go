@@ -40,7 +40,6 @@ import (
 
 type Server struct {
 	config   *config.Config
-	version  string
 	queue    queue.Queue
 	mc       *mc.McServer
 	listener *utils.Listener
@@ -48,15 +47,14 @@ type Server struct {
 
 func NewServer(conf *config.Config, version string) (*Server, error) {
 
-	queue, err := queue.NewQueue(conf)
+	queue, err := queue.NewQueue(conf, version)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	return &Server{
-		config:  conf,
-		version: version,
-		queue:   queue,
+		config: conf,
+		queue:  queue,
 	}, nil
 }
 
@@ -472,14 +470,14 @@ func (s *Server) getMetricsHandler(w http.ResponseWriter, r *http.Request, ps ht
 	typ := ps.ByName("type")
 
 	switch action {
-	case metrics.KeySent, metrics.KeyRecv:
+	case metrics.CmdSet, metrics.CmdGet:
 	default:
 		response(w, 400, fmt.Sprintf("not support action: %s", action))
 		return
 	}
 
 	switch typ {
-	case metrics.KeyQps, metrics.KeyElapsed, metrics.KeyLatency:
+	case metrics.Qps, metrics.Elapsed, metrics.Latency:
 	default:
 		response(w, 400, fmt.Sprintf("not support type: %s", typ))
 		return
@@ -579,7 +577,7 @@ func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 // Get this server version information
 // path "/version"
 func (s *Server) getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	response(w, 200, s.version)
+	response(w, 200, s.queue.GetVersion())
 }
 
 func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

@@ -16,7 +16,11 @@ limitations under the License.
 
 package metrics
 
-import "time"
+import (
+	"time"
+
+	"github.com/rcrowley/go-metrics"
+)
 
 const (
 	AllHost    = "*"
@@ -37,7 +41,7 @@ type MetricsQueryParam struct {
 }
 
 type metricsStatWriter interface {
-	Send(uri string, snapshot []*metricsStat) error
+	Write(uri string, snap metrics.Registry) error
 }
 
 type metricsStatReader interface {

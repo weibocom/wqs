@@ -20,6 +20,8 @@ import (
 	"net"
 	"sync/atomic"
 
+	"github.com/weibocom/wqs/metrics"
+
 	"github.com/juju/errors"
 )
 
@@ -37,6 +39,7 @@ type Conn struct {
 func (c *Conn) Close() error {
 	if atomic.CompareAndSwapInt32(&c.closing, 0, 1) {
 		atomic.AddInt64(&(c.parent.count), -1)
+		metrics.AddCounter(metrics.ReConn, -1)
 		return c.Conn.Close()
 	}
 	return nil
@@ -64,6 +67,8 @@ func (l *Listener) Accept() (net.Conn, error) {
 	}
 	atomic.AddInt64(&l.count, 1)
 	c := &Conn{Conn: conn, parent: l}
+	metrics.AddCounter(metrics.ToConn, 1)
+	metrics.AddCounter(metrics.ReConn, 1)
 	//TODO 待讨论,是否需要提供链接池存储当前产生的c,然后重载Close(),主动关闭链接池中的链接。
 	return c, nil
 }

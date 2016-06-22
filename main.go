@@ -95,7 +95,7 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	err = metrics.Init(conf)
+	err = metrics.Start(conf)
 	if err != nil {
 		log.Fatalf("init metrics err: %v", err)
 	}
@@ -110,5 +110,6 @@ func main() {
 	log.Info("Process start")
 	<-c
 	server.Stop()
+	metrics.Stop()
 	log.Info("Process stop")
 }

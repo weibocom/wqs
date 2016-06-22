@@ -19,7 +19,9 @@ package mc
 import (
 	"bufio"
 	"fmt"
-	"strings"
+	"os"
+	"time"
+	"unsafe"
 
 	"github.com/weibocom/wqs/engine/queue"
 
@@ -43,9 +45,25 @@ func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writ
 	}
 
 	if fields == 1 {
-		// TODO: implement stats command
+		fmt.Fprintf(w, "STAT pid %d\r\n", os.Getpid())
+		fmt.Fprintf(w, "STAT uptime %d\r\n", q.GetUpTime())
+		fmt.Fprintf(w, "STAT time %d\r\n", time.Now().Unix())
+		fmt.Fprintf(w, "STAT version qservice %s\r\n", q.GetVersion())
+		fmt.Fprintf(w, "STAT pointer_size %d\r\n", unsafe.Sizeof(r)*8)
+		//curr_connections
+		//total_connections
+		//rusage_user
+		//rusage_system
+		//get_cmds
+		//get_hits
+		//set_cmds
+		//set_hits
+		//bytes_read
+		//bytes_written
+		//limit_maxbytes
+
 		fmt.Fprint(w, respEnd)
-	} else if fields == 2 && strings.EqualFold(tokens[1], "queue") {
+	} else if fields == 2 && tokens[1] == "queue" {
 		accumulationInfos, err := q.AccumulationStatus()
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)

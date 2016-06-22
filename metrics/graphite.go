@@ -24,41 +24,30 @@ import (
 	"strings"
 
 	"github.com/weibocom/wqs/log"
-)
 
-type graphiteType string
+	"github.com/rcrowley/go-metrics"
+)
 
 const (
-	counterType graphiteType = "c"
-	timerType   graphiteType = "ms"
-
-	messageMaxLen = 65000
+	messageMaxLen  = 65000
+	graphiteWriter = "graphite"
 )
 
-func (t graphiteType) String() string {
-	return string(t)
-}
-
-type graphiteClient struct {
+type graphite struct {
 	root        string
 	addr        string
 	servicePool string
-	cli         *http.Client
 }
 
-func newGraphiteClient(root, addr, servicePool string) *graphiteClient {
-	return &graphiteClient{
+func newGraphite(root, addr, servicePool string) *graphite {
+	return &graphite{
 		root:        root,
 		addr:        addr,
 		servicePool: servicePool,
-		cli:         &http.Client{},
 	}
 }
 
-func (g *graphiteClient) Send(_ string, snapshot []*metricsStat) error {
-	if len(snapshot) == 0 {
-		return nil
-	}
+func (g *graphite) Write(_ string, snap metrics.Registry) error {
 
 	conn, err := net.Dial("udp", g.addr)
 	if err != nil {
@@ -67,8 +56,7 @@ func (g *graphiteClient) Send(_ string, snapshot []*metricsStat) error {
 
 	ip := strings.SplitN(conn.LocalAddr().String(), ":", 2)[0]
 	ip = strings.Replace(ip, ".", "_", -1)
-	items := transToGraphiteItems(snapshot)
-	messages := transGraphiteItemsToMessages(ip, g.servicePool, items)
+	messages := genGraphiteMessages(ip, g.servicePool, snap)
 
 	for _, message := range messages {
 		_, err = conn.Write([]byte(message))
@@ -81,17 +69,17 @@ func (g *graphiteClient) Send(_ string, snapshot []*metricsStat) error {
 	return conn.Close()
 }
 
-func (m *graphiteClient) genGraphiteRequestURL(startTime int64, endTime int64, target string) string {
+func (m *graphite) genGraphiteRequestURL(startTime int64, endTime int64, target string) string {
 	return fmt.Sprintf("http://%s/render?from=%d&until=%d&target=%s&format=json",
 		m.root, startTime, endTime, target)
 }
 
-func (m *graphiteClient) genTarget(param *MetricsQueryParam) string {
+func (m *graphite) genTarget(param *MetricsQueryParam) string {
 	return fmt.Sprintf("stats_byhost.openapi_profile.%s.byhost.%s.%s.%s.%s.%s",
 		m.servicePool, param.Host, param.Queue, param.Group, param.ActionKey, param.MetricsKey)
 }
 
-func (m *graphiteClient) Overview(param *MetricsQueryParam) (data string, err error) {
+func (m *graphite) Overview(param *MetricsQueryParam) (data string, err error) {
 	url := m.genGraphiteRequestURL(param.StartTime, param.EndTime, param.Host)
 	dataset, err := m.doRequest(url)
 	if err != nil {
@@ -100,7 +88,7 @@ func (m *graphiteClient) Overview(param *MetricsQueryParam) (data string, err er
 	return dataset.String(), nil
 }
 
-func (m *graphiteClient) GroupMetrics(param *MetricsQueryParam) (data string, err error) {
+func (m *graphite) GroupMetrics(param *MetricsQueryParam) (data string, err error) {
 	target := m.genTarget(param)
 	url := m.genGraphiteRequestURL(param.StartTime, param.EndTime, target)
 	dataset, err := m.doRequest(url)
@@ -114,7 +102,7 @@ func (m *graphiteClient) GroupMetrics(param *MetricsQueryParam) (data string, er
 	return dataset.String(), nil
 }
 
-func (m *graphiteClient) doRequest(url string) (metricsDatas metricsDataSet, err error) {
+func (m *graphite) doRequest(url string) (metricsDatas metricsDataSet, err error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -146,79 +134,29 @@ func (m *graphiteClient) doRequest(url string) (metricsDatas metricsDataSet, err
 	return metricsDatas, nil
 }
 
-type graphiteItem struct {
-	key   string
-	value interface{}
-	typ   graphiteType
-}
-
-func transToGraphiteItems(states []*metricsStat) []*graphiteItem {
-	var items []*graphiteItem
-	for _, state := range states {
-		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, KeySent, KeyQps}, "."),
-			value: state.Sent.Total,
-			typ:   counterType,
-		})
-		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, KeySent, KeyElapsed}, "."),
-			value: state.Sent.Elapsed,
-			typ:   timerType,
-		})
-
-		for k, v := range state.Sent.Scale {
-			items = append(items, &graphiteItem{
-				key:   strings.Join([]string{state.Queue, state.Group, KeySent, k}, "."),
-				value: v,
-				typ:   counterType,
-			})
-		}
-
-		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, KeyRecv, KeyQps}, "."),
-			value: state.Recv.Total,
-			typ:   counterType,
-		})
-		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, KeyRecv, KeyElapsed}, "."),
-			value: state.Recv.Elapsed,
-			typ:   timerType,
-		})
-		items = append(items, &graphiteItem{
-			key:   strings.Join([]string{state.Queue, state.Group, KeyRecv, KeyLatency}, "."),
-			value: state.Recv.Latency,
-			typ:   timerType,
-		})
-
-		for k, v := range state.Recv.Scale {
-			items = append(items, &graphiteItem{
-				key:   strings.Join([]string{state.Queue, state.Group, KeyRecv, k}, "."),
-				value: v,
-				typ:   counterType,
-			})
-		}
-	}
-	return items
-}
-
-func transGraphiteItemsToMessages(localIP string, servicePool string, items []*graphiteItem) []string {
+func genGraphiteMessages(localIP string, servicePool string, snap metrics.Registry) []string {
 	messages := make([]string, 0)
 	segments := make([]string, 0)
 	segmentsLength := 0
 
-	for _, item := range items {
+	snap.Each(func(key string, i interface{}) {
 		var segment string
-		switch item.value.(type) {
-		case int64:
-			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%d|%s",
-				servicePool, localIP, item.key, item.value.(int64), item.typ)
-		case float64:
-			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%.2f|%s",
-				servicePool, localIP, item.key, item.value.(float64), item.typ)
+		switch m := i.(type) {
+		case metrics.Counter:
+			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%d|c",
+				servicePool, localIP, key, m.Count())
+		case metrics.Meter:
+			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%.2f|c",
+				servicePool, localIP, key, m.Rate1())
+		case metrics.Timer:
+			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%.2f|ms",
+				servicePool, localIP, key, m.RateMean())
+		//	case metrics.Gauge:
+		//	case metrics.GaugeFloat64:
+		//	case metrics.Histogram:
 		default:
-			continue
+			return
 		}
-
 		if segmentsLength+len(segment) > messageMaxLen {
 			message := strings.Join(segments, "\n") + "\n"
 			messages = append(messages, message)
@@ -227,7 +165,8 @@ func transGraphiteItemsToMessages(localIP string, servicePool string, items []*g
 		}
 		segments = append(segments, segment)
 		segmentsLength += len(segment)
-	}
+	})
+
 	message := strings.Join(segments, "\n") + "\n"
 	messages = append(messages, message)
 
