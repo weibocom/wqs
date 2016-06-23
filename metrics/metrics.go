@@ -51,15 +51,19 @@ const (
 	ElapseLess500ms = "Less500ms"
 	ElapseMore500ms = "More500ms"
 
-	CmdGet  = "GET"
-	CmdSet  = "SET"
-	CmdAck  = "ACK"
-	Qps     = "qps"
-	Ops     = "ops"
-	Latency = "Latency"
-	ToConn  = "ToConn"
-	ReConn  = "ReConn"
-	Elapsed = "elapsed"
+	CmdGet      = "GET"
+	CmdGetMiss  = "GETMiss"
+	CmdSet      = "SET"
+	CmdSetMiss  = "SETMiss"
+	CmdAck      = "ACK"
+	Qps         = "qps"
+	Ops         = "ops"
+	Latency     = "Latency"
+	ToConn      = "ToConn"
+	ReConn      = "ReConn"
+	Elapsed     = "elapsed"
+	BytesRead   = "BytesRead"
+	BytesWriten = "BytesWriten"
 
 	eventBufferSize = 1024 * 10
 	defaultWriter   = graphiteWriter

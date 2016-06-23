@@ -332,6 +332,7 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 
 	partition, offset, err := q.producer.Send(queue, []byte(key), data)
 	if err != nil {
+		metrics.AddCounter(metrics.CmdSetMiss, 1)
 		return "", errors.Trace(err)
 	}
 	messageID := fmt.Sprintf("%x:%s:%s:%x:%x", sequenceID, queue, group, partition, offset)
@@ -342,6 +343,7 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 	metrics.AddCounter(prefix+metrics.Ops, 1)
 	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
 	metrics.AddMeter(prefix+metrics.Qps, 1)
+	metrics.AddCounter(metrics.BytesWriten, int64(len(data)))
 
 	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
 	return messageID, nil
@@ -370,6 +372,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 
 	msg, err := consumer.Recv()
 	if err != nil {
+		metrics.AddCounter(metrics.CmdGetMiss, 1)
 		return "", nil, 0, err
 	}
 
@@ -392,6 +395,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
 	metrics.AddMeter(prefix+metrics.Qps, 1)
 	metrics.AddTimer(prefix+metrics.Latency, delay)
+	metrics.AddCounter(metrics.BytesRead, int64(len(msg.Value)))
 
 	log.Debugf("recv %s:%s key %s id %s cost %d delay %d", queue, group, string(msg.Key), messageID, cost, delay)
 	return messageID, msg.Value, flag, nil
