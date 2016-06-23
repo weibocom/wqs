@@ -70,8 +70,7 @@ eset <key> <flags> <exptime> <bytes> [noreply]\r\n
 向以key为标识的队列ACK一条消息。
 * 请求
 ```
-ack <key> <flags> <exptime> <bytes> [noreply]\r\n
-<message id>\r\n
+ack <key> <message id> [noreply]\r\n
 ```
 * 回复(没有noreply时)
 ```

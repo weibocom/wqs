@@ -29,14 +29,54 @@ import (
 )
 
 const (
-	cmdAck = "ack"
+	cmdEack = "eack"
+	cmdAck  = "ack"
 )
 
 func init() {
-	registerCommand(cmdAck, commandACK)
+	registerCommand(cmdAck, commandAck)
+	registerCommand(cmdEack, commandEack)
 }
 
-func commandACK(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func commandAck(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+
+	noreply := false
+	fields := len(tokens)
+	if fields != 3 && fields != 4 {
+		fmt.Fprint(w, respClientErrorBadCmdFormat)
+		return errors.NotValidf("mc tokens %v ", tokens)
+	}
+
+	if fields == 4 {
+		if tokens[3] != noReply {
+			fmt.Fprint(w, respClientErrorBadCmdFormat)
+			return errors.NotValidf("mc tokens %v ", tokens)
+		}
+		noreply = true
+	}
+
+	keys := strings.Split(tokens[1], ".")
+	group := defaultGroup
+	queue := keys[0]
+	if len(keys) > 1 {
+		group = keys[0]
+		queue = keys[1]
+	}
+
+	if err := q.AckMessage(queue, group, tokens[2]); err != nil {
+		fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
+		return nil
+	}
+
+	if noreply {
+		return nil
+	}
+
+	fmt.Fprint(w, respStored)
+	return nil
+}
+
+func commandEack(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
 
 	var noreply string
 

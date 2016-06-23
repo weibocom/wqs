@@ -34,7 +34,7 @@ var (
 
 func registerCommand(name string, command MemcacheCommand) error {
 	if _, exists := commands[name]; exists {
-		return fmt.Errorf("command registered %s", name)
+		panic(fmt.Errorf("command duplicate %q", name))
 	}
 	commands[name] = command
 	return nil
