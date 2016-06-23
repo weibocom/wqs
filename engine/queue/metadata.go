@@ -51,7 +51,7 @@ type Metadata struct {
 	operationPath   string
 	queueConfigs    map[string]QueueConfig
 	closeCh         chan struct{}
-	mu              sync.Mutex
+	rw              sync.RWMutex
 }
 
 func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, error) {
@@ -257,9 +257,9 @@ func (m *Metadata) RefreshMetadata() error {
 		queue.Groups[groupName] = groupConfig
 	}
 
-	m.mu.Lock()
+	m.rw.Lock()
 	m.queueConfigs = queueConfigs
-	m.mu.Unlock()
+	m.rw.Unlock()
 	return nil
 }
 
@@ -357,8 +357,8 @@ func (m *Metadata) UpdateGroupConfig(group string, queue string,
 
 //TODO 回头修改HTTP API时同时修改返回的数据结构，能够最大化简化逻辑
 func (m *Metadata) GetQueueConfig(queues ...string) ([]*QueueInfo, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.rw.RLock()
+	defer m.rw.RUnlock()
 
 	queueInfos := make([]*QueueInfo, 0)
 	for _, queue := range queues {
@@ -384,8 +384,8 @@ func (m *Metadata) GetQueueConfig(queues ...string) ([]*QueueInfo, error) {
 }
 
 func (m *Metadata) GetGroupConfig(group string, queue string) (*GroupConfig, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.rw.RLock()
+	defer m.rw.RUnlock()
 
 	queueConfig, ok := m.queueConfigs[queue]
 	if !ok {
@@ -415,8 +415,8 @@ func (m *Metadata) GetGroupMap() map[string][]string {
 func (m *Metadata) GetQueueMap() map[string][]string {
 	queuemap := make(map[string][]string)
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.rw.RLock()
+	defer m.rw.RUnlock()
 
 	for queue, queueConfig := range m.queueConfigs {
 		groups := make([]string, 0)
@@ -495,40 +495,39 @@ func (m *Metadata) DelQueue(queue string) error {
 
 //Get all queues' name
 func (m *Metadata) GetQueues() (queues []string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	m.rw.RLock()
 	for queue := range m.queueConfigs {
 		queues = append(queues, queue)
 	}
+	m.rw.RUnlock()
 	return
 }
 
 //Test a queue exist
 func (m *Metadata) ExistQueue(queue string) bool {
-	m.mu.Lock()
+	m.rw.RLock()
 	_, exist := m.queueConfigs[queue]
-	m.mu.Unlock()
+	m.rw.RUnlock()
 	return exist
 }
 
 //Test a group exist
 func (m *Metadata) ExistGroup(queue, group string) bool {
-	m.mu.Lock()
+	m.rw.RLock()
 	queueConfig, exist := m.queueConfigs[queue]
 	if !exist {
-		m.mu.Unlock()
+		m.rw.RUnlock()
 		return false
 	}
 	_, exist = queueConfig.Groups[group]
-	m.mu.Unlock()
+	m.rw.RUnlock()
 	return exist
 }
 
 //test a queue can be delete
 func (m *Metadata) canDeleteQueue(queue string) (bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.rw.RLock()
+	defer m.rw.RUnlock()
 
 	queueConfig, ok := m.queueConfigs[queue]
 	if !ok {
