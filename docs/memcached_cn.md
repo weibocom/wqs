@@ -79,6 +79,32 @@ STORED\r\n
 ```
 
 ### stats
+获得QService各项统计指标。
+* 请求
+```
+stats\r\n
+```
+* 回复
+```
+STAT pid <进程pid>\r\n
+STAT uptime <进程启动到现在过去的秒数>\r\n
+STAT time <系统当前时间,单位秒>\r\n
+STAT version qservice <版本号>\r\n
+STAT pointer_size <当前系统指针大小，64bit系统为64>\r\n
+STAT curr_connections <当前连接数>\r\n
+STAT total_connections <历史总连接数>\r\n
+STAT get_cmds <读消息总次数>\r\n
+STAT get_hits <读消息成功的总次数>\r\n
+STAT set_cmds <写消息总次数>\r\n
+STAT set_hits <写消息成功的总次数>\r\n
+STAT bytes_read <读消息总字节数>\r\n
+STAT bytes_written <写消息总字节数>\r\n
+STAT rusage_user <进程在用户空间用时>\r\n
+STAT rusage_system <进程在系统空间用时>\r\n
+STAT threads <进程goroutine数量>\r\n
+END\r\n
+```
+
 获得QService中每个队列的堆积量。
 * 请求
 ```
