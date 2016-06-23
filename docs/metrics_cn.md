@@ -8,13 +8,14 @@
 具体每项监控指标会以不同的`指标类型`进行记录
 
 | 指标类型 | 值含义 | 单位 |
-| - | - | - |
+| ---- | ---- | ----: |
 | Counter | 计数器,记录该事件发生的总次数 | 次 |
 | Meter | 频次,记录该事件每秒发生的次数 | 次/秒 |
 | Timer | 平均耗时,记录该事件每次发生的平均值耗时 | 毫秒/次 |
 
+
 | 指标 | 指标类型 | 含义 |
-| - | - | - |
+| ---- | :----: | ----- |
 | ReConn | Counter | 当前连接数 |
 | ToConn | Counter | 历史总连接数 |
 | BytesRead | Counter | 读取消息的总字节数 |
@@ -33,6 +34,7 @@
 | [queue].[group].SET.Less50ms | Counter | 该queue下该group写消息耗时小于50ms的次数 |
 | [queue].[group].ACK.ops | Counter | 该queue下该group ACK消息的次数 |
 | [queue].[group].ACK.Less10ms | Counter | 该queue下该group ACK消息耗时小于10ms的次数 |
+
 
 ## 监控展示方式
 ### Profile日志
