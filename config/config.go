@@ -44,7 +44,6 @@ type Config struct {
 	MotanPort          string
 	MetaDataZKAddr     string
 	MetaDataZKRoot     string
-	RedisAddr          string
 	LogInfo            string
 	LogDebug           string
 	LogProfile         string
@@ -197,15 +196,6 @@ func (c *Config) validate() (*Config, error) {
 	c.MetaDataZKRoot, err = meta.GetString("zookeeper.root")
 	if err != nil {
 		return nil, errors.NotFoundf("metadata.zookeeper.root")
-	}
-
-	redis, err := c.GetSection("redis")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	c.RedisAddr, err = redis.GetString("connect")
-	if err != nil {
-		return nil, errors.NotFoundf("redis.connect")
 	}
 
 	log, err := c.GetSection("log")

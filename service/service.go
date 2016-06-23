@@ -71,7 +71,6 @@ func (s *Server) Start() error {
 	router.POST("/queue", CompatibleWarp(s.queueHandler))
 	router.GET("/group", CompatibleWarp(s.groupHandler))
 	router.POST("/group", CompatibleWarp(s.groupHandler))
-	router.GET("/monitor", CompatibleWarp(s.monitorHandler))
 	router.GET("/msg", CompatibleWarp(s.msgHandler))
 	router.POST("/msg", CompatibleWarp(s.msgHandler))
 
@@ -355,63 +354,6 @@ func (s *Server) msgAck(queue string, group string) string {
 	//	}
 	//	return result
 	return `{"action":"ack","result":true}`
-}
-
-func (s *Server) monitorHandler(w http.ResponseWriter, r *http.Request) {
-
-	r.ParseForm()
-	monitorType := r.FormValue("type")
-	queue := r.FormValue("queue")
-	group := r.FormValue("group")
-
-	end := time.Now().Unix()
-	start := end - 5*60 //5min
-	interval := int64(1)
-
-	startTime := r.FormValue("start")
-	if startTime != "" {
-		start, _ = strconv.ParseInt(startTime, 10, 0)
-	}
-	endTime := r.FormValue("end")
-	if endTime != "" {
-		end, _ = strconv.ParseInt(endTime, 10, 0)
-	}
-	intervalTime := r.FormValue("interval")
-	if intervalTime != "" {
-		interval, _ = strconv.ParseInt(intervalTime, 10, 0)
-	}
-
-	var result string
-
-	switch monitorType {
-	case "send":
-		m, err := s.queue.GetSendMetrics(queue, group, start, end, interval)
-		if err != nil {
-			log.Debug("GetSendMetrics err: %s", errors.ErrorStack(err))
-			return
-		}
-		sm, err := json.Marshal(m)
-		if err != nil {
-			log.Debugf("GetSendMetrics Marshal err: %s", err)
-			return
-		}
-		result = string(sm)
-	case "receive":
-		m, err := s.queue.GetReceiveMetrics(queue, group, start, end, interval)
-		if err != nil {
-			log.Debug("GetReceiveMetrics err: %s", errors.ErrorStack(err))
-			return
-		}
-		rm, err := json.Marshal(m)
-		if err != nil {
-			log.Debugf("GetReceiveMetrics Marshal err: %s", err)
-			return
-		}
-		result = string(rm)
-	default:
-		result = "error, param type=" + monitorType + " not support!"
-	}
-	fmt.Fprintf(w, result)
 }
 
 // Get all online proxies, return id and hostname

@@ -16,10 +16,7 @@ limitations under the License.
 
 package queue
 
-import (
-	"github.com/weibocom/wqs/config"
-	"github.com/weibocom/wqs/metrics"
-)
+import "github.com/weibocom/wqs/config"
 
 type Queue interface {
 	Create(queue string) error
@@ -34,8 +31,6 @@ type Queue interface {
 	SendMessage(queue string, group string, data []byte, flag uint64) (id string, err error)
 	RecvMessage(queue string, group string) (id string, data []byte, flag uint64, err error)
 	AckMessage(queue string, group string, id string) error
-	GetSendMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
-	GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error)
 	AccumulationStatus() ([]AccumulationInfo, error)
 	GetProxys() (map[string]string, error)
 	GetProxyConfigByID(id int) (string, error)

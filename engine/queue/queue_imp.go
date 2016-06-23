@@ -63,7 +63,6 @@ type queueImp struct {
 	clusterConfig *cluster.Config
 	metadata      *Metadata
 	producer      *kafka.Producer
-	monitor       *metrics.Monitor
 	idGenerator   *idGenerator
 	consumerMap   map[string]*kafka.Consumer
 	vaildName     *regexp.Regexp
@@ -130,7 +129,6 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		clusterConfig: clusterConfig,
 		metadata:      metadata,
 		producer:      producer,
-		monitor:       metrics.NewMonitor(config.RedisAddr),
 		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
 		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
 		consumerMap:   make(map[string]*kafka.Consumer),
@@ -444,25 +442,6 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	return nil
 }
 
-func (q *queueImp) GetSendMetrics(queue string, group string,
-	start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
-
-	if exist := q.metadata.ExistGroup(queue, group); !exist {
-		return nil, errors.NotFoundf("GetSendMetrics queue : %q , group : %q", queue, group)
-	}
-
-	return q.monitor.GetSendMetrics(queue, group, start, end, intervalnum)
-}
-
-func (q *queueImp) GetReceiveMetrics(queue string, group string, start int64, end int64, intervalnum int64) (metrics.MetricsObj, error) {
-
-	if exist := q.metadata.ExistGroup(queue, group); !exist {
-		return nil, errors.NotFoundf("GetReceiveMetrics queue : %q , group : %q", queue, group)
-	}
-
-	return q.monitor.GetReceiveMetrics(queue, group, start, end, intervalnum)
-}
-
 func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
 	accumulationInfos := make([]AccumulationInfo, 0)
 	err := q.metadata.RefreshMetadata()
@@ -518,11 +497,6 @@ func (q *queueImp) Close() {
 			log.Errorf("close consumer %s err: %s", name, err)
 		}
 		delete(q.consumerMap, name)
-	}
-
-	err = q.monitor.Close()
-	if err != nil {
-		log.Errorf("close monitor err: %s", err)
 	}
 
 	q.metadata.Close()
