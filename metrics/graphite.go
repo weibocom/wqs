@@ -63,7 +63,7 @@ func (g *graphite) Write(_ string, snap metrics.Registry) error {
 		if err != nil {
 			log.Errorf("graphite send message error: %v", err)
 		}
-		log.Debugf("graphite message: %s", message)
+		//log.Debugf("graphite message: %s", message)
 	}
 
 	return conn.Close()
