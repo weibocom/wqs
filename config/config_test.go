@@ -41,3 +41,17 @@ func TestGetSection(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestGetSections(t *testing.T) {
+	config, err := NewConfigFromFile("../config.properties")
+	if err != nil {
+		t.Fatalf("NewConfigFromFile err : %s", err)
+	}
+	if config == nil {
+		t.Fatalf("config is nil, want is not nil")
+	}
+	sections := config.GetSections()
+	if len(sections) != len(config.sections) {
+		t.Fatalf("len(sections) != len(config.sections)")
+	}
+}

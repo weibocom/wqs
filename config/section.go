@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"regexp"
 	"strconv"
 
 	"github.com/juju/errors"
@@ -82,4 +83,15 @@ func (s Section) GetFloat64Must(key string, defaultVal float64) float64 {
 		value = defaultVal
 	}
 	return value
+}
+
+func (s Section) GetDupByPattern(pattern string) Section {
+	reg := regexp.MustCompile(pattern)
+	section := make(Section)
+	for key, value := range s {
+		if reg.MatchString(key) {
+			section[key] = value
+		}
+	}
+	return section
 }
