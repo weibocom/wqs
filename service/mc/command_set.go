@@ -93,7 +93,7 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 
 	// if eset command, return message id
 	if cmd == cmdEset {
-		fmt.Fprint(w, id+" "+respStored)
+		fmt.Fprintf(w, "%s\r\n", id)
 		return nil
 	}
 	fmt.Fprint(w, respStored)
