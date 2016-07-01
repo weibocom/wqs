@@ -74,7 +74,9 @@ func (s *Server) Start() error {
 	router.GET("/msg", CompatibleWarp(s.msgHandler))
 	router.POST("/msg", CompatibleWarp(s.msgHandler))
 
+	router.GET("/idcs/info", s.idcsInformation)
 	//queue's api
+	router.PUT("/queues/:queue", s.createQueueHandler)
 	router.GET("/queue/:queue/:group/metrics/:action/:type", s.getMetricsHandler)
 	//loggers
 	router.GET("/loggers", getLoggerHandler)
@@ -147,7 +149,7 @@ func (s *Server) queueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) queueCreate(queue string) string {
-	err := s.queue.Create(queue)
+	err := s.queue.Create(queue, []string{})
 	if err != nil {
 		log.Debugf("CreateQueue err:%s", errors.ErrorStack(err))
 		return `{"action":"create","result":false}`
@@ -345,15 +347,45 @@ func (s *Server) msgReceive(queue string, group string) string {
 }
 
 func (s *Server) msgAck(queue string, group string) string {
-	//	var result string
-	//	err := s.queue.AckMessage(queue, group)
-	//	if err != nil {
-	//		result = err.Error()
-	//	} else {
-	//		result = `{"action":"ack","result":true}`
-	//	}
-	//	return result
 	return `{"action":"ack","result":true}`
+}
+
+// router.GET("/idcs/info", s.idcsInformation)
+func (s *Server) idcsInformation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+
+}
+
+// router.PUT("/queues/:queue", s.createQueueHandler)
+func (s *Server) createQueueHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	queue := ps.ByName("queue")
+	if queue == "" {
+		response(w, 400, "empty queue name")
+		return
+	}
+
+	attr := &QueueAttr{}
+	if err := json.NewDecoder(r.Body).Decode(attr); err != nil {
+		response(w, 400, err.Error())
+		return
+	}
+
+	if len(attr.Idcs) != 0 {
+		for _, idc := range attr.Idcs {
+			if idc == "" {
+				response(w, 400, "has empty idc name")
+				return
+			}
+		}
+	}
+
+	if err := s.queue.Create(queue, attr.Idcs); err != nil {
+		log.Errorf("create queue: %s", errors.ErrorStack(err))
+		response(w, 500, err.Error())
+		return
+	}
+
+	response(w, 201, "created")
 }
 
 // Get all online proxies, return id and hostname

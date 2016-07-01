@@ -30,11 +30,6 @@ import (
 
 //all data is read only
 type Config struct {
-	KafkaZKAddr       string
-	KafkaZKRoot       string
-	KafkaPartitions   int
-	KafkaReplications int
-
 	ProxyId            int
 	UiDir              string
 	HttpPort           string
@@ -121,28 +116,6 @@ func (c *Config) GetSections() map[string]Section {
 }
 
 func (c *Config) validate() (*Config, error) {
-	// kafka cluster config
-	kafka, err := c.GetSection("kafka")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	c.KafkaZKAddr, err = kafka.GetString("zookeeper.connect")
-	if err != nil {
-		return nil, errors.NotFoundf("kafka.zookeeper.connect")
-	}
-	c.KafkaZKRoot, err = kafka.GetString("zookeeper.root")
-	if err != nil {
-		return nil, errors.NotFoundf("kafka.zookeeper.root")
-	}
-	c.KafkaPartitions = int(kafka.GetInt64Must("topic.partitions", 0))
-	if c.KafkaPartitions == 0 {
-		return nil, errors.NotValidf("kafka.topic.partitions")
-	}
-	c.KafkaReplications = int(kafka.GetInt64Must("topic.replications", 0))
-	if c.KafkaReplications == 0 {
-		return nil, errors.NotValidf("kafka.topic.replications")
-	}
 
 	// proxy config
 	proxy, err := c.GetSection("proxy")

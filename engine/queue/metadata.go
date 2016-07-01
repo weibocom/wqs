@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/weibocom/wqs/config"
@@ -44,24 +45,34 @@ const (
 type Metadata struct {
 	config          *config.Config
 	zkClient        *zookeeper.ZkClient
-	manager         *kafka.Manager
+	managers        map[string]*kafka.Manager
 	groupConfigPath string
 	queuePath       string
 	servicePath     string
 	operationPath   string
+	local           string
+	partitions      int32
+	replications    int32
+	stopping        int32
 	queueConfigs    map[string]QueueConfig
 	closeCh         chan struct{}
 	rw              sync.RWMutex
 }
 
 func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, error) {
+
+	kafkaSection, err := config.GetSection("kafka")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	zkClient, err := zookeeper.NewZkClient(strings.Split(config.MetaDataZKAddr, ","))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	zkRoot := config.MetaDataZKRoot
-	if strings.EqualFold(zkRoot, root) {
+	if zkRoot == root {
 		zkRoot = ""
 	}
 
@@ -90,25 +101,73 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		return nil, errors.Trace(err)
 	}
 
-	manager, err := kafka.NewManager(strings.Split(config.KafkaZKAddr, ","), config.KafkaZKRoot, sconfig)
+	kafkaZkAddr, err := kafkaSection.GetString("zookeeper.connect")
 	if err != nil {
 		return nil, errors.Trace(err)
+	}
+	kafkaZkRoot, err := kafkaSection.GetString("zookeeper.root")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	replications := int32(kafkaSection.GetInt64Must("topic.replications", 0))
+	if replications < 1 {
+		return nil, errors.NotValidf("kafka.topic.replications")
+	}
+	partitions := int32(kafkaSection.GetInt64Must("topic.partitions", 0))
+	if partitions < 1 {
+		return nil, errors.NotValidf("kafka.topic.partitions")
+	}
+
+	manager, err := kafka.NewManager(strings.Split(kafkaZkAddr, ","), kafkaZkRoot, sconfig)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	idc := kafkaSection.GetStringMust("idc", "local")
+	managers := make(map[string]*kafka.Manager)
+	managers[idc] = manager
+
+	//解析配置，初始化远端IDC的kafka的Manager
+	remoteIdcs := kafkaSection.GetDupByPattern(`^remote\.\w+\.zookeeper\.connect$`)
+	for name, addrs := range remoteIdcs {
+		if len(addrs) == 0 {
+			continue
+		}
+		kafkaRoot := "/"
+		//上面的正则表达式已经保证了name的正确性，所以直接进行Split取值
+		idc := strings.Split(name, ".")[1]
+		tokens := strings.SplitN(addrs, "/", 2)
+		if len(tokens) == 2 {
+			addrs = tokens[0]
+			kafkaRoot += tokens[1]
+		}
+		idcKafakManager, err := kafka.NewManager(strings.Split(addrs, ","), kafkaRoot, sconfig)
+		if err != nil {
+			return nil, errors.Trace(errors.Annotatef(err, "at add idc kafka: %q", idc))
+		}
+		if _, ok := managers[idc]; ok {
+			return nil, errors.AlreadyExistsf("duplicate IDC: %q", idc)
+		}
+		managers[idc] = idcKafakManager
 	}
 
 	metadata := &Metadata{
 		config:          config,
 		zkClient:        zkClient,
-		manager:         manager,
+		managers:        managers,
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
 		servicePath:     servicePath,
 		operationPath:   operationPath,
+		local:           idc,
+		partitions:      partitions,
+		replications:    replications,
 		queueConfigs:    make(map[string]QueueConfig),
 		closeCh:         make(chan struct{}),
 	}
 
-	err = metadata.RefreshMetadata()
-	if err != nil {
+	if err := metadata.RefreshMetadata(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -129,6 +188,10 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 	}(metadata)
 
 	return metadata, nil
+}
+
+func (m *Metadata) getLocalManager() *kafka.Manager {
+	return m.managers[m.local]
 }
 
 func (m *Metadata) RegisterService(id int, data string) error {
@@ -189,9 +252,10 @@ func (m *Metadata) GetProxys() (map[string]string, error) {
 func (m *Metadata) RefreshMetadata() error {
 	queueConfigs := make(map[string]QueueConfig)
 
-	err := m.manager.RefreshMetadata()
-	if err != nil {
-		return errors.Trace(err)
+	for idc, manager := range m.managers {
+		if err := manager.RefreshMetadata(); err != nil {
+			log.Errorf("metadata RefreshMetadata idc: %q error: %v", idc, err)
+		}
 	}
 
 	queues, _, err := m.zkClient.Children(m.queuePath)
@@ -200,15 +264,15 @@ func (m *Metadata) RefreshMetadata() error {
 	}
 
 	for _, queue := range queues {
-		_, stat, err := m.zkClient.Get(m.buildQueuePath(queue))
+		data, stat, err := m.zkClient.Get(m.buildQueuePath(queue))
 		if err != nil {
 			log.Errorf("refresh err : %s", err)
 			return errors.Trace(err)
 		}
 
-		exist, err := m.manager.ExistTopic(queue)
+		exist, err := m.getLocalManager().ExistTopic(queue)
 		if err != nil {
-			log.Errorf("refresh err : %s", err)
+			log.Errorf("refresh test ExistTopic err : %s", err)
 			return errors.Trace(err)
 		}
 		if !exist {
@@ -216,12 +280,21 @@ func (m *Metadata) RefreshMetadata() error {
 			continue
 		}
 
-		queueConfigs[queue] = QueueConfig{
-			Queue:  queue,
-			Ctime:  stat.Ctime / 1e3,
-			Length: 0,
-			Groups: make(map[string]GroupConfig),
+		config := QueueConfig{}
+		// 兼容旧版本元数据
+		if err := config.Parse(data); err != nil {
+			config.Queue = queue
+			config.Ctime = stat.Ctime / 1e3
+			config.Length = 0
 		}
+		if config.Idcs == nil {
+			config.Idcs = []string{m.local}
+		}
+		if config.Groups == nil {
+			config.Groups = make(map[string]GroupConfig)
+		}
+
+		queueConfigs[queue] = config
 	}
 
 	groupKeys, _, err := m.zkClient.Children(m.groupConfigPath)
@@ -356,7 +429,7 @@ func (m *Metadata) UpdateGroupConfig(group string, queue string,
 }
 
 //TODO 回头修改HTTP API时同时修改返回的数据结构，能够最大化简化逻辑
-func (m *Metadata) GetQueueConfig(queues ...string) ([]*QueueInfo, error) {
+func (m *Metadata) GetQueueInfo(queues ...string) ([]*QueueInfo, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -381,6 +454,17 @@ func (m *Metadata) GetQueueConfig(queues ...string) ([]*QueueInfo, error) {
 	}
 
 	return queueInfos, nil
+}
+
+// 没有深拷贝，目前貌似不需要
+func (m *Metadata) GetQueueConfig(queue string) *QueueConfig {
+	m.rw.RLock()
+	config, ok := m.queueConfigs[queue]
+	m.rw.RUnlock()
+	if !ok {
+		return nil
+	}
+	return &config
 }
 
 func (m *Metadata) GetGroupConfig(group string, queue string) (*GroupConfig, error) {
@@ -428,8 +512,8 @@ func (m *Metadata) GetQueueMap() map[string][]string {
 	return queuemap
 }
 
-//Add a queue by name
-func (m *Metadata) AddQueue(queue string) error {
+//Add a queue by name. if want use multi idc, pass idc names in `idcs`
+func (m *Metadata) AddQueue(queue string, idcs []string) error {
 
 	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
 	if err := mutex.Lock(); err != nil {
@@ -442,19 +526,34 @@ func (m *Metadata) AddQueue(queue string) error {
 	}
 
 	if exist := m.ExistQueue(queue); exist {
-		return errors.AlreadyExistsf("CreateQueue queue:%s ", queue)
+		return errors.AlreadyExistsf("queue: %q ", queue)
 	}
 
-	if err := m.manager.CreateTopic(queue, int32(m.config.KafkaReplications),
-		int32(m.config.KafkaPartitions)); err != nil {
-		return errors.Trace(err)
+	if len(idcs) == 0 {
+		idcs = []string{m.local}
 	}
 
-	path := m.buildQueuePath(queue)
-	data := ""
-	log.Debugf("add queue, zk path:%s, data:%s", path, data)
+	// 检查IDCs中是否包含了本地IDC
+	idcs = appendIfNotContains(idcs, m.local)
 
-	if err := m.zkClient.CreateRec(path, data, 0); err != nil {
+	// 缺乏出错回滚
+	for _, idc := range idcs {
+		manager := m.managers[idc]
+		if exist, _ := manager.ExistTopic(queue); exist {
+			continue
+		}
+		if err := manager.CreateTopic(queue, m.replications, m.partitions); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	config := &QueueConfig{
+		Queue: queue,
+		Ctime: time.Now().Unix(),
+		Idcs:  idcs,
+	}
+
+	if err := m.zkClient.CreateRec(m.buildQueuePath(queue), config.String(), 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -487,7 +586,7 @@ func (m *Metadata) DelQueue(queue string) error {
 		return errors.Trace(err)
 	}
 	delete(m.queueConfigs, queue)
-	if err := m.manager.DeleteTopic(queue); err != nil {
+	if err := m.getLocalManager().DeleteTopic(queue); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -524,6 +623,16 @@ func (m *Metadata) ExistGroup(queue, group string) bool {
 	return exist
 }
 
+func (m *Metadata) GetBrokerAddrsByIdc(idcs ...string) map[string][]string {
+	brokerAddrs := make(map[string][]string)
+	for _, idc := range idcs {
+		if manager, ok := m.managers[idc]; ok {
+			brokerAddrs[idc] = manager.BrokerAddrs()
+		}
+	}
+	return brokerAddrs
+}
+
 //test a queue can be delete
 func (m *Metadata) canDeleteQueue(queue string) (bool, error) {
 	m.rw.RLock()
@@ -538,7 +647,7 @@ func (m *Metadata) canDeleteQueue(queue string) (bool, error) {
 }
 
 func (m *Metadata) Accumulation(queue, group string) (int64, int64, error) {
-	return m.manager.Accumulation(queue, group)
+	return m.getLocalManager().Accumulation(queue, group)
 }
 
 func (m *Metadata) buildConfigPath(group string, queue string) string {
@@ -550,7 +659,27 @@ func (m *Metadata) buildQueuePath(queue string) string {
 }
 
 func (m *Metadata) Close() {
+
+	if !atomic.CompareAndSwapInt32(&m.stopping, 0, 1) {
+		return
+	}
 	close(m.closeCh)
 	m.zkClient.Close()
-	m.manager.Close()
+	for _, manager := range m.managers {
+		manager.Close()
+	}
+}
+
+func appendIfNotContains(items []string, it string) []string {
+	has := false
+	for _, item := range items {
+		if item == it {
+			has = true
+			break
+		}
+	}
+	if !has {
+		items = append(items, it)
+	}
+	return items
 }

@@ -35,9 +35,14 @@ const (
 )
 
 var (
-	ErrTimeout = errors.New("timeout")
-	ErrClosed  = errors.New("consumer closed")
-	ErrBadAck  = errors.New("bad ack")
+	ErrTimeout          = errors.New("timeout")
+	ErrClosed           = errors.New("consumer closed")
+	ErrBadAck           = errors.New("bad ack")
+	ErrNewConsumer      = errors.New("new kafka consumer failed")
+	ErrIdcNotExist      = errors.New("idc not exist")
+	ErrInvaildPartition = errors.New("invaild partition")
+	ErrInvaildOffset    = errors.New("invaild offset")
+	ErrEmptyAddr        = errors.New("empty addrs")
 )
 
 type ackHead struct {
@@ -103,58 +108,132 @@ func newAckNode(msg *sarama.ConsumerMessage) *ackNode {
 	return node
 }
 
-type Consumer struct {
-	topic          string
-	group          string
-	consumer       *cluster.Consumer
-	padding        int32
-	partitionHeads map[int32]*ackHead
+type none struct{}
+
+type message struct {
+	idc string
+	msg *sarama.ConsumerMessage
+}
+
+type ackGroup struct {
 	ackMessages    map[int32]map[int64]*ackNode
-	mu             sync.Mutex
+	partitionHeads map[int32]*ackHead
+	sync.Mutex
 }
 
-func NewConsumer(brokerAddrs []string, config *cluster.Config, topic, group string) (*Consumer, error) {
-	//FIXME: consumer的config是否需要支持配置
-	consumer, err := cluster.NewConsumer(brokerAddrs, group, []string{topic}, config)
-	if err != nil {
-		log.Errorf("kafka consumer init failed, addrs:%s, err:%v", brokerAddrs, err)
-		return nil, err
-	}
-	go func() {
-		for err := range consumer.Errors() {
-			log.Warnf("consumer err : %v", err)
+type Consumer struct {
+	topic     string
+	group     string
+	padding   int32
+	consumers map[string]*cluster.Consumer
+	ackGroups map[string]*ackGroup
+	messages  chan *message
+	dying     chan none
+	mu        sync.Mutex
+	dead      sync.WaitGroup
+}
+
+func (c *Consumer) dispatch(idc string, in <-chan *sarama.ConsumerMessage, errors <-chan error) {
+	defer func() {
+		if rev := recover(); rev != nil {
+			log.Errorf("idc %s dispatch painc: %v", idc, rev)
 		}
+		c.dead.Done()
 	}()
-	return &Consumer{
-		topic:          topic,
-		group:          group,
-		consumer:       consumer,
-		padding:        0,
-		partitionHeads: make(map[int32]*ackHead),
-		ackMessages:    make(map[int32]map[int64]*ackNode),
-	}, nil
+
+	for {
+		select {
+		case msg := <-in:
+			if msg == nil {
+				// in channel closed, it means consumer closed.
+				return
+			}
+			select {
+			case c.messages <- &message{idc: idc, msg: msg}:
+			case <-c.dying:
+				return
+			}
+		case err := <-errors:
+			log.Errorf("idc: %s consumer occur error: %v", idc, err)
+		case <-c.dying:
+			return
+		}
+	}
 }
 
-func (c *Consumer) recv() (msg *sarama.ConsumerMessage, err error) {
+func NewConsumer(brokerAddrs map[string][]string, config *cluster.Config, topic, group string) (*Consumer, error) {
+
+	var consumer *Consumer
+	kConsumers := make(map[string]*cluster.Consumer)
+	if len(brokerAddrs) == 0 {
+		return nil, ErrEmptyAddr
+	}
+	for idc, brokerAddr := range brokerAddrs {
+		kConsumer, err := cluster.NewConsumer(brokerAddr, group, []string{topic}, config)
+		if err != nil {
+			log.Errorf("new kafka consumer failed, addrs: %s, idc: %s, err: %v", brokerAddr, idc, err)
+			goto Error
+		}
+		kConsumers[idc] = kConsumer
+	}
+
+	consumer = &Consumer{
+		topic:     topic,
+		group:     group,
+		padding:   0,
+		consumers: kConsumers,
+		ackGroups: make(map[string]*ackGroup),
+		messages:  make(chan *message),
+		dying:     make(chan none),
+	}
+
+	for idc, kConsumer := range kConsumers {
+		consumer.dead.Add(1)
+		go consumer.dispatch(idc, kConsumer.Messages(), kConsumer.Errors())
+	}
+	return consumer, nil
+
+Error:
+	for idc, kConsumer := range kConsumers {
+		if err := kConsumer.Close(); err != nil {
+			log.Errorf("on error, close %s kConsumer err: %v", idc, err)
+		}
+	}
+	return nil, ErrNewConsumer
+}
+
+func (c *Consumer) recv() (msg *sarama.ConsumerMessage, idc string, err error) {
 	select {
-	case msg = <-c.consumer.Messages():
-		if msg == nil {
+	case m := <-c.messages:
+		if m == nil {
 			err = ErrClosed
 			return
 		}
-
-		node := newAckNode(msg)
+		// 用2个锁来减少ack数据结构的锁粒度，保证一定的并发效率
+		node := newAckNode(m.msg)
 		c.mu.Lock()
-		head, ok := c.partitionHeads[msg.Partition]
+		g, ok := c.ackGroups[m.idc]
+		if !ok {
+			g = &ackGroup{
+				ackMessages:    make(map[int32]map[int64]*ackNode),
+				partitionHeads: make(map[int32]*ackHead),
+			}
+			c.ackGroups[m.idc] = g
+		}
+		c.mu.Unlock()
+		msg = m.msg
+		idc = m.idc
+		g.Lock()
+		head, ok := g.partitionHeads[msg.Partition]
 		if !ok {
 			head = newAckHead()
-			c.partitionHeads[msg.Partition] = head
-			c.ackMessages[msg.Partition] = make(map[int64]*ackNode)
+			g.partitionHeads[msg.Partition] = head
+			g.ackMessages[msg.Partition] = make(map[int64]*ackNode)
 		}
 		head.Push(node)
-		c.ackMessages[msg.Partition][msg.Offset] = node
+		g.ackMessages[msg.Partition][msg.Offset] = node
 		atomic.AddInt32(&c.padding, 1)
-		c.mu.Unlock()
+		g.Unlock()
 	case <-time.After(timeout):
 		err = ErrTimeout
 	}
@@ -162,24 +241,31 @@ func (c *Consumer) recv() (msg *sarama.ConsumerMessage, err error) {
 }
 
 //Get a message
-func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
+func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, idc string, err error) {
 
 	if atomic.LoadInt32(&c.padding) < paddingMax {
-		if msg, err = c.recv(); err == nil {
-			return msg, nil
+		if msg, idc, err = c.recv(); err == nil {
+			return msg, idc, nil
 		}
 	}
 
 	if atomic.LoadInt32(&c.padding) > 0 {
 		now := time.Now()
+		// TODO 这里怎么优化？如何做到遍历的同时不同时获得2个锁，减小锁粒度。
 		c.mu.Lock()
 	Found:
-		for _, head := range c.partitionHeads {
-			if node := head.GetExpired(now); node != nil {
-				msg = node.msg
-				err = nil
-				break Found
+		for i, g := range c.ackGroups {
+			g.Lock()
+			for _, head := range g.partitionHeads {
+				if node := head.GetExpired(now); node != nil {
+					msg = node.msg
+					idc = i
+					err = nil
+					g.Unlock()
+					break Found
+				}
 			}
+			g.Unlock()
 		}
 		c.mu.Unlock()
 	}
@@ -187,32 +273,42 @@ func (c *Consumer) Recv() (msg *sarama.ConsumerMessage, err error) {
 	if msg == nil && err == nil {
 		err = ErrTimeout
 	}
-	return msg, err
+	return msg, idc, err
 }
 
-func (c *Consumer) Ack(partition int32, offset int64) error {
+func (c *Consumer) Ack(idc string, partition int32, offset int64) error {
+
 	c.mu.Lock()
-	head, ok := c.partitionHeads[partition]
+	g, ok := c.ackGroups[idc]
+	c.mu.Unlock()
 	if !ok {
-		c.mu.Unlock()
-		return ErrBadAck
+		return ErrIdcNotExist
 	}
 
-	partitionMessages, ok := c.ackMessages[partition]
+	// 不采用defer unlock是为了减少defer产生的allocate和更高的执行效率，可惜golang没有RAII特性。
+	// refer http://lk4d4.darth.io/posts/defer/
+	g.Lock()
+	head, ok := g.partitionHeads[partition]
 	if !ok {
-		c.mu.Unlock()
-		return ErrBadAck
+		g.Unlock()
+		return ErrInvaildPartition
+	}
+
+	partitionMessages, ok := g.ackMessages[partition]
+	if !ok {
+		g.Unlock()
+		return ErrInvaildPartition
 	}
 
 	node, ok := partitionMessages[offset]
 	if !ok {
-		c.mu.Unlock()
-		return ErrBadAck
+		g.Unlock()
+		return ErrInvaildOffset
 	}
 
 	//internal error, should not be empty
 	if head.Empty() {
-		c.mu.Unlock()
+		g.Unlock()
 		return ErrBadAck
 	}
 
@@ -221,19 +317,28 @@ func (c *Consumer) Ack(partition int32, offset int64) error {
 	delete(partitionMessages, offset)
 	atomic.AddInt32(&c.padding, -1)
 	if first == node {
-		c.consumer.MarkOffset(node.msg, "")
+		// c.consumers 是一个read-only的map，因此不需要锁保护
+		kConsumer := c.consumers[idc]
+		kConsumer.MarkOffset(node.msg, "")
 		if !head.Empty() {
 			first = head.Front()
 			if first.msg.Offset > offset+1 {
-				c.consumer.MarkPartitionOffset(first.msg.Topic,
+				kConsumer.MarkPartitionOffset(first.msg.Topic,
 					first.msg.Partition, first.msg.Offset-1, "")
 			}
 		}
 	}
-	c.mu.Unlock()
+	g.Unlock()
 	return nil
 }
 
-func (c *Consumer) Close() error {
-	return c.consumer.Close()
+// Close 不能多次重复调用
+func (c *Consumer) Close() {
+	close(c.dying)
+	c.dead.Wait()
+	for idc, kConsumer := range c.consumers {
+		if err := kConsumer.Close(); err != nil {
+			log.Errorf("idc %s consumer close occur error: %v", idc, err)
+		}
+	}
 }

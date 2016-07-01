@@ -17,12 +17,20 @@ limitations under the License.
 package queue
 
 import (
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 //40 years' milliseconds
 const baseTime = 40 * 365 * 24 * 3600 * 1000
+
+var (
+	errBadMessageID = errors.New("bad message id")
+)
 
 type idGenerator struct {
 	t        uint64
@@ -32,6 +40,7 @@ type idGenerator struct {
 	mu       sync.Mutex
 }
 
+// TODO 待优化，可以有无锁实现
 func (i *idGenerator) Get() (id uint64) {
 	i.mu.Lock()
 Loop:
@@ -64,4 +73,42 @@ func newIDGenerator(id uint64) *idGenerator {
 		id:     id,
 		ticker: time.Tick(time.Millisecond),
 	}
+}
+
+type messageId struct {
+	queue     string
+	group     string
+	idc       string
+	partition int32
+	offset    int64
+	sequence  uint64
+}
+
+func (m *messageId) Parse(id string) error {
+
+	tokens := strings.SplitN(id, ":", 6)
+	if len(tokens) != 6 {
+		return errBadMessageID
+	}
+	// 目前不需要解析 sequence
+	m.queue = tokens[1]
+	m.group = tokens[2]
+	m.idc = tokens[5]
+
+	partition, err := strconv.ParseInt(tokens[3], 16, 32)
+	if err != nil {
+		return errBadMessageID
+	}
+	m.partition = int32(partition)
+
+	m.offset, err = strconv.ParseInt(tokens[4], 16, 64)
+	if err != nil {
+		return errBadMessageID
+	}
+	return nil
+}
+
+func (m *messageId) String() string {
+	return fmt.Sprintf("%x:%s:%s:%x:%x:%s",
+		m.sequence, m.queue, m.group, m.partition, m.offset, m.idc)
 }

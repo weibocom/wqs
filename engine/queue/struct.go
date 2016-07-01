@@ -35,20 +35,16 @@ type QueueConfig struct {
 	Ctime  int64                  `json:"ctime"`
 	Length int64                  `json:"length"`
 	Groups map[string]GroupConfig `json:"groups,omitempty"`
+	Idcs   []string               `json:"idcs,omitempty"`
 }
 
-type GroupInfo struct {
-	Group  string         `json:"group"`
-	Queues []*GroupConfig `json:"queues,omitempty"`
+func (q *QueueConfig) String() string {
+	d, _ := json.Marshal(q)
+	return string(d)
 }
 
-type GroupConfig struct {
-	Group string   `json:"group,omitempty"`
-	Queue string   `json:"queue,omitempty"`
-	Write bool     `json:"write"`
-	Read  bool     `json:"read"`
-	Url   string   `json:"url"`
-	Ips   []string `json:"ips"`
+func (q *QueueConfig) Parse(data []byte) error {
+	return json.Unmarshal(data, q)
 }
 
 type AccumulationInfo struct {
@@ -56,6 +52,11 @@ type AccumulationInfo struct {
 	Queue    string `json:"queue,omitempty"`
 	Total    int64  `json:"total,omitempty"`
 	Consumed int64  `json:"consumed,omitempty"`
+}
+
+type GroupInfo struct {
+	Group  string         `json:"group"`
+	Queues []*GroupConfig `json:"queues,omitempty"`
 }
 
 func (queueInfo *QueueInfo) String() string {
@@ -66,6 +67,15 @@ func (queueInfo *QueueInfo) String() string {
 func (groupInfo *GroupInfo) String() string {
 	result, _ := json.Marshal(groupInfo)
 	return string(result)
+}
+
+type GroupConfig struct {
+	Group string   `json:"group,omitempty"`
+	Queue string   `json:"queue,omitempty"`
+	Write bool     `json:"write"`
+	Read  bool     `json:"read"`
+	Url   string   `json:"url"`
+	Ips   []string `json:"ips"`
 }
 
 func (groupConfig *GroupConfig) String() string {

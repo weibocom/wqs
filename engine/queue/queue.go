@@ -19,7 +19,7 @@ package queue
 import "github.com/weibocom/wqs/config"
 
 type Queue interface {
-	Create(queue string) error
+	Create(queue string, idcs []string) error
 	Update(queue string) error
 	Delete(queue string) error
 	Lookup(queue string, group string) ([]*QueueInfo, error)

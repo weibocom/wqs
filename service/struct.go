@@ -42,3 +42,7 @@ func (m *ResponseMessage) Bytes() []byte {
 	json.NewEncoder(data).Encode(m)
 	return data.Bytes()
 }
+
+type QueueAttr struct {
+	Idcs []string `json:"idcs,omitempty"`
+}

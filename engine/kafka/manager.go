@@ -216,7 +216,7 @@ func (m *Manager) RefreshMetadata() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-
+	//TODO 校验broker是否发生变化，是否需要根据broker变化做响应动作？
 	m.mu.Lock()
 	m.brokerAddrs, m.brokersList = brokerAddrs, brokersList
 	m.mu.Unlock()
@@ -226,6 +226,7 @@ func (m *Manager) RefreshMetadata() error {
 func (m *Manager) BrokerAddrs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// 浅拷贝
 	return m.brokerAddrs
 }
 
