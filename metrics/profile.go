@@ -28,11 +28,11 @@ const (
 type profile struct {
 }
 
-func newProfileWriter() metricsStatWriter {
+func newProfileWriter() statWriter {
 	return &profile{}
 }
 
-func (p *profile) Write(uri string, snap metrics.Registry) error {
+func (p *profile) Write(snap metrics.Registry) error {
 
 	snap.Each(func(key string, i interface{}) {
 		switch m := i.(type) {

@@ -47,7 +47,7 @@ func newGraphite(root, addr, servicePool string) *graphite {
 	}
 }
 
-func (g *graphite) Write(_ string, snap metrics.Registry) error {
+func (g *graphite) Write(snap metrics.Registry) error {
 
 	conn, err := net.Dial("udp", g.addr)
 	if err != nil {
@@ -63,7 +63,6 @@ func (g *graphite) Write(_ string, snap metrics.Registry) error {
 		if err != nil {
 			log.Errorf("graphite send message error: %v", err)
 		}
-		//log.Debugf("graphite message: %s", message)
 	}
 
 	return conn.Close()
@@ -74,21 +73,12 @@ func (m *graphite) genGraphiteRequestURL(startTime int64, endTime int64, target 
 		m.root, startTime, endTime, target)
 }
 
-func (m *graphite) genTarget(param *MetricsQueryParam) string {
+func (m *graphite) genTarget(param *QueryParam) string {
 	return fmt.Sprintf("stats_byhost.openapi_profile.%s.byhost.%s.%s.%s.%s.%s",
 		m.servicePool, param.Host, param.Queue, param.Group, param.ActionKey, param.MetricsKey)
 }
 
-func (m *graphite) Overview(param *MetricsQueryParam) (data string, err error) {
-	url := m.genGraphiteRequestURL(param.StartTime, param.EndTime, param.Host)
-	dataset, err := m.doRequest(url)
-	if err != nil {
-		return "", err
-	}
-	return dataset.String(), nil
-}
-
-func (m *graphite) GroupMetrics(param *MetricsQueryParam) (data string, err error) {
+func (m *graphite) Read(param *QueryParam) (data string, err error) {
 	target := m.genTarget(param)
 	url := m.genGraphiteRequestURL(param.StartTime, param.EndTime, target)
 	dataset, err := m.doRequest(url)
@@ -102,7 +92,7 @@ func (m *graphite) GroupMetrics(param *MetricsQueryParam) (data string, err erro
 	return dataset.String(), nil
 }
 
-func (m *graphite) doRequest(url string) (metricsDatas metricsDataSet, err error) {
+func (m *graphite) doRequest(url string) (metricsDatas dataSets, err error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -202,7 +192,7 @@ type graphiteDataSet struct {
 	DataPoints []dataPoint `json:"datapoints"`
 }
 
-func mergeDataSet(datasets metricsDataSet) *metricsData {
+func mergeDataSet(datasets dataSets) *metricsData {
 	if datasets == nil || len(datasets) == 0 {
 		return &metricsData{Points: make([]metricsDataPoint, 0)}
 	}

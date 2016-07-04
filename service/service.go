@@ -496,7 +496,7 @@ func (s *Server) getMetricsHandler(w http.ResponseWriter, r *http.Request, ps ht
 		}
 	}
 
-	queryParam := &metrics.MetricsQueryParam{
+	queryParam := &metrics.QueryParam{
 		Host:       metrics.AllHost,
 		Queue:      queue,
 		Group:      group,

@@ -65,10 +65,12 @@ const (
 	BytesRead   = "BytesRead"
 	BytesWriten = "BytesWriten"
 
+	AllHost = "*"
+
 	eventBufferSize = 1024 * 10
 	defaultWriter   = graphiteWriter
 	defaultReader   = graphiteWriter
-	defaultCenter   = "http://127.0.0.1:10001/v1/metrics"
+	localhost       = "localhost"
 	sinkDuration    = time.Second * 5
 )
 
@@ -78,18 +80,17 @@ type event struct {
 	value int64
 }
 
-type metricsClient struct {
+type registry struct {
 	eventBus    chan *event
 	registry    metrics.Registry
 	serviceName string
-	centerAddr  string
-	writers     map[string]metricsStatWriter
-	reader      metricsStatReader
+	writers     map[string]statWriter
+	reader      statReader
 	stopCh      chan struct{}
 	stopping    int32
 }
 
-var client *metricsClient
+var reg *registry
 
 func Start(cfg *config.Config) (err error) {
 
@@ -98,40 +99,36 @@ func Start(cfg *config.Config) (err error) {
 		return err
 	}
 
-	client = &metricsClient{
+	reg = &registry{
 		registry:    metrics.NewRegistry(),
 		eventBus:    make(chan *event, eventBufferSize),
 		serviceName: "wqs",
 		stopCh:      make(chan struct{}),
 		stopping:    0,
-		writers:     make(map[string]metricsStatWriter),
+		writers:     make(map[string]statWriter),
 	}
 
-	if err := client.initWriterAndReader(section); err != nil {
+	if err := reg.initWriterAndReader(section); err != nil {
 		return err
 	}
 
-	uri := section.GetStringMust("metrics.center", defaultCenter)
-	uri = uri + "/" + client.serviceName
-	client.centerAddr = uri
-
-	go client.eventLoop()
+	go reg.eventLoop()
 	return nil
 }
 
 func Stop() {
-	if client != nil {
-		client.stop()
+	if reg != nil {
+		reg.stop()
 	}
 }
 
-func (m *metricsClient) stop() {
+func (m *registry) stop() {
 	if atomic.SwapInt32(&m.stopping, 1) == 0 {
 		close(m.stopCh)
 	}
 }
 
-func (m *metricsClient) initWriterAndReader(section config.Section) error {
+func (m *registry) initWriterAndReader(section config.Section) error {
 
 	writers := section.GetStringMust("transport.writers", defaultWriter)
 	names := strings.Split(writers, ",")
@@ -145,21 +142,20 @@ func (m *metricsClient) initWriterAndReader(section config.Section) error {
 
 	var err error
 	reader := section.GetStringMust("transport.reader", defaultReader)
-	client.reader, err = getReader(reader, section)
+	reg.reader, err = getReader(reader, section)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *metricsClient) eventLoop() {
+func (m *registry) eventLoop() {
 
 	if atomic.LoadInt32(&m.stopping) == 1 {
 		return
 	}
 
 	ticker := time.NewTicker(sinkDuration)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -168,12 +164,13 @@ func (m *metricsClient) eventLoop() {
 		case <-ticker.C:
 			m.sink()
 		case <-m.stopCh:
+			ticker.Stop()
 			return
 		}
 	}
 }
 
-func (m *metricsClient) processEvent(evt *event) {
+func (m *registry) processEvent(evt *event) {
 	switch evt.event {
 	case eventCounter:
 		metrics.GetOrRegisterCounter(evt.key, m.registry).Inc(evt.value)
@@ -184,7 +181,7 @@ func (m *metricsClient) processEvent(evt *event) {
 	}
 }
 
-func (m *metricsClient) snapshot() metrics.Registry {
+func (m *registry) snapshot() metrics.Registry {
 	hasElement := false
 	snap := metrics.NewRegistry()
 
@@ -211,7 +208,7 @@ func (m *metricsClient) snapshot() metrics.Registry {
 	return snap
 }
 
-func (m *metricsClient) sink() {
+func (m *registry) sink() {
 
 	snap := m.snapshot()
 	if snap == nil {
@@ -220,7 +217,7 @@ func (m *metricsClient) sink() {
 	}
 
 	for name, writer := range m.writers {
-		err := writer.Write(m.centerAddr, snap)
+		err := writer.Write(snap)
 		if err != nil {
 			log.Errorf("metrics writer %s error : %v", name, err)
 		}
@@ -231,57 +228,53 @@ func (m *metricsClient) sink() {
 func AddCounter(key string, value int64) {
 	evt := &event{event: eventCounter, key: key, value: value}
 	select {
-	case client.eventBus <- evt:
+	case reg.eventBus <- evt:
 	default:
 		log.Error("metrics eventBus is full.")
 	}
 }
 
 func GetCounter(key string) int64 {
-	return metrics.GetOrRegisterCounter(key, client.registry).Count()
+	return metrics.GetOrRegisterCounter(key, reg.registry).Count()
 }
 
 func AddMeter(key string, value int64) {
 	evt := &event{event: eventMeter, key: key, value: value}
 	select {
-	case client.eventBus <- evt:
+	case reg.eventBus <- evt:
 	default:
 		log.Error("metrics eventBus is full.")
 	}
 }
 
-// about Rate1: http://blog.sina.com.cn/s/blog_5069fdde0100g4ua.html
 func GetMeterRate(key string) float64 {
-	return getOrRegisterMeter(key, client.registry).Rate1()
+	return getOrRegisterMeter(key, reg.registry).Rate1()
 }
 
 func AddTimer(key string, duration int64) {
 	evt := &event{event: eventTimer, key: key, value: duration}
 	select {
-	case client.eventBus <- evt:
+	case reg.eventBus <- evt:
 	default:
 		log.Error("metrics eventBus is full.")
 	}
 }
 
 func GetTimerMean(key string) float64 {
-	return getOrRegisterTimer(key, client.registry).RateMean()
+	return getOrRegisterTimer(key, reg.registry).RateMean()
 }
 
-func GetMetrics(param *MetricsQueryParam) (stat string, err error) {
+func GetMetrics(param *QueryParam) (stat string, err error) {
 
-	if client == nil || client.reader == nil {
+	if reg == nil || reg.reader == nil {
 		return "", errMetricsClientIsNil
 	}
 
-	if param.StartTime == 0 || param.EndTime == 0 ||
-		param.Step == 0 || param.Host == "" ||
-		param.Queue == "" || param.Group == "" ||
-		param.ActionKey == "" || param.MetricsKey == "" {
-		return "", errInvalidParam
+	if err := param.validate(); err != nil {
+		return "", err
 	}
 
-	return client.reader.GroupMetrics(param)
+	return reg.reader.Read(param)
 }
 
 func ElapseTimeString(t int64) string {
@@ -303,7 +296,7 @@ func ElapseTimeString(t int64) string {
 	}
 }
 
-func getWriter(name string, section config.Section) (metricsStatWriter, error) {
+func getWriter(name string, section config.Section) (statWriter, error) {
 	switch name {
 	case graphiteWriter:
 		graphiteAddr, err := section.GetString("graphite.report.addr.udp")
@@ -314,7 +307,7 @@ func getWriter(name string, section config.Section) (metricsStatWriter, error) {
 		if err != nil {
 			return nil, err
 		}
-		graphiteRoot := section.GetStringMust("graphite.root", LOCAL)
+		graphiteRoot := section.GetStringMust("graphite.root", localhost)
 		return newGraphite(graphiteRoot, graphiteAddr, graphiteServicePool), nil
 	case profileWriter:
 		return newProfileWriter(), nil
@@ -324,7 +317,7 @@ func getWriter(name string, section config.Section) (metricsStatWriter, error) {
 	return nil, errUnknownTransport
 }
 
-func getReader(name string, section config.Section) (metricsStatReader, error) {
+func getReader(name string, section config.Section) (statReader, error) {
 	switch name {
 	case graphiteWriter:
 		graphiteAddr, err := section.GetString("graphite.report.addr.udp")
@@ -335,10 +328,43 @@ func getReader(name string, section config.Section) (metricsStatReader, error) {
 		if err != nil {
 			return nil, err
 		}
-		graphiteRoot := section.GetStringMust("graphite.root", LOCAL)
+		graphiteRoot := section.GetStringMust("graphite.root", localhost)
 		return newGraphite(graphiteRoot, graphiteAddr, graphiteServicePool), nil
 	default:
 		log.Errorf("unknown metrics writer: %s", name)
 	}
 	return nil, errUnknownTransport
+}
+
+type QueryParam struct {
+	Host       string
+	Group      string
+	Queue      string
+	ActionKey  string
+	MetricsKey string
+	StartTime  int64
+	EndTime    int64
+	Step       int64
+}
+
+func (q *QueryParam) validate() error {
+	switch {
+	case q.StartTime == 0:
+		fallthrough
+	case q.EndTime == 0:
+		fallthrough
+	case q.Step == 0:
+		fallthrough
+	case q.Host == "":
+		fallthrough
+	case q.Queue == "":
+		fallthrough
+	case q.Group == "":
+		fallthrough
+	case q.ActionKey == "":
+		fallthrough
+	case q.MetricsKey == "":
+		return errInvalidParam
+	}
+	return nil
 }

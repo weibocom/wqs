@@ -16,35 +16,12 @@ limitations under the License.
 
 package metrics
 
-import (
-	"time"
+import "github.com/rcrowley/go-metrics"
 
-	"github.com/rcrowley/go-metrics"
-)
-
-const (
-	AllHost    = "*"
-	AllMetrics = "*"
-
-	defaultRWTimeout = time.Second * 1
-)
-
-type MetricsQueryParam struct {
-	Host       string
-	Group      string
-	Queue      string
-	ActionKey  string
-	MetricsKey string
-	StartTime  int64
-	EndTime    int64
-	Step       int64
+type statWriter interface {
+	Write(snap metrics.Registry) error
 }
 
-type metricsStatWriter interface {
-	Write(uri string, snap metrics.Registry) error
-}
-
-type metricsStatReader interface {
-	Overview(param *MetricsQueryParam) (data string, err error)
-	GroupMetrics(param *MetricsQueryParam) (data string, err error)
+type statReader interface {
+	Read(param *QueryParam) (data string, err error)
 }

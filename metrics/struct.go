@@ -16,36 +16,7 @@ limitations under the License.
 
 package metrics
 
-import (
-	"encoding/json"
-	"fmt"
-	"strconv"
-)
-
-var LOCAL = "localhost"
-
-type metricsStat struct {
-	Endpoint string         `json:"endpoint"`
-	Queue    string         `json:"queue"`
-	Group    string         `json:"group"`
-	Sent     *metricsStruct `json:"sent"`
-	Recv     *metricsStruct `json:"recv"`
-	Accum    int64          `json:"accum"`
-	TS       int64          `json:"ts"`
-}
-
-type metricsStruct struct {
-	Total   int64   `json:"total"`
-	Elapsed float64 `json:"cost"`
-	Latency float64 `json:"latency"`
-
-	Scale map[string]int64 `json:"scale"`
-}
-
-func truncateFloat64(num float64, bit int) float64 {
-	ret, _ := strconv.ParseFloat(fmt.Sprintf("%.[2]*[1]f", num, bit), 64)
-	return ret
-}
+import "encoding/json"
 
 // metrics 模块对外输出数据时，序列化使用的数据结构
 type metricsDataPoint struct {
@@ -62,9 +33,9 @@ func (m *metricsData) String() string {
 	return string(data)
 }
 
-type metricsDataSet []*metricsData
+type dataSets []*metricsData
 
-func (m metricsDataSet) String() string {
+func (m dataSets) String() string {
 	if m == nil {
 		return "[]"
 	}

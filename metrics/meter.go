@@ -24,6 +24,9 @@ import (
 	"github.com/rcrowley/go-metrics"
 )
 
+// go-metrics中的Meter的Rate相关计算的都是指数移动变化率(http://blog.sina.com.cn/s/blog_5069fdde0100g4ua.html),
+// 会隐藏一些数据指标抖动的细节,导致一些故障不易发现.因此重新实现一个Meter,计算数据指标即刻变化率.
+
 const (
 	meterDuration = 5e9
 )
@@ -61,7 +64,6 @@ func (m *meterSnapshot) RateMean() float64 { return m.rateMean }
 // Snapshot returns the snapshot.
 func (m *meterSnapshot) Snapshot() metrics.Meter { return m }
 
-// 实现go-metrics的一些抽象功能，共享go-metrics的通用逻辑
 type qpsMeter struct {
 	lock      sync.RWMutex
 	snapshot  *meterSnapshot
