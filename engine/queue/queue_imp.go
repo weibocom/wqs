@@ -136,7 +136,7 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		metadata:      metadata,
 		producer:      producer,
 		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
-		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9]{1,20}$`),
+		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9_]{1,20}$`),
 		consumerMap:   make(map[string]*kafka.Consumer),
 		uptime:        time.Now(),
 		version:       version,
