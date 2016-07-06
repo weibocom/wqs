@@ -90,14 +90,13 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
+	if err := metrics.Start(conf); err != nil {
+		log.Fatalf("init metrics err: %v", err)
+	}
+
 	server, err := service.NewServer(conf, version)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
-	}
-
-	err = metrics.Start(conf)
-	if err != nil {
-		log.Fatalf("init metrics err: %v", err)
 	}
 
 	err = server.Start()

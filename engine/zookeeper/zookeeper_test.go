@@ -61,7 +61,7 @@ func TestZkRecursiveOperations(t *testing.T) {
 		t.Fatalf("NewZkClient err: %s", err)
 	}
 
-	err = zk.CreateRec(testZkPath1, "test", 0)
+	err = zk.CreateRecursive(testZkPath1, "test", 0)
 	if err != nil {
 		t.Fatalf("Create err: %s", err)
 	}

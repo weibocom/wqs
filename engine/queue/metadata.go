@@ -38,6 +38,7 @@ const (
 	groupConfigPathSuffix = "/wqs/metadata/groupconfig"
 	queuePathSuffix       = "/wqs/metadata/queue"
 	servicePathPrefix     = "/wqs/metadata/service"
+	metricsPathPrefix     = "/wqs/metadata/metrics"
 	operationPathPrefix   = "/wqs/metadata/operation"
 	root                  = "/"
 )
@@ -49,11 +50,13 @@ type Metadata struct {
 	groupConfigPath string
 	queuePath       string
 	servicePath     string
+	metricsPath     string
 	operationPath   string
 	local           string
 	partitions      int32
 	replications    int32
 	stopping        int32
+	id              int
 	queueConfigs    map[string]QueueConfig
 	closeCh         chan struct{}
 	rw              sync.RWMutex
@@ -80,23 +83,24 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 	queuePath := fmt.Sprintf("%s%s", zkRoot, queuePathSuffix)
 	servicePath := fmt.Sprintf("%s%s", zkRoot, servicePathPrefix)
 	operationPath := fmt.Sprintf("%s%s", zkRoot, operationPathPrefix)
+	metricsPath := fmt.Sprintf("%s%s", zkRoot, metricsPathPrefix)
 
-	err = zkClient.CreateRec(groupConfigPath, "", 0)
+	err = zkClient.CreateRecursive(groupConfigPath, "", 0)
 	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
 
-	err = zkClient.CreateRec(queuePath, "", 0)
+	err = zkClient.CreateRecursive(queuePath, "", 0)
 	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
 
-	err = zkClient.CreateRec(servicePath, "", 0)
+	err = zkClient.CreateRecursive(servicePath, "", 0)
 	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
 
-	err = zkClient.CreateRec(operationPath, "", 0)
+	err = zkClient.CreateRecursive(operationPath, "", 0)
 	if err != nil && err != zk.ErrNodeExists {
 		return nil, errors.Trace(err)
 	}
@@ -159,10 +163,12 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		groupConfigPath: groupConfigPath,
 		queuePath:       queuePath,
 		servicePath:     servicePath,
+		metricsPath:     metricsPath,
 		operationPath:   operationPath,
 		local:           idc,
 		partitions:      partitions,
 		replications:    replications,
+		id:              config.ProxyId,
 		queueConfigs:    make(map[string]QueueConfig),
 		closeCh:         make(chan struct{}),
 	}
@@ -364,7 +370,7 @@ func (m *Metadata) AddGroupConfig(group string, queue string,
 	}
 	data := groupConfig.String()
 	log.Debugf("add group config, zk path:%s, data:%s", path, data)
-	if err := m.zkClient.CreateRec(path, data, 0); err != nil {
+	if err := m.zkClient.CreateRecursive(path, data, 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -553,7 +559,7 @@ func (m *Metadata) AddQueue(queue string, idcs []string) error {
 		Idcs:  idcs,
 	}
 
-	if err := m.zkClient.CreateRec(m.buildQueuePath(queue), config.String(), 0); err != nil {
+	if err := m.zkClient.CreateRecursive(m.buildQueuePath(queue), config.String(), 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -644,6 +650,18 @@ func (m *Metadata) canDeleteQueue(queue string) (bool, error) {
 	}
 
 	return len(queueConfig.Groups) == 0, nil
+}
+
+func (m *Metadata) SaveMetrics(data string) error {
+	return m.zkClient.CreateOrUpdate(fmt.Sprintf("%s/%d", m.metricsPath, m.id), data, 0)
+}
+
+func (m *Metadata) LoadMetrics() ([]byte, error) {
+	data, _, err := m.zkClient.Get(fmt.Sprintf("%s/%d", m.metricsPath, m.id))
+	if err != nil && err == zk.ErrNoNode {
+		err = nil
+	}
+	return data, err
 }
 
 func (m *Metadata) Accumulation(queue, group string) (int64, int64, error) {

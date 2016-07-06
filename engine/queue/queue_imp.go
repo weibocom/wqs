@@ -141,6 +141,9 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		uptime:        time.Now(),
 		version:       version,
 	}
+	if err := qs.loadMetrics(); err != nil {
+		log.Errorf("queue load metrics: %v", err)
+	}
 	return qs, nil
 }
 
@@ -499,13 +502,29 @@ func (q *queueImp) GetVersion() string {
 	return q.version
 }
 
+func (q *queueImp) loadMetrics() error {
+	data, err := q.metadata.LoadMetrics()
+	if err != nil {
+		return err
+	}
+	return metrics.LoadDataFromBytes(data)
+}
+
+func (q *queueImp) saveMetrics() error {
+	data := metrics.SaveDataToString()
+	return q.metadata.SaveMetrics(data)
+}
+
 // Close 只能调用一次
 func (q *queueImp) Close() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	err := q.producer.Close()
-	if err != nil {
+	if err := q.saveMetrics(); err != nil {
+		log.Errorf("queue save metrics: %v", err)
+	}
+
+	if err := q.producer.Close(); err != nil {
 		log.Errorf("close producer err: %s", err)
 	}
 

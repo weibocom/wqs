@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	errInvalidParam       = errors.New("Invalid params")
-	errMetricsClientIsNil = errors.New("MetricsClient is nil")
-	errUnknownTransport   = errors.New("Unknown transport")
+	errInvalidParam     = errors.New("Invalid params")
+	errClientIsNil      = errors.New("MetricsClient is nil")
+	errUnknownTransport = errors.New("Unknown transport")
 )
 
 type eventType int32
@@ -267,7 +267,7 @@ func GetTimerMean(key string) float64 {
 func GetMetrics(param *QueryParam) (stat string, err error) {
 
 	if reg == nil || reg.reader == nil {
-		return "", errMetricsClientIsNil
+		return "", errClientIsNil
 	}
 
 	if err := param.validate(); err != nil {

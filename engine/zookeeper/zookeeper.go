@@ -59,11 +59,19 @@ func (z *ZkClient) Create(path string, data string, flags int32) error {
 	return err
 }
 
+func (z *ZkClient) CreateOrUpdate(zkPath string, data string, flags int32) error {
+	err := z.CreateRecursive(zkPath, data, flags)
+	if err != nil && err == zk.ErrNodeExists {
+		err = z.Set(zkPath, data)
+	}
+	return err
+}
+
 //递归创建节点
-func (z *ZkClient) CreateRec(zkPath string, data string, flags int32) error {
+func (z *ZkClient) CreateRecursive(zkPath string, data string, flags int32) error {
 	err := z.Create(zkPath, data, flags)
 	if err == zk.ErrNoNode {
-		err = z.CreateRec(path.Dir(zkPath), "", flags)
+		err = z.CreateRecursive(path.Dir(zkPath), "", flags)
 		if err != nil && err != zk.ErrNodeExists {
 			return err
 		}
