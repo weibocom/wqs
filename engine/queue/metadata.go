@@ -342,7 +342,24 @@ func (m *Metadata) RefreshMetadata() error {
 	return nil
 }
 
-func (m *Metadata) AddGroupConfig(group string, queue string,
+func (m *Metadata) ResetOffset(queue string, group string, time int64) error {
+	if err := m.RefreshMetadata(); err != nil {
+		return errors.Trace(err)
+	}
+
+	for idc, manager := range m.managers {
+		offsets, err := manager.FetchTopicOffsets(queue, time)
+		if err != nil {
+			return errors.Annotatef(err, " at idc %s", idc)
+		}
+		if err = manager.CommitOffset(queue, group, offsets); err != nil {
+			return errors.Annotatef(err, " at reset offset idc %s", idc)
+		}
+	}
+	return nil
+}
+
+func (m *Metadata) AddGroup(group string, queue string,
 	write bool, read bool, url string, ips []string) error {
 
 	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
@@ -376,7 +393,7 @@ func (m *Metadata) AddGroupConfig(group string, queue string,
 	return nil
 }
 
-func (m *Metadata) DeleteGroupConfig(group string, queue string) error {
+func (m *Metadata) DeleteGroup(group string, queue string) error {
 
 	mutex := zk.NewLock(m.zkClient.Conn, m.operationPath, zk.WorldACL(zk.PermAll))
 	if err := mutex.Lock(); err != nil {

@@ -238,7 +238,11 @@ func (q *queueImp) AddGroup(group string, queue string,
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	if err := q.metadata.AddGroupConfig(group, queue, write, read, url, ips); err != nil {
+	if err := q.metadata.AddGroup(group, queue, write, read, url, ips); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := q.metadata.ResetOffset(queue, group, sarama.OffsetNewest); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -263,7 +267,7 @@ func (q *queueImp) DeleteGroup(group string, queue string) error {
 		return errors.NotValidf("group : %q , queue : %q", group, queue)
 	}
 
-	if err := q.metadata.DeleteGroupConfig(group, queue); err != nil {
+	if err := q.metadata.DeleteGroup(group, queue); err != nil {
 		return errors.Trace(err)
 	}
 

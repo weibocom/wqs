@@ -390,32 +390,71 @@ func (m *Manager) ExistTopic(topic string) (bool, error) {
 	return false, nil
 }
 
-func (m *Manager) FetchTopicSize(topic string) (int64, error) {
-	count := int64(0)
-	topicOffsets, err := m.FetchTopicOffsets(topic)
+//func (m *Manager) FetchTopicSize(topic string) (int64, error) {
+//	count := int64(0)
+//	offsets, err := m.FetchTopicOffsets(topic, sarama.OffsetNewest)
+//	if err != nil {
+//		return count, err
+//	}
+//	for _, offset := range offsets {
+//		if offset > 0 {
+//			count += offset
+//		}
+//	}
+//	return count, nil
+//}
+
+// 目前只能用于新建group时的offset置位，当group join-group后，Kafka server需要检查
+// OffsetCommitRequest的ConsumerGroupGeneration、ConsumerID是否有效，这样，该API
+// 就会返回失败。当有新的需求时，应当考虑该API是否需要重新设计。
+func (m *Manager) CommitOffset(topic, group string, offsets map[int32]int64) error {
+	m.client.RefreshCoordinator(group)
+	broker, err := m.client.Coordinator(group)
 	if err != nil {
-		return -1, err
+		return err
 	}
-	for _, offset := range topicOffsets {
-		// topic 的offset是下次要写入的位置，而不是最后一条消息的位置，所以在这里要减1
-		offset--
-		count += offset
+	request := &sarama.OffsetCommitRequest{
+		Version:                 2,
+		ConsumerGroup:           group,
+		ConsumerGroupGeneration: -1,
+		ConsumerID:              "",
+		RetentionTime:           -1,
 	}
-	return count, nil
+
+	for partition, offset := range offsets {
+		if offset > -1 {
+			request.AddBlock(topic, partition, offset, 0, "")
+		}
+	}
+
+	response, err := broker.CommitOffset(request)
+	if err != nil {
+		return err
+	}
+
+	for eTopic, ePartitions := range response.Errors {
+		for partition, err := range ePartitions {
+			if err != sarama.ErrNoError {
+				return errors.Annotatef(err, "at commit offset topic %s partition %d", eTopic, partition)
+			}
+		}
+	}
+	return nil
 }
 
-func (m *Manager) FetchTopicOffsets(topic string) (map[int32]int64, error) {
+func (m *Manager) FetchTopicOffsets(topic string, time int64) (map[int32]int64, error) {
 	partitions, err := m.client.Partitions(topic)
-	offsets := make(map[int32]int64, len(partitions))
 	if err != nil {
 		return nil, err
 	}
-	for partition := range partitions {
-		offset, err := m.client.GetOffset(topic, int32(partition), -1)
-		if err != nil {
-			return nil, err
+
+	offsets := make(map[int32]int64, len(partitions))
+	for _, partition := range partitions {
+		if offset, err := m.client.GetOffset(topic, partition, time); err == nil {
+			// 得到的offset为该topic将要写入消息的offset
+			offsets[partition] = offset - 1
 		} else {
-			offsets[int32(partition)] = offset
+			return nil, err
 		}
 	}
 	return offsets, err
@@ -423,25 +462,32 @@ func (m *Manager) FetchTopicOffsets(topic string) (map[int32]int64, error) {
 
 func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error) {
 	partitions, err := m.client.Partitions(topic)
-	offsets := make(map[int32]int64, len(partitions))
-	req := &sarama.OffsetFetchRequest{
-		Version:       1,
-		ConsumerGroup: group,
+	if err != nil {
+		return nil, err
 	}
+
 	m.client.RefreshCoordinator(group)
 	broker, err := m.client.Coordinator(group)
 	if err != nil {
 		return nil, err
 	}
+
+	req := &sarama.OffsetFetchRequest{
+		Version:       1,
+		ConsumerGroup: group,
+	}
 	for _, partition := range partitions {
 		req.AddPartition(topic, partition)
 	}
-	resp, err := broker.FetchOffset(req)
+
+	offsets := make(map[int32]int64, len(partitions))
+	response, err := broker.FetchOffset(req)
 	if err != nil {
 		return nil, err
 	}
+
 	for _, partition := range partitions {
-		block := resp.GetBlock(topic, partition)
+		block := response.GetBlock(topic, partition)
 		if block == nil {
 			return nil, sarama.ErrIncompleteResponse
 		}
@@ -457,7 +503,7 @@ func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error
 func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
 	topicCount := int64(0)
 	groupCount := int64(0)
-	topicOffsets, err := m.FetchTopicOffsets(topic)
+	topicOffsets, err := m.FetchTopicOffsets(topic, sarama.OffsetNewest)
 	if err != nil {
 		return -1, -1, err
 	}
@@ -469,16 +515,8 @@ func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
 		return -1, -1, errors.Errorf("the num of partition not matched")
 	}
 	for partition, offset := range topicOffsets {
-		// topic 的offset是下次要写入的位置，而不是最后一条消息的位置，所以在这里要减1
-		if offset > 0 {
-			offset--
-		}
-		topicCount += offset
-		if groupOffsets[partition] < 0 {
-			groupCount += offset
-		} else {
-			groupCount += groupOffsets[partition]
-		}
+		topicCount += offset + 1
+		groupCount += groupOffsets[partition] + 1
 	}
 	return topicCount, groupCount, nil
 }
