@@ -97,7 +97,7 @@ func genClusterConfig(hostname string) *cluster.Config {
 	// Consumer
 	config.Config.Consumer.Retry.Backoff = 500 * time.Millisecond
 	config.Config.Consumer.Offsets.CommitInterval = 100 * time.Millisecond
-	//clusterConfig.Config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	config.Config.Consumer.Offsets.Initial = sarama.OffsetOldest
 	config.Group.Offsets.Retry.Max = 3
 	config.Group.Session.Timeout = 10 * time.Second
 	return config
