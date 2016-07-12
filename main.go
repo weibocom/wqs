@@ -90,6 +90,7 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
+	// 由于下面的service Start时，加载之前持久化的统计数据，因此要在它之前初始化好metrics模块
 	if err := metrics.Start(conf); err != nil {
 		log.Fatalf("init metrics err: %v", err)
 	}

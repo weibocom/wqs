@@ -30,7 +30,7 @@ import (
 
 var (
 	errInvalidParam     = errors.New("Invalid params")
-	errClientIsNil      = errors.New("MetricsClient is nil")
+	errInvalidReader    = errors.New("Invalid reader")
 	errUnknownTransport = errors.New("Unknown transport")
 )
 
@@ -81,16 +81,21 @@ type event struct {
 }
 
 type registry struct {
-	eventBus    chan *event
-	registry    metrics.Registry
-	serviceName string
-	writers     map[string]statWriter
-	reader      statReader
-	stopCh      chan struct{}
-	stopping    int32
+	eventBus chan *event
+	registry metrics.Registry
+	writers  map[string]statWriter
+	reader   statReader
+	stopCh   chan struct{}
+	stopping int32
 }
 
-var reg *registry
+var reg = &registry{
+	registry: metrics.NewRegistry(),
+	eventBus: make(chan *event, eventBufferSize),
+	stopCh:   make(chan struct{}),
+	stopping: 0,
+	writers:  make(map[string]statWriter),
+}
 
 func Start(cfg *config.Config) (err error) {
 
@@ -99,16 +104,20 @@ func Start(cfg *config.Config) (err error) {
 		return err
 	}
 
-	reg = &registry{
-		registry:    metrics.NewRegistry(),
-		eventBus:    make(chan *event, eventBufferSize),
-		serviceName: "wqs",
-		stopCh:      make(chan struct{}),
-		stopping:    0,
-		writers:     make(map[string]statWriter),
+	// 初始化states的reader和writer
+	writers := section.GetStringMust("transport.writers", defaultWriter)
+	names := strings.Split(writers, ",")
+	for _, name := range names {
+		w, err := getWriter(name, section)
+		if err != nil {
+			return err
+		}
+		reg.writers[name] = w
 	}
 
-	if err := reg.initWriterAndReader(section); err != nil {
+	reader := section.GetStringMust("transport.reader", defaultReader)
+	reg.reader, err = getReader(reader, section)
+	if err != nil {
 		return err
 	}
 
@@ -117,41 +126,18 @@ func Start(cfg *config.Config) (err error) {
 }
 
 func Stop() {
-	if reg != nil {
-		reg.stop()
+	reg.stop()
+}
+
+func (r *registry) stop() {
+	if atomic.SwapInt32(&r.stopping, 1) == 0 {
+		close(r.stopCh)
 	}
 }
 
-func (m *registry) stop() {
-	if atomic.SwapInt32(&m.stopping, 1) == 0 {
-		close(m.stopCh)
-	}
-}
+func (r *registry) eventLoop() {
 
-func (m *registry) initWriterAndReader(section config.Section) error {
-
-	writers := section.GetStringMust("transport.writers", defaultWriter)
-	names := strings.Split(writers, ",")
-	for _, name := range names {
-		w, err := getWriter(name, section)
-		if err != nil {
-			return err
-		}
-		m.writers[name] = w
-	}
-
-	var err error
-	reader := section.GetStringMust("transport.reader", defaultReader)
-	reg.reader, err = getReader(reader, section)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *registry) eventLoop() {
-
-	if atomic.LoadInt32(&m.stopping) == 1 {
+	if atomic.LoadInt32(&r.stopping) == 1 {
 		return
 	}
 
@@ -159,33 +145,33 @@ func (m *registry) eventLoop() {
 
 	for {
 		select {
-		case evt := <-m.eventBus:
-			m.processEvent(evt)
+		case evt := <-r.eventBus:
+			r.processEvent(evt)
 		case <-ticker.C:
-			m.sink()
-		case <-m.stopCh:
+			r.sink()
+		case <-r.stopCh:
 			ticker.Stop()
 			return
 		}
 	}
 }
 
-func (m *registry) processEvent(evt *event) {
+func (r *registry) processEvent(evt *event) {
 	switch evt.event {
 	case eventCounter:
-		metrics.GetOrRegisterCounter(evt.key, m.registry).Inc(evt.value)
+		metrics.GetOrRegisterCounter(evt.key, r.registry).Inc(evt.value)
 	case eventMeter:
-		getOrRegisterMeter(evt.key, m.registry).Mark(evt.value)
+		getOrRegisterMeter(evt.key, r.registry).Mark(evt.value)
 	case eventTimer:
-		getOrRegisterTimer(evt.key, m.registry).Update(time.Duration(evt.value))
+		getOrRegisterTimer(evt.key, r.registry).Update(time.Duration(evt.value))
 	}
 }
 
-func (m *registry) snapshot() metrics.Registry {
+func (r *registry) snapshot() metrics.Registry {
 	hasElement := false
 	snap := metrics.NewRegistry()
 
-	m.registry.Each(func(key string, i interface{}) {
+	r.registry.Each(func(key string, i interface{}) {
 		switch m := i.(type) {
 		case metrics.Counter:
 			snap.Register(key, m.Snapshot())
@@ -208,21 +194,19 @@ func (m *registry) snapshot() metrics.Registry {
 	return snap
 }
 
-func (m *registry) sink() {
+func (r *registry) sink() {
 
-	snap := m.snapshot()
+	snap := r.snapshot()
 	if snap == nil {
 		log.Warn("metrics snapshot empty.")
 		return
 	}
 
-	for name, writer := range m.writers {
-		err := writer.Write(snap)
-		if err != nil {
+	for name, writer := range r.writers {
+		if err := writer.Write(snap); err != nil {
 			log.Errorf("metrics writer %s error : %v", name, err)
 		}
 	}
-	snap.UnregisterAll()
 }
 
 func AddCounter(key string, value int64) {
@@ -266,8 +250,8 @@ func GetTimerMean(key string) float64 {
 
 func GetMetrics(param *QueryParam) (stat string, err error) {
 
-	if reg == nil || reg.reader == nil {
-		return "", errClientIsNil
+	if reg.reader == nil {
+		return "", errInvalidReader
 	}
 
 	if err := param.validate(); err != nil {

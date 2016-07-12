@@ -43,9 +43,7 @@ func SaveDataToString() string {
 }
 
 func LoadDataFromBytes(s []byte) error {
-	if reg == nil {
-		return errClientIsNil
-	}
+
 	if len(s) == 0 {
 		return nil
 	}
