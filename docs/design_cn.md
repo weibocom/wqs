@@ -62,6 +62,7 @@
 ## 多IDC支持
   - QService多IDC支持采用`按需拉取`来实现。
   - 当需要读取多个IDC机房里的同一queue的消息时，proxy同时批量拉取各个IDC内对应queue里的消息。
+  - 其他细节详见[这里](idc_cn.md)
 
 ## 分布式
   - QService是分布式架构的，全部proxy完全对等，没有身份的区分。
