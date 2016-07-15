@@ -559,6 +559,14 @@ func (m *Metadata) AddQueue(queue string, idcs []string) error {
 	// 检查IDCs中是否包含了本地IDC
 	idcs = appendIfNotContains(idcs, m.local)
 
+	// 检查要求的IDC是否都存在
+	for _, idc := range idcs {
+		_, ok := m.managers[idc]
+		if !ok {
+			return errors.NotFoundf("idc: %q", idc)
+		}
+	}
+
 	// 缺乏出错回滚
 	for _, idc := range idcs {
 		manager := m.managers[idc]
