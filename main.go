@@ -81,6 +81,9 @@ func main() {
 		return
 	}
 
+	waitExist := make(chan os.Signal, 1)
+	signal.Notify(waitExist, syscall.SIGTERM, os.Interrupt, os.Kill, syscall.SIGSTOP)
+
 	conf, err := config.NewConfigFromFile(*configFile)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
@@ -105,11 +108,10 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, os.Interrupt, os.Kill, syscall.SIGSTOP)
-	log.Info("Process start")
-	<-c
+	log.Info("<======= process start =======>")
+	log.Infof("<======= receive signal %s to exist... =======>", <-waitExist)
+
 	server.Stop()
 	metrics.Stop()
-	log.Info("Process stop")
+	log.Info("<======= process stop =======>")
 }
