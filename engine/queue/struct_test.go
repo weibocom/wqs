@@ -38,8 +38,8 @@ func TestStruct(t *testing.T) {
 	}
 	fmt.Println(groupConfig.String())
 
-	groups := make([]*GroupConfig, 0)
-	groups = append(groups, &groupConfig)
+	groups := make([]GroupConfig, 0)
+	groups = append(groups, groupConfig)
 	queueInfo := QueueInfo{Queue: "test_queue", Ctime: 1234567890, Groups: groups}
 	fmt.Println(queueInfo.String())
 

@@ -227,7 +227,7 @@ func (q *queueImp) Lookup(queue string, group string) (queueInfos []*QueueInfo, 
 				return
 			}
 		}
-		queueInfos[0].Groups = make([]*GroupConfig, 0)
+		queueInfos[0].Groups = make([]GroupConfig, 0)
 	}
 	return
 }

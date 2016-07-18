@@ -467,11 +467,11 @@ func (m *Metadata) GetQueueInfo(queues ...string) ([]*QueueInfo, error) {
 			Queue:  queue,
 			Ctime:  queueConfig.Ctime,
 			Length: queueConfig.Length,
-			Groups: make([]*GroupConfig, 0),
+			Groups: make([]GroupConfig, 0),
 		}
 
 		for _, groupConfig := range queueConfig.Groups {
-			queueInfo.Groups = append(queueInfo.Groups, &groupConfig)
+			queueInfo.Groups = append(queueInfo.Groups, groupConfig)
 		}
 		queueInfos = append(queueInfos, &queueInfo)
 	}

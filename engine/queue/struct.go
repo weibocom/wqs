@@ -24,10 +24,10 @@ import (
 )
 
 type QueueInfo struct {
-	Queue  string         `json:"queue"`
-	Ctime  int64          `json:"ctime"`
-	Length int64          `json:"length"`
-	Groups []*GroupConfig `json:"groups,omitempty"`
+	Queue  string        `json:"queue"`
+	Ctime  int64         `json:"ctime"`
+	Length int64         `json:"length"`
+	Groups []GroupConfig `json:"groups,omitempty"`
 }
 
 type QueueConfig struct {
