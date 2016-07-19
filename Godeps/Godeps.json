@@ -2,6 +2,9 @@
 	"ImportPath": "github.com/weibocom/wqs",
 	"GoVersion": "go1.6",
 	"GodepVersion": "v62",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
@@ -16,6 +19,11 @@
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
 			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+		},
+		{
+			"ImportPath": "github.com/docopt/docopt-go",
+			"Comment": "0.6.2",
+			"Rev": "784ddc588536785e7299f7272f39101f7faccc3f"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
@@ -54,28 +62,8 @@
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
 		},
 		{
-			"ImportPath": "gopkg.in/bsm/ratelimit.v1",
-			"Rev": "db14e161995a5177acef654cb0dd785e8ee8bc22"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3",
-			"Comment": "v3.6.0",
-			"Rev": "d2ae7d870764d131887fa31a743bb50abbcf9384"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/consistenthash",
-			"Comment": "v3.6.0",
-			"Rev": "d2ae7d870764d131887fa31a743bb50abbcf9384"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/hashtag",
-			"Comment": "v3.6.0",
-			"Rev": "d2ae7d870764d131887fa31a743bb50abbcf9384"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/pool",
-			"Comment": "v3.6.0",
-			"Rev": "d2ae7d870764d131887fa31a743bb50abbcf9384"
+			"ImportPath": "github.com/smallfish/memcache",
+			"Rev": "e0d3c8939b9dcfa9cd119bc4e5c3df6d2b87e9a1"
 		}
 	]
 }

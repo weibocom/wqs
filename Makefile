@@ -10,12 +10,7 @@ default: vet build
 
 dep:
 	$(GO) get ./...
-	sh script/update_conflict.sh
 	cd ./cmd/benchmark
-	$(GO) get ./...
-	cd $(WORKDIR)
-	cd cmd/go_kafka_client_benchmark
-	cd $(WORKDIR)
 	$(GO) get ./...
 
 vet:
@@ -40,7 +35,6 @@ build-qservice:
 
 benchmark:bin vet
 	$(GO) build -o bin/benchmark ./cmd/benchmark/
-	$(GO) build -o bin/go_kafka_client_benchmark ./cmd/go_kafka_client_benchmark/
 
 clean:
 	@-./script/run_kafka.sh clean
