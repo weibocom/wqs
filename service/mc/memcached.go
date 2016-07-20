@@ -18,7 +18,6 @@ package mc
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -27,18 +26,13 @@ import (
 	"time"
 
 	"github.com/juju/errors"
-	"github.com/weibocom/wqs/config"
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/log"
 	"github.com/weibocom/wqs/utils"
 )
 
-const (
-	defaultGroup = "default"
-)
-
-type McServer struct {
-	port         string
+type Server struct {
+	addr         string
 	queue        queue.Queue
 	listener     *utils.Listener
 	stopping     int32
@@ -48,64 +42,63 @@ type McServer struct {
 	mu           sync.Mutex
 }
 
-func NewMcServer(q queue.Queue, config *config.Config) *McServer {
-	return &McServer{
-		port:         config.McPort,
+func NewServer(q queue.Queue, addr string, recvBuffSize, sendBuffSize int) *Server {
+	return &Server{
+		addr:         addr,
 		queue:        q,
-		recvBuffSize: config.McSocketRecvBuffer,
-		sendBuffSize: config.McSocketSendBuffer,
+		recvBuffSize: recvBuffSize,
+		sendBuffSize: sendBuffSize,
 		connPool:     make(map[net.Conn]net.Conn),
 	}
 }
 
-func (ms *McServer) Start() error {
-
+func (s *Server) Start() error {
 	var err error
-	ms.listener, err = utils.Listen("tcp", fmt.Sprintf(":%s", ms.port))
+	s.listener, err = utils.Listen("tcp", s.addr)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	log.Debugf("memcached protocol server start on %s port.", ms.port)
-	go ms.mainLoop()
+
+	log.Infof("memcached protocol server start on %s", s.addr)
+	go s.mainLoop()
 	return nil
 }
 
-func (ms *McServer) mainLoop() {
-
-	for atomic.LoadInt32(&ms.stopping) == 0 {
-		conn, err := ms.listener.Accept()
+func (s *Server) mainLoop() {
+	for atomic.LoadInt32(&s.stopping) == 0 {
+		conn, err := s.listener.Accept()
 		if err != nil {
 			log.Errorf("mc server accept error: %s", err)
 			continue
 		}
-		if atomic.LoadInt32(&ms.stopping) != 0 {
+		if atomic.LoadInt32(&s.stopping) != 0 {
 			conn.Close()
 			return
 		}
 		log.Debugf("mc server new client: %s", conn.RemoteAddr())
-		ms.mu.Lock()
-		ms.connPool[conn] = conn
-		ms.mu.Unlock()
-		go ms.connLoop(conn)
+		s.mu.Lock()
+		s.connPool[conn] = conn
+		s.mu.Unlock()
+		go s.connLoop(conn)
 	}
 }
 
-func (ms *McServer) connLoop(conn net.Conn) {
+func (s *Server) connLoop(conn net.Conn) {
 	defer func(conn net.Conn) {
 		log.Debugf("mc client closed :%s", conn.RemoteAddr())
-		ms.mu.Lock()
-		delete(ms.connPool, conn)
-		ms.mu.Unlock()
+		s.mu.Lock()
+		delete(s.connPool, conn)
+		s.mu.Unlock()
 		conn.Close()
 		if err := recover(); err != nil {
 			log.Errorf("mc connLoop panic error: %s", err)
 		}
 	}(conn)
 
-	br := bufio.NewReaderSize(conn, ms.recvBuffSize)
-	bw := bufio.NewWriterSize(conn, ms.sendBuffSize)
+	br := bufio.NewReaderSize(conn, s.recvBuffSize)
+	bw := bufio.NewWriterSize(conn, s.sendBuffSize)
 
-	for atomic.LoadInt32(&ms.stopping) == 0 {
+	for atomic.LoadInt32(&s.stopping) == 0 {
 		data, err := br.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -117,43 +110,41 @@ func (ms *McServer) connLoop(conn net.Conn) {
 
 		tokens := strings.Split(strings.TrimSpace(data), " ")
 		cmd := tokens[0]
-		command, exists := commands[cmd]
-		if !exists {
+		command, ok := commands[cmd]
+		if !ok {
 			command = commandUnkown
-			cmd = "unsupported"
 		}
-		err = command(ms.queue, tokens, br, bw)
+		needClose := command(s.queue, tokens, br, bw)
 		bw.Flush()
-		if err != nil {
-			//command返回错误一定是不能容忍的错误，需要退出循环关闭连接，防止将后续有效数据的格式都破坏掉
-			log.Errorf("mc bad command:%s", errors.ErrorStack(err))
+		if needClose {
+			log.Errorf("memcached client %s ocurr error, close connection.", conn.RemoteAddr())
 			return
 		}
 	}
 }
 
 //close all connections of memcached protocol server.
-func (ms *McServer) DrainConn() {
-	ms.mu.Lock()
-	for _, conn := range ms.connPool {
+func (s *Server) DrainConn() {
+	s.mu.Lock()
+	for _, conn := range s.connPool {
 		conn.Close()
 	}
-	ms.mu.Unlock()
+	s.mu.Unlock()
 }
 
-func (ms *McServer) Stop() {
-	if !atomic.CompareAndSwapInt32(&ms.stopping, 0, 1) {
+func (s *Server) Stop() {
+	if !atomic.CompareAndSwapInt32(&s.stopping, 0, 1) {
 		return
 	}
 	//Make on processing commamd to run over
 	time.Sleep(200 * time.Millisecond)
-	if err := ms.listener.Close(); err != nil {
+	if err := s.listener.Close(); err != nil {
 		log.Errorf("mc server listener close failed:%s", err)
 		return
 	}
-	ms.DrainConn()
-	for ms.listener.GetRemain() != 0 {
+	s.DrainConn()
+	for s.listener.GetRemain() != 0 {
 		time.Sleep(time.Millisecond)
 	}
-	log.Debugf("mc protocol server stop.")
+	log.Info("memcached protocol server stop.")
 }

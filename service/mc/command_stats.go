@@ -27,8 +27,6 @@ import (
 
 	"github.com/weibocom/wqs/engine/queue"
 	"github.com/weibocom/wqs/metrics"
-
-	"github.com/juju/errors"
 )
 
 const (
@@ -39,12 +37,12 @@ func init() {
 	registerCommand(cmdStats, commandStats)
 }
 
-func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) bool {
 
 	fields := len(tokens)
 	if fields != 1 && fields != 2 {
-		fmt.Fprint(w, respClientErrorBadCmdFormat)
-		return errors.NotValidf("mc tokens %v ", tokens)
+		w.WriteString(respClientErrorBadCmdFormat)
+		return true
 	}
 
 	if fields == 1 {
@@ -78,7 +76,7 @@ func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writ
 		accumulationInfos, err := q.AccumulationStatus()
 		if err != nil {
 			fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
-			return nil
+			return false
 		}
 		for _, accumulationInfo := range accumulationInfos {
 			fmt.Fprintf(w, "%s %s.%s %d/%d \r\n", "STAT",
@@ -89,7 +87,7 @@ func commandStats(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writ
 		}
 		fmt.Fprint(w, respEnd)
 	} else {
-		fmt.Fprint(w, respError)
+		w.WriteString(respError)
 	}
-	return nil
+	return false
 }

@@ -23,19 +23,34 @@ import (
 	"github.com/weibocom/wqs/engine/queue"
 )
 
-type MemcacheCommand func(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error
+const (
+	defaultGroup                = "default"
+	noReply                     = "noreply"
+	respValue                   = "VALUE"
+	respEnd                     = "END\r\n"
+	respError                   = "ERROR\r\n"
+	respStored                  = "STORED\r\n"
+	respClientErrorBadDatachunk = "CLIENT_ERROR bad data chunk\r\n"
+	respClientErrorBadCmdFormat = "CLIENT_ERROR bad command line format\r\n"
+	respEngineErrorPrefix       = "SERVER_ERROR engine error"
+)
+
+//command返回true时，标识发生不能容忍的错误，需要关闭连接，防止将后续有效数据的格式都破坏掉
+type memcacheCommand func(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) (close bool)
 
 var (
 	// all memcached commands are based on https://github.com/memcached/memcached/blob/master/doc/protocol.txt
-	commands    = make(map[string]MemcacheCommand)
-	cmdUnknown  = "$cmdUnkown$"
-	cmdNoFields = "$cmdNoFields$"
+	commands = make(map[string]memcacheCommand)
 )
 
-func registerCommand(name string, command MemcacheCommand) error {
+func registerCommand(name string, command memcacheCommand) {
 	if _, exists := commands[name]; exists {
 		panic(fmt.Errorf("command duplicate %q", name))
 	}
 	commands[name] = command
-	return nil
+}
+
+func commandUnkown(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) bool {
+	w.WriteString(respError)
+	return true
 }

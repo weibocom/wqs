@@ -103,8 +103,7 @@ func main() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	err = server.Start()
-	if err != nil {
+	if err = server.Start(); err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
 

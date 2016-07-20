@@ -24,8 +24,6 @@ import (
 	"strings"
 
 	"github.com/weibocom/wqs/engine/queue"
-
-	"github.com/juju/errors"
 )
 
 const (
@@ -38,45 +36,51 @@ func init() {
 	registerCommand(cmdEset, commandSet)
 }
 
-func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) error {
+func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer) bool {
 
-	var noreply string
-
+	noreply := false
 	fields := len(tokens)
 	if fields != 5 && fields != 6 {
-		fmt.Fprint(w, respClientErrorBadCmdFormat)
-		return errors.NotValidf("mc tokens %v ", tokens)
+		w.WriteString(respClientErrorBadCmdFormat)
+		return true
 	}
 	cmd := tokens[0]
 	key := tokens[1]
 	if fields == 6 {
-		noreply = tokens[5]
+		if noReply != tokens[5] {
+			w.WriteString(respClientErrorBadCmdFormat)
+			return true
+		}
+		noreply = true
 	}
 
 	flag, err := strconv.ParseUint(tokens[2], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, respClientErrorBadCmdFormat)
-		return errors.Trace(err)
+		w.WriteString(respClientErrorBadCmdFormat)
+		return true
 	}
 
 	length, err := strconv.ParseUint(tokens[4], 10, 32)
 	if err != nil {
-		fmt.Fprint(w, respClientErrorBadCmdFormat)
-		return errors.Trace(err)
+		w.WriteString(respClientErrorBadCmdFormat)
+		return true
 	}
 
-	data := make([]byte, length)
-	_, err = io.ReadAtLeast(r, data, int(length))
+	data := make([]byte, length+2)
+	_, err = io.ReadAtLeast(r, data, int(length+2))
 	if err != nil {
-		fmt.Fprint(w, respClientErrorBadDatachunk)
-		return errors.Trace(err)
+		w.WriteString(respClientErrorBadDatachunk)
+		return true
 	}
-	r.ReadString('\n')
+	if data[length] != '\r' || data[length+1] != '\n' {
+		w.WriteString(respClientErrorBadDatachunk)
+		return true
+	}
 
-	keys := strings.Split(key, ".")
+	keys := strings.SplitN(key, ".", 2)
 	group := defaultGroup
 	queue := keys[0]
-	if len(keys) > 1 {
+	if len(keys) == 2 {
 		group = keys[0]
 		queue = keys[1]
 	}
@@ -84,18 +88,18 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 	id, err := q.SendMessage(queue, group, data, flag)
 	if err != nil {
 		fmt.Fprintf(w, "%s %s\r\n", respEngineErrorPrefix, err)
-		return nil
+		return false
 	}
 
-	if noReply == noreply {
-		return nil
+	if noreply {
+		return false
 	}
 
 	// if eset command, return message id
 	if cmd == cmdEset {
 		fmt.Fprintf(w, "%s\r\n", id)
-		return nil
+		return false
 	}
-	fmt.Fprint(w, respStored)
-	return nil
+	w.WriteString(respStored)
+	return false
 }

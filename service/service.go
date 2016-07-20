@@ -41,7 +41,7 @@ import (
 type Server struct {
 	config   *config.Config
 	queue    queue.Queue
-	mc       *mc.McServer
+	mc       *mc.Server
 	listener *utils.Listener
 }
 
@@ -103,9 +103,8 @@ func (s *Server) Start() error {
 	server := &http.Server{Handler: router}
 	server.SetKeepAlivesEnabled(true)
 
-	s.mc = mc.NewMcServer(s.queue, s.config)
-	err = s.mc.Start()
-	if err != nil {
+	s.mc = mc.NewServer(s.queue, ":"+s.config.McPort, s.config.McSocketRecvBuffer, s.config.McSocketSendBuffer)
+	if err = s.mc.Start(); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -398,8 +397,7 @@ func (s *Server) getProxiesHandler(w http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	buff := &bytes.Buffer{}
-	err = json.NewEncoder(buff).Encode(proxys)
-	if err != nil {
+	if err := json.NewEncoder(buff).Encode(proxys); err != nil {
 		response(w, 500, err.Error())
 		return
 	}
