@@ -36,6 +36,9 @@ build-qservice:
 benchmark:bin vet
 	$(GO) build -o bin/benchmark ./cmd/benchmark/
 
+states:bin vet
+	$(GO) build -o bin/states ./cmd/states/
+
 clean:
 	@-./script/run_kafka.sh clean
 	@rm -rf bin
