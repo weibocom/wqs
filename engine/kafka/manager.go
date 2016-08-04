@@ -442,6 +442,7 @@ func (m *Manager) CommitOffset(topic, group string, offsets map[int32]int64) err
 	return nil
 }
 
+// 得到的offset为该topic将要写入消息的offset
 func (m *Manager) FetchTopicOffsets(topic string, time int64) (map[int32]int64, error) {
 	partitions, err := m.client.Partitions(topic)
 	if err != nil {
@@ -450,12 +451,11 @@ func (m *Manager) FetchTopicOffsets(topic string, time int64) (map[int32]int64, 
 
 	offsets := make(map[int32]int64, len(partitions))
 	for _, partition := range partitions {
-		if offset, err := m.client.GetOffset(topic, partition, time); err == nil {
-			// 得到的offset为该topic将要写入消息的offset
-			offsets[partition] = offset - 1
-		} else {
+		offset, err := m.client.GetOffset(topic, partition, time)
+		if err != nil {
 			return nil, err
 		}
+		offsets[partition] = offset
 	}
 	return offsets, err
 }
@@ -500,25 +500,32 @@ func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error
 	return offsets, nil
 }
 
+// 获得指定topic, group堆积的消息的信息
 func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
-	topicCount := int64(0)
-	groupCount := int64(0)
+	totalCount := int64(0)
+	consumedCount := int64(0)
+
 	topicOffsets, err := m.FetchTopicOffsets(topic, sarama.OffsetNewest)
 	if err != nil {
-		return -1, -1, err
+		return 0, 0, err
 	}
 	groupOffsets, err := m.FetchGroupOffsets(topic, group)
 	if err != nil {
-		return -1, -1, err
+		return 0, 0, err
 	}
+
 	if len(topicOffsets) != len(groupOffsets) {
-		return -1, -1, errors.Errorf("the num of partition not matched")
+		return 0, 0, errors.Errorf("the num of partition not matched")
 	}
+
 	for partition, offset := range topicOffsets {
-		topicCount += offset + 1
-		groupCount += groupOffsets[partition] + 1
+		totalCount += offset
+		consumed := groupOffsets[partition]
+		if consumed > 0 {
+			consumedCount += consumed
+		}
 	}
-	return topicCount, groupCount, nil
+	return totalCount, consumedCount, nil
 }
 
 func (m *Manager) Close() error {
