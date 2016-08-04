@@ -59,7 +59,7 @@
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
+			"Rev": "e64db453f3512cade908163702045e0f31137843"
 		},
 		{
 			"ImportPath": "github.com/smallfish/memcache",

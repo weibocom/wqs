@@ -16,74 +16,112 @@ limitations under the License.
 
 package zookeeper
 
-import "testing"
-
-var testZkList = []string{"localhost:2181"}
-
-const (
-	testZkPath  = "/fortest"
-	testZkPath1 = "/fortest/1/2/3"
+import (
+	"fmt"
+	"os"
+	"strings"
+	"testing"
 )
 
-func TestZkClient(t *testing.T) {
-	zk, err := NewZkClient(testZkList)
+const (
+	testData                = "testData"
+	testSetData             = "testSetData"
+	testCreatePath          = "/fortest"
+	testCreateOrUpdatePath  = "/fortest/1/2"
+	testCreateRecursivePath = "/fortest/1/2/3"
+)
+
+func testNewConnection() (*Conn, error) {
+	addrs := os.Getenv("ZOOKEEPER_ADDR")
+	if len(addrs) == 0 {
+		addrs = "localhost:2181"
+	}
+	fmt.Printf("addr %s", addrs)
+	return NewConnect(strings.Split(addrs, ","))
+}
+
+func TestConnGetSetDelete(t *testing.T) {
+	conn, err := testNewConnection()
 	if err != nil {
-		t.Fatalf("NewZkClient err: %s", err)
+		t.Errorf("NewConnect error %v", err)
+	}
+	defer conn.Close()
+
+	if err := conn.Create(testCreatePath, testData, 0); err != nil {
+		t.Errorf("Create error %v", err)
 	}
 
-	err = zk.Create(testZkPath, "test", 0)
+	data, _, err := conn.Get(testCreatePath)
 	if err != nil {
-		t.Fatalf("Create err: %s", err)
+		t.Errorf("Get %s error %v", testCreatePath, err)
 	}
 
-	data, _, err := zk.Get(testZkPath)
-	if err != nil {
-		t.Fatalf("Get err: %s", err)
-	}
-	if string(data) != "test" {
-		t.Errorf("Get wrong data:%s, expect:test", string(data))
+	if string(data) != testData {
+		t.Errorf("Get data %s, but expect %s", string(data), testData)
 	}
 
-	_, _, err = zk.Children("/")
-	if err != nil {
-		t.Fatalf("Children err: %s", err)
+	if err := conn.Set(testCreatePath, testSetData); err != nil {
+		t.Fatalf("Set error %v", err)
 	}
 
-	err = zk.Delete(testZkPath)
+	data, _, err = conn.Get(testCreatePath)
 	if err != nil {
-		t.Fatalf("Delete err: %s", err)
+		t.Errorf("Get %s error %v", testCreatePath, err)
+	}
+
+	if string(data) != testSetData {
+		t.Errorf("Get data %s, but expect %s", string(data), testSetData)
+	}
+
+	if err := conn.Delete(testCreatePath); err != nil {
+		t.Errorf("Delete %s error %v", testCreatePath, err)
 	}
 }
 
-func TestZkRecursiveOperations(t *testing.T) {
-	zk, err := NewZkClient(testZkList)
+func TestRecursive(t *testing.T) {
+
+	conn, err := testNewConnection()
 	if err != nil {
-		t.Fatalf("NewZkClient err: %s", err)
+		t.Fatalf("NewConnect error %v", err)
+	}
+	defer conn.Close()
+
+	if err := conn.CreateRecursive(testCreateRecursivePath, testData, 0); err != nil {
+		t.Fatalf("CreateRecursive error %v", err)
 	}
 
-	err = zk.CreateRecursive(testZkPath1, "test", 0)
+	data, _, err := conn.Get(testCreateRecursivePath)
 	if err != nil {
-		t.Fatalf("Create err: %s", err)
+		t.Fatalf("Get %s error %v", testCreateRecursivePath, err)
 	}
 
-	data, _, err := zk.Get(testZkPath1)
-	if err != nil {
-		t.Fatalf("Get err: %s", err)
-	}
-	if string(data) != "test" {
-		t.Errorf("Get wrong data:%s, expect:test", string(data))
+	if string(data) != testData {
+		t.Errorf("Get data %s, but expect %s", string(data), testData)
 	}
 
-	err = zk.DeleteRec(testZkPath)
+	hasChildren, err := conn.HasChildren(testCreatePath)
 	if err != nil {
-		t.Fatalf("Delete err: %s", err)
+		t.Fatalf("HasChildren error %v", err)
 	}
 
-	exist, _, err := zk.Exists(testZkPath)
-	if err != nil {
-		t.Fatalf("Exists err: %s", err)
+	if !hasChildren {
+		t.Errorf("HasChildren got wrong value %v", hasChildren)
 	}
-	if exist {
-		t.Fatalf("Exists wrong.")
+
+	if err := conn.CreateOrUpdate(testCreateOrUpdatePath, testData, 0); err != nil {
+		t.Fatalf("CreateOrUpdate error %v", err)
+	}
+
+	data, _, err = conn.Get(testCreateOrUpdatePath)
+	if err != nil {
+		t.Fatalf("Get %s error %v", testCreateOrUpdatePath, err)
+	}
+
+	if string(data) != testData {
+		t.Errorf("Get data %s, but expect %s", string(data), testData)
+	}
+
+	if err := conn.DeleteRecursive(testCreatePath); err != nil {
+		t.Fatalf("Delete %s error %v", testCreatePath, err)
 	}
 }

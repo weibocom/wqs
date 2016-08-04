@@ -45,7 +45,7 @@ const (
 
 type Metadata struct {
 	config          *config.Config
-	zkClient        *zookeeper.ZkClient
+	zkClient        *zookeeper.Conn
 	managers        map[string]*kafka.Manager
 	groupConfigPath string
 	queuePath       string
@@ -69,7 +69,7 @@ func NewMetadata(config *config.Config, sconfig *sarama.Config) (*Metadata, erro
 		return nil, errors.Trace(err)
 	}
 
-	zkClient, err := zookeeper.NewZkClient(strings.Split(config.MetaDataZKAddr, ","))
+	zkClient, err := zookeeper.NewConnect(strings.Split(config.MetaDataZKAddr, ","))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -411,7 +411,7 @@ func (m *Metadata) DeleteGroup(group string, queue string) error {
 
 	path := m.buildConfigPath(group, queue)
 	log.Debugf("delete group config, zk path:%s", path)
-	if err := m.zkClient.DeleteRec(path); err != nil {
+	if err := m.zkClient.DeleteRecursive(path); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
@@ -613,7 +613,7 @@ func (m *Metadata) DelQueue(queue string) error {
 
 	path := m.buildQueuePath(queue)
 	log.Debugf("del queue, zk path:%s", path)
-	if err := m.zkClient.DeleteRec(path); err != nil {
+	if err := m.zkClient.DeleteRecursive(path); err != nil {
 		return errors.Trace(err)
 	}
 	delete(m.queueConfigs, queue)

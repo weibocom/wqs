@@ -39,7 +39,7 @@ const (
 	topicConfigs           = "/config/topics"
 	adminDeleteTopicPath   = "/admin/delete_topics"
 	groupMetadataTopicName = "__consumer_offsets"
-	defaultVersion         = 1
+	kafkaVersion           = 1
 )
 
 type brokerConfig struct {
@@ -70,14 +70,14 @@ type topicPatitionConfig struct {
 
 type Manager struct {
 	client      sarama.Client
-	zkClient    *zookeeper.ZkClient
+	zkClient    *zookeeper.Conn
 	kafkaRoot   string
 	brokerAddrs []string
 	brokersList []int32
 	mu          sync.Mutex
 }
 
-func getBrokerAddrs(zkClient *zookeeper.ZkClient, kafkaRoot string) ([]string, []int32, error) {
+func getBrokerAddrs(zkClient *zookeeper.Conn, kafkaRoot string) ([]string, []int32, error) {
 	brokerAddrs, brokersList := make([]string, 0), make([]int32, 0)
 
 	brokers, _, err := zkClient.Children(fmt.Sprintf("%s%s", kafkaRoot, brokersIds))
@@ -179,7 +179,7 @@ func NewManager(zkAddrs []string, kafkaRoot string, conf *sarama.Config) (*Manag
 		kafkaRoot = ""
 	}
 
-	zkClient, err := zookeeper.NewZkClient(zkAddrs)
+	zkClient, err := zookeeper.NewConnect(zkAddrs)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -252,7 +252,7 @@ func (m *Manager) createOrUpdateTopicPartitionAssignmentPathInZK(topic string,
 		//				return errors.NotValidf("topic : %q", topic)
 		//			}
 		//		}
-		info := &topicInfo{Version: defaultVersion}
+		info := &topicInfo{Version: kafkaVersion}
 		topicConfigPath := fmt.Sprintf("%s%s/%s", m.kafkaRoot, topicConfigs, topic)
 		configData, err := json.Marshal(&info)
 		if err != nil {
@@ -264,7 +264,7 @@ func (m *Manager) createOrUpdateTopicPartitionAssignmentPathInZK(topic string,
 		}
 	}
 	partitionConfig := topicPatitionConfig{
-		Version:    defaultVersion,
+		Version:    kafkaVersion,
 		Partitions: assignment,
 	}
 	partitionConfigData, err := json.Marshal(&partitionConfig)

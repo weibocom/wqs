@@ -19,6 +19,7 @@ package zookeeper
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"time"
 
 	"github.com/juju/errors"
@@ -26,69 +27,84 @@ import (
 	"github.com/weibocom/wqs/log"
 )
 
-const defaultVersion = -1
+const (
+	defaultVersion      = -1
+	errorMessagePattern = `[Ff]ailed|err=`
+	sessionTimeout      = time.Second
+)
 
 //For dup package github.com/samuel/go-zookeeper/zk log print
 type logger struct {
+	reg *regexp.Regexp
 }
 
-func (l logger) Printf(format string, a ...interface{}) {
-	log.Info("[zk] ", fmt.Sprintf(format, a...))
+func newLogger() *logger {
+	return &logger{reg: regexp.MustCompile(errorMessagePattern)}
 }
 
-type ZkClient struct {
+func (l *logger) Printf(format string, a ...interface{}) {
+	message := fmt.Sprintf(format, a...)
+	if len(l.reg.FindStringIndex(message)) == 0 {
+		log.Info("[zk] ", message)
+		return
+	}
+	log.Error("[zk] ", message)
+}
+
+type Conn struct {
 	*zk.Conn
 }
 
-func zkClientSetLogger(c *zk.Conn) {
-	c.SetLogger(logger{})
+func connInit(c *zk.Conn) {
+	c.SetLogger(newLogger())
 }
 
-func NewZkClient(servers []string) (*ZkClient, error) {
-	c, _, err := zk.Connect(servers, time.Second, zkClientSetLogger)
+// create a new zookeeper connection by given addrs
+func NewConnect(addrs []string) (*Conn, error) {
+	conn, _, err := zk.Connect(addrs, sessionTimeout, connInit)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	return &ZkClient{Conn: c}, nil
+	return &Conn{Conn: conn}, nil
 }
 
 //Create a node by path with data.
-func (z *ZkClient) Create(path string, data string, flags int32) error {
-	_, err := z.Conn.Create(path, []byte(data), flags, zk.WorldACL(zk.PermAll))
+func (c *Conn) Create(path string, data string, flags int32) error {
+	_, err := c.Conn.Create(path, []byte(data), flags, zk.WorldACL(zk.PermAll))
 	return err
 }
 
-func (z *ZkClient) CreateOrUpdate(zkPath string, data string, flags int32) error {
-	err := z.CreateRecursive(zkPath, data, flags)
+//Update data of give path, if not exist create one
+func (c *Conn) CreateOrUpdate(path string, data string, flags int32) error {
+	err := c.CreateRecursive(path, data, flags)
 	if err != nil && err == zk.ErrNodeExists {
-		err = z.Set(zkPath, data)
+		err = c.Set(path, data)
 	}
 	return err
 }
 
-//递归创建节点
-func (z *ZkClient) CreateRecursive(zkPath string, data string, flags int32) error {
-	err := z.Create(zkPath, data, flags)
+//recursive create a node
+func (c *Conn) CreateRecursive(zkPath string, data string, flags int32) error {
+	err := c.Create(zkPath, data, flags)
 	if err == zk.ErrNoNode {
-		err = z.CreateRecursive(path.Dir(zkPath), "", flags)
+		err = c.CreateRecursive(path.Dir(zkPath), "", flags)
 		if err != nil && err != zk.ErrNodeExists {
 			return err
 		}
-		err = z.Create(zkPath, data, flags)
+		err = c.Create(zkPath, data, flags)
 	}
 	return err
 }
 
 //Delete a node by path.
-func (z *ZkClient) Delete(path string) error {
-	return z.Conn.Delete(path, defaultVersion)
+func (c *Conn) Delete(path string) error {
+	return c.Conn.Delete(path, defaultVersion)
 }
 
 //递归删除
-func (z *ZkClient) DeleteRec(zkPath string) error {
-
-	err := z.Delete(zkPath)
+func (c *Conn) DeleteRecursive(zkPath string) error {
+	err := c.Delete(zkPath)
 	if err == nil {
 		return nil
 	}
@@ -96,29 +112,30 @@ func (z *ZkClient) DeleteRec(zkPath string) error {
 		return err
 	}
 
-	children, _, err := z.Children(zkPath)
+	children, _, err := c.Children(zkPath)
 	if err != nil {
 		return err
 	}
 	for _, child := range children {
-		err = z.DeleteRec(path.Join(zkPath, child))
-		if err != nil {
+		if err = c.DeleteRecursive(path.Join(zkPath, child)); err != nil {
 			return err
 		}
 	}
 
-	return z.Delete(zkPath)
+	return c.Delete(zkPath)
 }
 
-func (z *ZkClient) Set(path string, data string) error {
-	_, err := z.Conn.Set(path, []byte(data), defaultVersion)
+// set data to given path
+func (c *Conn) Set(path string, data string) error {
+	_, err := c.Conn.Set(path, []byte(data), defaultVersion)
 	return err
 }
 
-func (z *ZkClient) HasChildren(path string) (bool, error) {
-	children, _, err := z.Conn.Children(path)
+// test given path whether has sub-node
+func (c *Conn) HasChildren(path string) (bool, error) {
+	children, _, err := c.Conn.Children(path)
 	if err != nil {
-		return false, errors.Trace(err)
+		return false, err
 	}
 	if len(children) == 0 {
 		return false, nil

@@ -20,13 +20,13 @@ bin:
 	@mkdir -p bin
 
 test:
-	./script/run_kafka.sh run go test ./...
+	./script/run_kafka.sh run go test ./... -cover
 
 test-verbose:
-	./script/run_kafka.sh run go test ./... -v
+	./script/run_kafka.sh run go test ./... -v -cover
 
 test-race:
-	./script/run_kafka.sh run go test ./... -v -race
+	./script/run_kafka.sh run go test ./... -v -race -cover
 
 build: build-qservice
 
