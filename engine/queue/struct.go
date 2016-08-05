@@ -30,6 +30,34 @@ type QueueInfo struct {
 	Groups []GroupConfig `json:"groups,omitempty"`
 }
 
+type queueInfoSlice []*QueueInfo
+
+func (q queueInfoSlice) Len() int {
+	return len(q)
+}
+
+func (q queueInfoSlice) Less(i, j int) bool {
+	return q[i].Queue < q[j].Queue
+}
+
+func (q queueInfoSlice) Swap(i, j int) {
+	q[i], q[j] = q[j], q[i]
+}
+
+type groupSlice []GroupConfig
+
+func (q groupSlice) Len() int {
+	return len(q)
+}
+
+func (q groupSlice) Less(i, j int) bool {
+	return q[i].Group < q[j].Group
+}
+
+func (q groupSlice) Swap(i, j int) {
+	q[i], q[j] = q[j], q[i]
+}
+
 type QueueConfig struct {
 	Queue  string                 `json:"queue"`
 	Ctime  int64                  `json:"ctime"`
@@ -59,14 +87,14 @@ type GroupInfo struct {
 	Queues []*GroupConfig `json:"queues,omitempty"`
 }
 
-func (queueInfo *QueueInfo) String() string {
-	result, _ := json.Marshal(queueInfo)
-	return string(result)
+func (i *QueueInfo) String() string {
+	data, _ := json.Marshal(i)
+	return string(data)
 }
 
-func (groupInfo *GroupInfo) String() string {
-	result, _ := json.Marshal(groupInfo)
-	return string(result)
+func (i *GroupInfo) String() string {
+	data, _ := json.Marshal(i)
+	return string(data)
 }
 
 type GroupConfig struct {
@@ -78,15 +106,23 @@ type GroupConfig struct {
 	Ips   []string `json:"ips"`
 }
 
-func (groupConfig *GroupConfig) String() string {
-	result, _ := json.Marshal(groupConfig)
-	return string(result)
+func (c *GroupConfig) Load(data []byte) error {
+	return json.Unmarshal(data, c)
+}
+
+func (c *GroupConfig) String() string {
+	data, _ := json.Marshal(c)
+	return string(data)
 }
 
 type proxyInfo struct {
 	Host   string `json:"host"`
 	Config string `json:"config"`
 	config *config.Config
+}
+
+func (i *proxyInfo) Load(data []byte) error {
+	return json.Unmarshal(data, i)
 }
 
 func (i *proxyInfo) String() string {

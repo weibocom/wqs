@@ -390,7 +390,7 @@ func (s *Server) createQueueHandler(w http.ResponseWriter, r *http.Request, ps h
 // Get all online proxies, return id and hostname
 func (s *Server) getProxiesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
-	proxys, err := s.queue.GetProxys()
+	proxys, err := s.queue.Proxys()
 	if err != nil {
 		response(w, 500, err.Error())
 		return

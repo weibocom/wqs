@@ -32,7 +32,7 @@ type Queue interface {
 	RecvMessage(queue string, group string) (id string, data []byte, flag uint64, err error)
 	AckMessage(queue string, group string, id string) error
 	AccumulationStatus() ([]AccumulationInfo, error)
-	GetProxys() (map[string]string, error)
+	Proxys() (map[string]string, error)
 	GetProxyConfigByID(id int) (string, error)
 	UpTime() int64
 	Version() string

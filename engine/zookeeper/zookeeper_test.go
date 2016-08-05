@@ -51,6 +51,12 @@ func TestConnGetSetDelete(t *testing.T) {
 		t.Errorf("Create error %v", err)
 	}
 
+	if err := conn.Create(testCreatePath, testData, 0); err == nil {
+		t.Errorf("Create error, should ocurr node exist error")
+	} else if !IsExistError(err) {
+		t.Errorf("should ocurr node exist error")
+	}
+
 	data, _, err := conn.Get(testCreatePath)
 	if err != nil {
 		t.Errorf("Get %s error %v", testCreatePath, err)
@@ -88,6 +94,10 @@ func TestRecursive(t *testing.T) {
 
 	if err := conn.CreateRecursive(testCreateRecursivePath, testData, 0); err != nil {
 		t.Fatalf("CreateRecursive error %v", err)
+	}
+
+	if err := conn.CreateRecursiveIgnoreExist(testCreateRecursivePath, "", 0); err != nil {
+		t.Fatalf("CreateRecursiveIgnoreExist error %v", err)
 	}
 
 	data, _, err := conn.Get(testCreateRecursivePath)

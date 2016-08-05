@@ -48,6 +48,7 @@ type queueImp struct {
 	version       string
 }
 
+// return a custom cluster config
 func genClusterConfig(hostname string) *cluster.Config {
 
 	config := cluster.NewConfig()
@@ -83,6 +84,7 @@ func genClusterConfig(hostname string) *cluster.Config {
 	return config
 }
 
+// return a new queue instance
 func newQueue(config *config.Config, version string) (*queueImp, error) {
 
 	hostname, err := os.Hostname()
@@ -96,16 +98,17 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		return nil, errors.Trace(err)
 	}
 
-	srvInfo := &proxyInfo{
+	info := &proxyInfo{
 		Host:   hostname,
 		config: config,
 	}
-	err = metadata.RegisterService(config.ProxyId, srvInfo.String())
-	if err != nil {
+
+	if err = metadata.RegisterService(config.ProxyId, info.String()); err != nil {
 		metadata.Close()
 		return nil, errors.Trace(err)
 	}
-	producer, err := kafka.NewProducer(metadata.getLocalManager().BrokerAddrs(), &clusterConfig.Config)
+
+	producer, err := kafka.NewProducer(metadata.LocalManager().BrokerAddrs(), &clusterConfig.Config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -121,8 +124,9 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		uptime:        time.Now(),
 		version:       version,
 	}
+
 	if err := qs.loadMetrics(); err != nil {
-		log.Errorf("queue load metrics: %v", err)
+		log.Errorf("queue load metrics error %v", err)
 	}
 	return qs, nil
 }
@@ -464,10 +468,11 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	return nil
 }
 
+// return all group's accumulation
 func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
+
 	accumulationInfos := make([]AccumulationInfo, 0)
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
+	if err := q.metadata.RefreshMetadata(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -489,10 +494,12 @@ func (q *queueImp) AccumulationStatus() ([]AccumulationInfo, error) {
 	return accumulationInfos, nil
 }
 
-func (q *queueImp) GetProxys() (map[string]string, error) {
-	return q.metadata.GetProxys()
+// return online proxys
+func (q *queueImp) Proxys() (map[string]string, error) {
+	return q.metadata.Proxys()
 }
 
+// return given proxy config
 func (q *queueImp) GetProxyConfigByID(id int) (string, error) {
 	return q.metadata.GetProxyConfigByID(id)
 }

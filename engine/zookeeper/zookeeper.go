@@ -31,6 +31,7 @@ const (
 	defaultVersion      = -1
 	errorMessagePattern = `[Ff]ailed|err=`
 	sessionTimeout      = time.Second
+	Ephemeral           = zk.FlagEphemeral
 )
 
 //For dup package github.com/samuel/go-zookeeper/zk log print
@@ -97,6 +98,14 @@ func (c *Conn) CreateRecursive(zkPath string, data string, flags int32) error {
 	return err
 }
 
+// recursive create a node, if it exists then omit
+func (c *Conn) CreateRecursiveIgnoreExist(path string, data string, flags int32) (err error) {
+	if err = c.CreateRecursive(path, data, flags); err == zk.ErrNodeExists {
+		err = nil
+	}
+	return err
+}
+
 //Delete a node by path.
 func (c *Conn) Delete(path string) error {
 	return c.Conn.Delete(path, defaultVersion)
@@ -141,4 +150,28 @@ func (c *Conn) HasChildren(path string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+func (c *Conn) NewMutex(path string) *Mutex {
+	return &Mutex{zk.NewLock(c.Conn, path, zk.WorldACL(zk.PermAll))}
+}
+
+type Mutex struct {
+	lock *zk.Lock
+}
+
+func (mu *Mutex) Lock() error {
+	return mu.lock.Lock()
+}
+
+func (mu *Mutex) Unlock() error {
+	return mu.lock.Unlock()
+}
+
+func IsExistError(err error) bool {
+	return err == zk.ErrNodeExists
+}
+
+func IsNoNode(err error) bool {
+	return err == zk.ErrNoNode
 }
