@@ -43,7 +43,7 @@ type queueImp struct {
 	idGenerator   *idGenerator
 	consumerMap   map[string]*kafka.Consumer
 	vaildName     *regexp.Regexp
-	mu            sync.Mutex
+	rw            sync.RWMutex
 	uptime        time.Time
 	version       string
 }
@@ -371,23 +371,28 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	}
 
 	owner := queue + "@" + group
-	q.mu.Lock()
+	q.rw.RLock()
 	consumer, ok := q.consumerMap[owner]
+	q.rw.RUnlock()
 	if !ok {
-		// 此处获取config跟之前ExistGroup并不是原子操作，存在并发风险
-		var err error
-		queueConfig := q.metadata.GetQueueConfig(queue)
-		brokerAddrs := q.metadata.GetBrokerAddrsByIdc(queueConfig.Idcs...)
-		consumer, err = kafka.NewConsumer(brokerAddrs, q.clusterConfig, queue, group)
-		if err != nil {
-			q.mu.Unlock()
-			metrics.AddMeter(metrics.CmdGetError+"."+metrics.Qps, 1)
-			log.Errorf("RecvMessage: new consumer error %v", err)
-			return "", nil, 0, err
+		q.rw.Lock()
+		consumer, ok = q.consumerMap[owner]
+		if !ok {
+			// 此处获取config跟之前ExistGroup并不是原子操作，存在并发风险
+			var err error
+			queueConfig := q.metadata.GetQueueConfig(queue)
+			brokerAddrs := q.metadata.GetBrokerAddrsByIdc(queueConfig.Idcs...)
+			consumer, err = kafka.NewConsumer(brokerAddrs, q.clusterConfig, queue, group)
+			if err != nil {
+				q.rw.Unlock()
+				metrics.AddMeter(metrics.CmdGetError+"."+metrics.Qps, 1)
+				log.Errorf("RecvMessage: new consumer error %v", err)
+				return "", nil, 0, err
+			}
+			q.consumerMap[owner] = consumer
 		}
-		q.consumerMap[owner] = consumer
+		q.rw.Unlock()
 	}
-	q.mu.Unlock()
 
 	msg, idc, err := consumer.Recv()
 	if err != nil {
@@ -439,9 +444,9 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	}
 
 	owner := queue + "@" + group
-	q.mu.Lock()
+	q.rw.RLock()
 	consumer, ok := q.consumerMap[owner]
-	q.mu.Unlock()
+	q.rw.RUnlock()
 	if !ok {
 		metrics.AddMeter(metrics.CmdAckError+"."+metrics.Qps, 1)
 		log.Errorf("AckMessage: queue %q group %q not found consumer", queue, group)
@@ -530,8 +535,8 @@ func (q *queueImp) saveMetrics() error {
 
 // close the queue
 func (q *queueImp) Close() {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	q.rw.RLock()
+	defer q.rw.RUnlock()
 
 	if err := q.saveMetrics(); err != nil {
 		log.Errorf("queue save metrics: %v", err)
