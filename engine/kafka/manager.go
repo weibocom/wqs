@@ -17,12 +17,10 @@ limitations under the License.
 package kafka
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/weibocom/wqs/engine/zookeeper"
@@ -42,69 +40,50 @@ const (
 	kafkaVersion           = 1
 )
 
-type brokerConfig struct {
-	JmxPort   int32    `json:"jmx_port,omitempty"`
-	TimeStamp int64    `json:"timestamp,string"`
-	EndPoints []string `json:"endpoints"`
-	Host      string   `json:"host"`
-	Version   int32    `json:"version"`
-	Port      int32    `json:"port"`
-}
-
-type topicConfig struct {
-	// {"segment.bytes":"104857600","compression.type":"uncompressed","cleanup.policy":"compact"}}
-	// empty object by default
-}
-
-type topicInfo struct {
-	Version int32       `json:"version"`
-	Config  topicConfig `json:"config"`
-}
-
-type partitonAssignment map[string][]int32
-
-type topicPatitionConfig struct {
-	Version    int32              `json:"version"`
-	Partitions partitonAssignment `json:"partitions"`
-}
-
 type Manager struct {
-	client      sarama.Client
-	zkClient    *zookeeper.Conn
+	kClient     sarama.Client
+	zkConn      *zookeeper.Conn
 	kafkaRoot   string
 	brokerAddrs []string
 	brokersList []int32
 	mu          sync.Mutex
+	ops         sync.Mutex
 }
 
-func getBrokerAddrs(zkClient *zookeeper.Conn, kafkaRoot string) ([]string, []int32, error) {
-	brokerAddrs, brokersList := make([]string, 0), make([]int32, 0)
+// get online brokers
+func getBrokerAddrs(zkConn *zookeeper.Conn, kafkaRoot string) ([]string, []int32, error) {
 
-	brokers, _, err := zkClient.Children(fmt.Sprintf("%s%s", kafkaRoot, brokersIds))
+	brokerAddrs, brokersList := make([]string, 0), make([]int32, 0)
+	brokers, _, err := zkConn.Children(fmt.Sprintf("%s%s", kafkaRoot, brokersIds))
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}
 
 	for _, broker := range brokers {
-		data, _, err := zkClient.Get(fmt.Sprintf("%s%s/%s", kafkaRoot, brokersIds, broker))
+		data, _, err := zkConn.Get(fmt.Sprintf("%s%s/%s", kafkaRoot, brokersIds, broker))
 		if err != nil {
 			return nil, nil, errors.Trace(err)
 		}
 
-		var config brokerConfig
-		err = json.Unmarshal(data, &config)
-		if err != nil {
+		config := brokerConfig{}
+		if err := config.LoadFromBytes(data); err != nil {
 			return nil, nil, errors.Trace(err)
 		}
-		brokerAddrs = append(brokerAddrs, fmt.Sprintf("%s:%d", config.Host, config.Port))
-		brokerID, err := strconv.ParseInt(broker, 10, 32)
+
+		id, err := strconv.ParseInt(broker, 10, 32)
 		if err != nil {
+			log.Warnf("get invalid kafka broker %q and omit it", broker)
 			continue
 		}
-		brokersList = append(brokersList, int32(brokerID))
+		brokerAddrs = append(brokerAddrs, fmt.Sprintf("%s:%d", config.Host, config.Port))
+		brokersList = append(brokersList, int32(id))
 	}
-	sort.Sort(utils.Int32Slice(brokersList))
 
+	if len(brokersList) == 0 || len(brokerAddrs) == 0 {
+		return nil, nil, errors.NotFoundf("brokers from zookeeper")
+	}
+
+	sort.Sort(utils.Int32Slice(brokersList))
 	return brokerAddrs, brokersList, nil
 }
 
@@ -173,46 +152,47 @@ func assignReplicasToBrokers(brokersList []int32,
 	return assignment, nil
 }
 
+// new a kafka manager by give zookeeper address of kafka
 func NewManager(zkAddrs []string, kafkaRoot string, conf *sarama.Config) (*Manager, error) {
 
 	if kafkaRoot == "/" {
 		kafkaRoot = ""
 	}
 
-	zkClient, err := zookeeper.NewConnect(zkAddrs)
+	zkConn, err := zookeeper.NewConnect(zkAddrs)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	brokerAddrs, brokersList, err := getBrokerAddrs(zkClient, kafkaRoot)
+	brokerAddrs, brokersList, err := getBrokerAddrs(zkConn, kafkaRoot)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	client, err := sarama.NewClient(brokerAddrs, conf)
+	kClient, err := sarama.NewClient(brokerAddrs, conf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	manager := &Manager{
-		client:      client,
-		zkClient:    zkClient,
+		kClient:     kClient,
+		zkConn:      zkConn,
 		kafkaRoot:   kafkaRoot,
 		brokerAddrs: brokerAddrs,
 		brokersList: brokersList,
 	}
 
-	err = manager.RefreshMetadata()
-	if err != nil {
+	if err = manager.RefreshMetadata(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	return manager, nil
 }
 
+//refresh the available metadata of kafka
 func (m *Manager) RefreshMetadata() error {
 
-	brokerAddrs, brokersList, err := getBrokerAddrs(m.zkClient, m.kafkaRoot)
+	brokerAddrs, brokersList, err := getBrokerAddrs(m.zkConn, m.kafkaRoot)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -220,22 +200,34 @@ func (m *Manager) RefreshMetadata() error {
 	m.mu.Lock()
 	m.brokerAddrs, m.brokersList = brokerAddrs, brokersList
 	m.mu.Unlock()
-	return m.client.RefreshMetadata()
+	return m.kClient.RefreshMetadata()
 }
 
+// get broker address from manager's cached data
 func (m *Manager) BrokerAddrs() []string {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	// 浅拷贝
-	return m.brokerAddrs
+	brokerAddrs := make([]string, len(m.brokerAddrs))
+	copy(brokerAddrs, m.brokerAddrs)
+	m.mu.Unlock()
+	return brokerAddrs
 }
 
+// get broker id list from manager's cached data
+func (m *Manager) BrokersList() []int32 {
+	m.mu.Lock()
+	brokersList := make([]int32, len(m.brokersList))
+	copy(brokersList, m.brokersList)
+	m.mu.Unlock()
+	return brokersList
+}
+
+// create topic internal function
 func (m *Manager) createOrUpdateTopicPartitionAssignmentPathInZK(topic string,
 	assignment partitonAssignment, update bool) error {
 
 	topicPath := fmt.Sprintf("%s%s/%s", m.kafkaRoot, brokerTopics, topic)
 	if !update {
-		exist, _, err := m.zkClient.Exists(topicPath)
+		exist, _, err := m.zkConn.Exists(topicPath)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -254,71 +246,63 @@ func (m *Manager) createOrUpdateTopicPartitionAssignmentPathInZK(topic string,
 		//		}
 		info := &topicInfo{Version: kafkaVersion}
 		topicConfigPath := fmt.Sprintf("%s%s/%s", m.kafkaRoot, topicConfigs, topic)
-		configData, err := json.Marshal(&info)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		err = m.zkClient.Create(topicConfigPath, string(configData), 0)
-		if err != nil {
+		if err = m.zkConn.Create(topicConfigPath, info.String(), 0); err != nil {
 			return errors.Trace(err)
 		}
 	}
+
 	partitionConfig := topicPatitionConfig{
 		Version:    kafkaVersion,
 		Partitions: assignment,
 	}
-	partitionConfigData, err := json.Marshal(&partitionConfig)
-	if err != nil {
-		return errors.Trace(err)
-	}
+
 	if update {
-		err = m.zkClient.Set(topicPath, string(partitionConfigData))
-		if err != nil {
+		if err := m.zkConn.Set(topicPath, partitionConfig.String()); err != nil {
 			return errors.Trace(err)
 		}
 	} else {
-		err = m.zkClient.Create(topicPath, string(partitionConfigData), 0)
-		if err != nil {
+		if err := m.zkConn.Create(topicPath, partitionConfig.String(), 0); err != nil {
 			return errors.Trace(err)
 		}
 	}
 	return nil
 }
 
+// create a topic by given name
 func (m *Manager) CreateTopic(topic string, replications int32, partitions int32) error {
+	m.ops.Lock()
+	defer m.ops.Unlock()
 
-	m.mu.Lock()
-	brokersList := m.brokersList
-	m.mu.Unlock()
-
+	brokersList := m.BrokersList()
 	assignment, err := assignReplicasToBrokers(brokersList, partitions, replications, -1, -1)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	err = m.createOrUpdateTopicPartitionAssignmentPathInZK(topic, assignment, false)
-	if err != nil {
+	if err = m.createOrUpdateTopicPartitionAssignmentPathInZK(topic, assignment, false); err != nil {
 		return errors.Trace(err)
 	}
 
 	return nil
 }
 
+// add partitions to a topic
 func (m *Manager) UpdateTopic(topic string, partitions int) error {
+	m.ops.Lock()
+	defer m.ops.Unlock()
 
 	if topic == groupMetadataTopicName {
 		return errors.NotValidf("cannot modify internal topic")
 	}
 
 	topicPath := fmt.Sprintf("%s%s/%s", m.kafkaRoot, brokerTopics, topic)
-	topicAssignData, _, err := m.zkClient.Get(topicPath)
+	topicAssignData, _, err := m.zkConn.Get(topicPath)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
 	partitionConfig := topicPatitionConfig{}
-	err = json.Unmarshal(topicAssignData, &partitionConfig)
-	if err != nil {
+	if err = partitionConfig.LoadFromBytes(topicAssignData); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -333,9 +317,7 @@ func (m *Manager) UpdateTopic(topic string, partitions int) error {
 		return errors.Errorf("exist replication is 0")
 	}
 
-	m.mu.Lock()
-	brokersList := m.brokersList
-	m.mu.Unlock()
+	brokersList := m.BrokersList()
 
 	newAssignment, err := assignReplicasToBrokers(brokersList, int32(partitionsToAdd),
 		int32(len(replicationList)), replicationList[0], int32(len(partitionConfig.Partitions)))
@@ -351,68 +333,54 @@ func (m *Manager) UpdateTopic(topic string, partitions int) error {
 		partitionConfig.Partitions[partition] = assign
 	}
 
-	err = m.createOrUpdateTopicPartitionAssignmentPathInZK(topic, partitionConfig.Partitions, true)
-	if err != nil {
+	if err = m.createOrUpdateTopicPartitionAssignmentPathInZK(topic, partitionConfig.Partitions, true); err != nil {
 		return errors.Trace(err)
 	}
 
 	return nil
 }
 
+// mark given topic to delete
 func (m *Manager) DeleteTopic(topic string) error {
 
 	deleteTopicPath := fmt.Sprintf("%s%s/%s", m.kafkaRoot, adminDeleteTopicPath, topic)
-	err := m.zkClient.Create(deleteTopicPath, "", 0)
-	if err != nil {
+
+	if err := m.zkConn.Create(deleteTopicPath, "", 0); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
-func (m *Manager) GetTopics() ([]string, error) {
-	topics, err := m.client.Topics()
-	if err != nil {
-		log.Warnf("get topics err : %s", err)
-	}
-	return topics, err
+// Topics returns the set of available topics as retrieved from cluster metadata.
+func (m *Manager) Topics() (topics []string, err error) {
+	return m.kClient.Topics()
 }
 
+// test given topic whether exists.
 func (m *Manager) ExistTopic(topic string) (bool, error) {
-	topics, err := m.GetTopics()
+	topics, err := m.Topics()
 	if err != nil {
 		return false, errors.Trace(err)
 	}
 	for _, t := range topics {
-		if strings.EqualFold(t, topic) {
+		if t == topic {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-//func (m *Manager) FetchTopicSize(topic string) (int64, error) {
-//	count := int64(0)
-//	offsets, err := m.FetchTopicOffsets(topic, sarama.OffsetNewest)
-//	if err != nil {
-//		return count, err
-//	}
-//	for _, offset := range offsets {
-//		if offset > 0 {
-//			count += offset
-//		}
-//	}
-//	return count, nil
-//}
-
 // 目前只能用于新建group时的offset置位，当group join-group后，Kafka server需要检查
 // OffsetCommitRequest的ConsumerGroupGeneration、ConsumerID是否有效，这样，该API
 // 就会返回失败。当有新的需求时，应当考虑该API是否需要重新设计。
 func (m *Manager) CommitOffset(topic, group string, offsets map[int32]int64) error {
-	m.client.RefreshCoordinator(group)
-	broker, err := m.client.Coordinator(group)
+	m.kClient.RefreshCoordinator(group)
+
+	broker, err := m.kClient.Coordinator(group)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
+
 	request := &sarama.OffsetCommitRequest{
 		Version:                 2,
 		ConsumerGroup:           group,
@@ -429,13 +397,14 @@ func (m *Manager) CommitOffset(topic, group string, offsets map[int32]int64) err
 
 	response, err := broker.CommitOffset(request)
 	if err != nil {
+		broker.Close()
 		return err
 	}
 
-	for eTopic, ePartitions := range response.Errors {
-		for partition, err := range ePartitions {
+	for t, partitions := range response.Errors {
+		for partition, err := range partitions {
 			if err != sarama.ErrNoError {
-				return errors.Annotatef(err, "at commit offset topic %s partition %d", eTopic, partition)
+				return errors.Annotatef(err, "at commit offset topic %s partition %d", t, partition)
 			}
 		}
 	}
@@ -444,14 +413,14 @@ func (m *Manager) CommitOffset(topic, group string, offsets map[int32]int64) err
 
 // 得到的offset为该topic将要写入消息的offset
 func (m *Manager) FetchTopicOffsets(topic string, time int64) (map[int32]int64, error) {
-	partitions, err := m.client.Partitions(topic)
+	partitions, err := m.kClient.Partitions(topic)
 	if err != nil {
 		return nil, err
 	}
 
 	offsets := make(map[int32]int64, len(partitions))
 	for _, partition := range partitions {
-		offset, err := m.client.GetOffset(topic, partition, time)
+		offset, err := m.kClient.GetOffset(topic, partition, time)
 		if err != nil {
 			return nil, err
 		}
@@ -461,13 +430,13 @@ func (m *Manager) FetchTopicOffsets(topic string, time int64) (map[int32]int64, 
 }
 
 func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error) {
-	partitions, err := m.client.Partitions(topic)
+	partitions, err := m.kClient.Partitions(topic)
 	if err != nil {
 		return nil, err
 	}
 
-	m.client.RefreshCoordinator(group)
-	broker, err := m.client.Coordinator(group)
+	m.kClient.RefreshCoordinator(group)
+	broker, err := m.kClient.Coordinator(group)
 	if err != nil {
 		return nil, err
 	}
@@ -483,6 +452,7 @@ func (m *Manager) FetchGroupOffsets(topic, group string) (map[int32]int64, error
 	offsets := make(map[int32]int64, len(partitions))
 	response, err := broker.FetchOffset(req)
 	if err != nil {
+		broker.Close()
 		return nil, err
 	}
 
@@ -528,6 +498,7 @@ func (m *Manager) Accumulation(topic, group string) (int64, int64, error) {
 	return totalCount, consumedCount, nil
 }
 
+// close manager
 func (m *Manager) Close() error {
-	return m.client.Close()
+	return m.kClient.Close()
 }
