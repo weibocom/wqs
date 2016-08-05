@@ -62,6 +62,8 @@ const (
 	ToConn      = "ToConn"
 	ReConn      = "ReConn"
 	Elapsed     = "elapsed"
+	Rebalance   = "Rebalance"
+	RecvError   = "RecvError"
 	BytesRead   = "BytesRead"
 	BytesWriten = "BytesWriten"
 

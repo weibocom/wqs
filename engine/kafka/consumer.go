@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package kafka
 
 import (
@@ -25,11 +26,12 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/weibocom/wqs/log"
+	"github.com/weibocom/wqs/metrics"
 	"github.com/weibocom/wqs/utils/list"
 )
 
 const (
-	timeout    = 10 * time.Millisecond
+	timeout    = 8 * time.Millisecond
 	paddingMax = 1024
 	expiredMax = 10 * time.Second
 )
@@ -96,7 +98,7 @@ type ackNode struct {
 	getList list.Node
 }
 
-func (n *ackNode) RemoveBySelf() {
+func (n *ackNode) Remove() {
 	n.ackList.Remove()
 	n.getList.Remove()
 }
@@ -133,10 +135,17 @@ type Consumer struct {
 	dead      sync.WaitGroup
 }
 
+func (c *Consumer) receiveNotification(idc string, notification <-chan *cluster.Notification) {
+	for _ = range notification {
+		metrics.AddMeter(c.topic+"."+c.group+"."+metrics.Rebalance+"."+metrics.Qps, 1)
+		log.Infof("idc %q topic %q group %q consumer occur rebalance", idc, c.topic, c.group)
+	}
+}
+
 func (c *Consumer) dispatch(idc string, in <-chan *sarama.ConsumerMessage, errors <-chan error) {
 	defer func() {
-		if rev := recover(); rev != nil {
-			log.Errorf("idc %s dispatch painc: %v", idc, rev)
+		if x := recover(); x != nil {
+			log.Errorf("idc %q topic %q group %q dispatch painc: %v", idc, c.topic, c.group, x)
 		}
 		c.dead.Done()
 	}()
@@ -154,7 +163,8 @@ func (c *Consumer) dispatch(idc string, in <-chan *sarama.ConsumerMessage, error
 				return
 			}
 		case err := <-errors:
-			log.Errorf("idc: %s consumer occur error: %v", idc, err)
+			metrics.AddMeter(c.topic+"."+c.group+"."+metrics.RecvError+"."+metrics.Qps, 1)
+			log.Errorf("idc %q topic %q group %q consumer occur error: %v", idc, c.topic, c.group, err)
 		case <-c.dying:
 			return
 		}
@@ -190,6 +200,10 @@ func NewConsumer(brokerAddrs map[string][]string, config *cluster.Config, topic,
 	for idc, kConsumer := range kConsumers {
 		consumer.dead.Add(1)
 		go consumer.dispatch(idc, kConsumer.Messages(), kConsumer.Errors())
+
+		if config.Group.Return.Notifications {
+			go consumer.receiveNotification(idc, kConsumer.Notifications())
+		}
 	}
 	return consumer, nil
 
@@ -313,7 +327,7 @@ func (c *Consumer) Ack(idc string, partition int32, offset int64) error {
 	}
 
 	first := head.Front()
-	node.RemoveBySelf()
+	node.Remove()
 	delete(partitionMessages, offset)
 	atomic.AddInt32(&c.padding, -1)
 	if first == node {
