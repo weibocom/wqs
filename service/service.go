@@ -549,7 +549,7 @@ func getLoggerHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 // Get this server version information
 // path "/version"
 func (s *Server) getVersion(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	response(w, 200, s.queue.GetVersion())
+	response(w, 200, s.queue.Version())
 }
 
 func changeLoggerHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

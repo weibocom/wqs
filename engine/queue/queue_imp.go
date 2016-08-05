@@ -101,6 +101,7 @@ func genClusterConfig(hostname string) *cluster.Config {
 	config.Config.Consumer.Offsets.Retention = 7 * 24 * time.Hour
 	config.Config.Consumer.Return.Errors = true
 	config.Group.Offsets.Retry.Max = 3
+	config.Group.Return.Notifications = true
 	config.Group.Session.Timeout = 10 * time.Second
 	return config
 }
@@ -157,7 +158,8 @@ func (q *queueImp) Create(queue string, idcs []string) error {
 	}
 	// 2. add metadata of queue
 	if err := q.metadata.AddQueue(queue, idcs); err != nil {
-		return errors.Trace(err)
+		log.Errorf("create queue %q error %s", queue, errors.ErrorStack(err))
+		return err
 	}
 	return nil
 }
@@ -169,10 +171,11 @@ func (q *queueImp) Update(queue string) error {
 		return errors.NotValidf("queue : %q", queue)
 	}
 	//TODO
-	err := q.metadata.RefreshMetadata()
-	if err != nil {
+
+	if err := q.metadata.RefreshMetadata(); err != nil {
 		return errors.Trace(err)
 	}
+
 	if exist := q.metadata.ExistQueue(queue); !exist {
 		return errors.NotFoundf("queue : %q", queue)
 	}
@@ -188,7 +191,8 @@ func (q *queueImp) Delete(queue string) error {
 	}
 	// 2. delete metadata of queue
 	if err := q.metadata.DelQueue(queue); err != nil {
-		return errors.Trace(err)
+		log.Errorf("delete queue %q error %s", queue, errors.ErrorStack(err))
+		return err
 	}
 	return nil
 }
@@ -197,9 +201,9 @@ func (q *queueImp) Delete(queue string) error {
 //When queue name is "" to get all queue' information.
 func (q *queueImp) Lookup(queue string, group string) (queueInfos []*QueueInfo, err error) {
 
-	err = q.metadata.RefreshMetadata()
-	if err != nil {
-		return nil, errors.Trace(err)
+	if err = q.metadata.RefreshMetadata(); err != nil {
+		log.Errorf("Lookup refresh metadata error %s", errors.ErrorStack(err))
+		return nil, err
 	}
 
 	switch {
@@ -335,8 +339,11 @@ func (q *queueImp) GetSingleGroup(group string, queue string) (*GroupConfig, err
 func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uint64) (string, error) {
 
 	start := time.Now()
-	exist := q.metadata.ExistGroup(queue, group)
-	if !exist {
+
+	if ok := q.metadata.ExistGroup(queue, group); !ok {
+		metrics.AddCounter(metrics.CmdSetError, 1)
+		metrics.AddMeter(metrics.CmdSetError+"."+metrics.Qps, 1)
+		log.Errorf("SendMessage: queue %q group %q not found", queue, group)
 		return "", errors.NotFoundf("queue : %q , group: %q", queue, group)
 	}
 
@@ -345,8 +352,10 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 
 	partition, offset, err := q.producer.Send(queue, []byte(key), data)
 	if err != nil {
-		metrics.AddCounter(metrics.CmdSetMiss, 1)
-		return "", errors.Trace(err)
+		metrics.AddCounter(metrics.CmdSetError, 1)
+		metrics.AddMeter(metrics.CmdSetError+"."+metrics.Qps, 1)
+		log.Errorf("SendMessage: queue %q group %q error %s", queue, group, err)
+		return "", err
 	}
 
 	msgId := messageId{
@@ -371,10 +380,12 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 }
 
 func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint64, error) {
-	var err error
+
 	start := time.Now()
-	exist := q.metadata.ExistGroup(queue, group)
-	if !exist {
+
+	if ok := q.metadata.ExistGroup(queue, group); !ok {
+		metrics.AddMeter(metrics.CmdGetError+"."+metrics.Qps, 1)
+		log.Errorf("RecvMessage: queue %q group %q not found", queue, group)
 		return "", nil, 0, errors.NotFoundf("queue : %q , group: %q", queue, group)
 	}
 
@@ -383,13 +394,15 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	consumer, ok := q.consumerMap[owner]
 	if !ok {
 		// 此处获取config跟之前ExistGroup并不是原子操作，存在并发风险
+		var err error
 		queueConfig := q.metadata.GetQueueConfig(queue)
 		brokerAddrs := q.metadata.GetBrokerAddrsByIdc(queueConfig.Idcs...)
 		consumer, err = kafka.NewConsumer(brokerAddrs, q.clusterConfig, queue, group)
 		if err != nil {
 			q.mu.Unlock()
-			log.Errorf("new kafka consumer: %v", err)
-			return "", nil, 0, errors.Trace(err)
+			metrics.AddMeter(metrics.CmdGetError+"."+metrics.Qps, 1)
+			log.Errorf("RecvMessage: new consumer error %v", err)
+			return "", nil, 0, err
 		}
 		q.consumerMap[owner] = consumer
 	}
@@ -439,6 +452,8 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 
 	start := time.Now()
 	if exist := q.metadata.ExistGroup(queue, group); !exist {
+		metrics.AddMeter(metrics.CmdAckError+"."+metrics.Qps, 1)
+		log.Errorf("AckMessage: queue %q group %q not found", queue, group)
 		return errors.NotFoundf("queue : %q , group: %q", queue, group)
 	}
 
@@ -447,15 +462,19 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	consumer, ok := q.consumerMap[owner]
 	q.mu.Unlock()
 	if !ok {
+		metrics.AddMeter(metrics.CmdAckError+"."+metrics.Qps, 1)
+		log.Errorf("AckMessage: queue %q group %q not found consumer", queue, group)
 		return errors.NotFoundf("group consumer")
 	}
 
 	msgId := &messageId{}
 	if err := msgId.Parse(id); err != nil {
+		metrics.AddMeter(metrics.CmdAckError+"."+metrics.Qps, 1)
 		return errors.NotValidf("message id: %q", id)
 	}
 
 	if err := consumer.Ack(msgId.idc, msgId.partition, msgId.offset); err != nil {
+		metrics.AddMeter(metrics.CmdAckError+"."+metrics.Qps, 1)
 		return err
 	}
 
@@ -501,13 +520,17 @@ func (q *queueImp) GetProxyConfigByID(id int) (string, error) {
 	return q.metadata.GetProxyConfigByID(id)
 }
 
-func (q *queueImp) GetUpTime() int64 {
+// UpTime return queue running time(seconde) during queue start
+func (q *queueImp) UpTime() int64 {
 	return time.Since(q.uptime).Nanoseconds() / 1e9
 }
-func (q *queueImp) GetVersion() string {
+
+// Version return queue's code version
+func (q *queueImp) Version() string {
 	return q.version
 }
 
+// load metrics data from zookeeper
 func (q *queueImp) loadMetrics() error {
 	data, err := q.metadata.LoadMetrics()
 	if err != nil {
@@ -516,12 +539,12 @@ func (q *queueImp) loadMetrics() error {
 	return metrics.LoadDataFromBytes(data)
 }
 
+// save metrics data in zookeeper
 func (q *queueImp) saveMetrics() error {
-	data := metrics.SaveDataToString()
-	return q.metadata.SaveMetrics(data)
+	return q.metadata.SaveMetrics(metrics.SaveDataToString())
 }
 
-// Close 只能调用一次
+// close the queue
 func (q *queueImp) Close() {
 	q.mu.Lock()
 	defer q.mu.Unlock()

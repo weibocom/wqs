@@ -53,9 +53,11 @@ const (
 
 	CmdGet      = "GET"
 	CmdGetMiss  = "GETMiss"
+	CmdGetError = "GetError"
 	CmdSet      = "SET"
-	CmdSetMiss  = "SETMiss"
+	CmdSetError = "SetError"
 	CmdAck      = "ACK"
+	CmdAckError = "AckError"
 	Qps         = "qps"
 	Ops         = "ops"
 	Latency     = "Latency"

@@ -34,8 +34,8 @@ type Queue interface {
 	AccumulationStatus() ([]AccumulationInfo, error)
 	GetProxys() (map[string]string, error)
 	GetProxyConfigByID(id int) (string, error)
-	GetUpTime() int64
-	GetVersion() string
+	UpTime() int64
+	Version() string
 	Close()
 }
 
