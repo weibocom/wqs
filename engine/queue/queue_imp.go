@@ -355,6 +355,7 @@ func (q *queueImp) SendMessage(queue string, group string, data []byte, flag uin
 	metrics.AddCounter(prefix+metrics.Ops, 1)
 	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
 	metrics.AddMeter(prefix+metrics.Qps, 1)
+	metrics.AddMeter(prefix+metrics.ElapseTimeString(cost)+"."+metrics.Qps, 1)
 	metrics.AddCounter(metrics.BytesWriten, int64(len(data)))
 	log.Debugf("send %s:%s key %s id %s cost %d", queue, group, key, messageID, cost)
 	return messageID, nil
@@ -425,6 +426,7 @@ func (q *queueImp) RecvMessage(queue string, group string) (string, []byte, uint
 	metrics.AddCounter(metrics.CmdGet, 1)
 	metrics.AddCounter(prefix+metrics.Ops, 1)
 	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
+	metrics.AddMeter(prefix+metrics.ElapseTimeString(cost)+"."+metrics.Qps, 1)
 	metrics.AddMeter(prefix+metrics.Qps, 1)
 	metrics.AddTimer(prefix+metrics.Latency, delay)
 	metrics.AddCounter(metrics.BytesRead, int64(len(msg.Value)))
@@ -468,6 +470,7 @@ func (q *queueImp) AckMessage(queue string, group string, id string) error {
 	prefix := queue + "." + group + "." + metrics.CmdAck + "."
 	metrics.AddCounter(prefix+metrics.Ops, 1)
 	metrics.AddCounter(prefix+metrics.ElapseTimeString(cost), 1)
+	metrics.AddMeter(prefix+metrics.ElapseTimeString(cost)+"."+metrics.Qps, 1)
 	metrics.AddMeter(prefix+metrics.Qps, 1)
 	log.Debugf("ack %s:%s key nil id %s cost %d", queue, group, id, cost)
 	return nil
