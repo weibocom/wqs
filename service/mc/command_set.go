@@ -77,6 +77,7 @@ func commandSet(q queue.Queue, tokens []string, r *bufio.Reader, w *bufio.Writer
 		return true
 	}
 
+	data = data[:length]
 	keys := strings.SplitN(key, ".", 2)
 	group := defaultGroup
 	queue := keys[0]
