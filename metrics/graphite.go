@@ -141,7 +141,9 @@ func genGraphiteMessages(localIP string, servicePool string, snap metrics.Regist
 		case metrics.Timer:
 			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%.2f|ms",
 				servicePool, localIP, key, m.RateMean())
-		//	case metrics.Gauge:
+		case metrics.Gauge:
+			segment = fmt.Sprintf("openapi_profile.%s.byhost.%s.%s:%d|kv",
+				servicePool, localIP, key, m.Value())
 		//	case metrics.GaugeFloat64:
 		//	case metrics.Histogram:
 		default:

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,11 +43,16 @@ type queueImp struct {
 	producer      *kafka.Producer
 	idGenerator   *idGenerator
 	consumerMap   map[string]*kafka.Consumer
+	dying         chan struct{}
 	vaildName     *regexp.Regexp
 	rw            sync.RWMutex
 	uptime        time.Time
 	version       string
+	numGc         uint32
+	gcPause       uint64
 }
+
+const clockTime = 30 * time.Second
 
 // return a custom cluster config
 func genClusterConfig(hostname string) *cluster.Config {
@@ -121,6 +127,7 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 		idGenerator:   newIDGenerator(uint64(config.ProxyId)),
 		vaildName:     regexp.MustCompile(`^[a-zA-Z0-9_]{1,20}$`),
 		consumerMap:   make(map[string]*kafka.Consumer),
+		dying:         make(chan struct{}),
 		uptime:        time.Now(),
 		version:       version,
 	}
@@ -128,6 +135,7 @@ func newQueue(config *config.Config, version string) (*queueImp, error) {
 	if err := qs.loadMetrics(); err != nil {
 		log.Errorf("queue load metrics error %v", err)
 	}
+	go qs.clocked()
 	return qs, nil
 }
 
@@ -522,6 +530,64 @@ func (q *queueImp) Version() string {
 	return q.version
 }
 
+func (q *queueImp) clocked() {
+	ticker := time.NewTicker(clockTime)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			q.monitoring()
+		case <-q.dying:
+			return
+		}
+	}
+}
+
+func (q *queueImp) monitoring() {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+
+	numGc := stats.NumGC - q.numGc
+	gcPause := stats.PauseTotalNs - q.gcPause
+	q.numGc = stats.NumGC
+	q.gcPause = stats.PauseTotalNs
+
+	metrics.AddGauge(metrics.Gc, int64(numGc))
+	metrics.AddGauge(metrics.Goroutine, int64(runtime.NumGoroutine()))
+	metrics.AddGauge(metrics.MemAlloc, int64(stats.Alloc))
+
+	if numGc > 0 {
+		metrics.AddGauge(metrics.GcPauseAvg, int64(gcPause)/int64(numGc*1e3)) //time.Microsecond
+		if numGc > 256 {
+			numGc = 256
+		}
+		var max, min uint64
+		for i := uint32(0); i < numGc; i++ {
+			pause := stats.PauseNs[(stats.NumGC-i+255)%256]
+			if pause > max {
+				max = pause
+			}
+			if pause < min || i == 0 {
+				min = pause
+			}
+		}
+		metrics.AddGauge(metrics.GcPauseMin, int64(min/1e3))
+		metrics.AddGauge(metrics.GcPauseMax, int64(max/1e3))
+	}
+
+	// monitor for accumulations of all queues
+	accInfos, err := q.AccumulationStatus()
+	if err != nil {
+		log.Errorf("AccumulationStatus error %v", err)
+		return
+	}
+
+	for _, i := range accInfos {
+		metrics.AddGauge(i.Queue+"."+i.Group+"."+metrics.Accum, i.Total-i.Consumed)
+	}
+}
+
 // load metrics data from zookeeper
 func (q *queueImp) loadMetrics() error {
 	data, err := q.metadata.LoadMetrics()
@@ -540,6 +606,8 @@ func (q *queueImp) saveMetrics() error {
 func (q *queueImp) Close() {
 	q.rw.RLock()
 	defer q.rw.RUnlock()
+
+	close(q.dying)
 
 	if err := q.saveMetrics(); err != nil {
 		log.Errorf("queue save metrics: %v", err)

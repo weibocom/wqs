@@ -40,6 +40,7 @@ const (
 	eventCounter eventType = iota
 	eventMeter
 	eventTimer
+	eventGauge
 )
 
 const (
@@ -60,6 +61,7 @@ const (
 	CmdAckError = "AckError"
 	Qps         = "qps"
 	Ops         = "ops"
+	Accum       = "Accum"
 	Latency     = "Latency"
 	ToConn      = "ToConn"
 	ReConn      = "ReConn"
@@ -68,10 +70,16 @@ const (
 	RecvError   = "RecvError"
 	BytesRead   = "BytesRead"
 	BytesWriten = "BytesWriten"
+	Goroutine   = "Goroutine"
+	Gc          = "Gc"
+	GcPauseAvg  = "GcPauseAvg"
+	GcPauseMax  = "GcPauseMax"
+	GcPauseMin  = "GcPauseMin"
+	MemAlloc    = "MemAlloc"
 
 	AllHost = "*"
 
-	eventBufferSize = 1024 * 10
+	eventBufferSize = 1024 * 100
 	defaultWriter   = graphiteWriter
 	defaultReader   = graphiteWriter
 	localhost       = "localhost"
@@ -168,6 +176,8 @@ func (r *registry) processEvent(evt *event) {
 		getOrRegisterMeter(evt.key, r.registry).Mark(evt.value)
 	case eventTimer:
 		getOrRegisterTimer(evt.key, r.registry).Update(time.Duration(evt.value))
+	case eventGauge:
+		metrics.GetOrRegisterGauge(evt.key, r.registry).Update(evt.value)
 	}
 }
 
@@ -250,6 +260,14 @@ func AddTimer(key string, duration int64) {
 
 func GetTimerMean(key string) float64 {
 	return getOrRegisterTimer(key, reg.registry).RateMean()
+}
+
+func AddGauge(key string, value int64) {
+	select {
+	case reg.eventBus <- &event{event: eventGauge, key: key, value: value}:
+	default:
+		log.Error("metrics eventBus is full.")
+	}
 }
 
 func GetMetrics(param *QueryParam) (stat string, err error) {
