@@ -13,8 +13,8 @@
 		},
 		{
 			"ImportPath": "github.com/bsm/sarama-cluster",
-			"Comment": "v1.0.2-47-g2cdc0f6",
-			"Rev": "2cdc0f69c6b91cf16f03121c94f5099377b91390"
+			"Comment": "v2.0.2",
+			"Rev": "f06ad2f941b93b71e4b78fd41a148d2ebb76da64"
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
