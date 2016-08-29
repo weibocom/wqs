@@ -44,9 +44,16 @@ func NewCleaner(expire string, files ...string) *Cleaner {
 		expTime = defaultExpire
 	}
 
+	duration := expTime / 2
+
+	// insure `check` being invoked everyday
+	if duration > 24*time.Hour {
+		duration = 24 * time.Hour
+	}
+
 	cleaner := &Cleaner{
 		dirs:     make(map[string]none),
-		duration: expTime / 2,
+		duration: duration,
 		expire:   expTime,
 		stopCh:   make(chan none),
 	}
