@@ -1,10 +1,10 @@
 [![codebeat badge](https://codebeat.co/badges/5172eb6e-b7bf-4732-bee6-6e6f46d11538)](https://codebeat.co/projects/github-com-weibocom-wqs)
 [![Go Report Card](https://goreportcard.com/badge/github.com/weibocom/wqs)](https://goreportcard.com/report/github.com/weibocom/wqs)
 
-#设计说明：
+# 设计说明：
 详见:[设计文档](docs/design_cn.md)
 
-#编译说明：
+# 编译说明：
 make
 
 ## Running tests
